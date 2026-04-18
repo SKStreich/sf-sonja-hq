@@ -59,7 +59,7 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
 
             {/* Deep-dive links — subtle, near username */}
             <div className="hidden lg:flex items-center gap-2 text-xs text-gray-600 border-l border-gray-800 pl-3">
-              <Link href="/dashboard/all-tasks" className="hover:text-gray-400 transition-colors">Tasks</Link>
+              <Link href="/dashboard/tasks" className="hover:text-gray-400 transition-colors">Tasks</Link>
               <span>·</span>
               <Link href="/dashboard/all-files" className="hover:text-gray-400 transition-colors">Files</Link>
               <span>·</span>
