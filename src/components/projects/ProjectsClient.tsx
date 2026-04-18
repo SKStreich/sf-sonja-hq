@@ -7,7 +7,7 @@ import type { Database, ProjectStatus, ProjectPriority, EntityType } from '@/typ
 type Project = Database['public']['Tables']['projects']['Row']
 type Entity = Database['public']['Tables']['entities']['Row']
 
-const ENTITY_LABELS: Record<string, string> = { tm: 'Triplemeter', sf: 'Streich Force', personal: 'Personal' }
+const ENTITY_LABELS: Record<string, string> = { tm: 'Triplemeter', sf: 'Streich Force Solutions', personal: 'Personal' }
 const STATUS_LABELS: Record<ProjectStatus, string> = { planning: 'Planning', active: 'Active', on_hold: 'On Hold', complete: 'Complete' }
 
 interface Props {
