@@ -22,7 +22,10 @@ const PRIORITY_COLORS: Record<string, string> = {
 }
 
 const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter', sf: 'Streich Force Solutions', personal: 'Personal',
+  tm: 'Triplemeter',
+  sf: 'Streich Force Solutions',
+  sfe: 'Streich Force Enterprises',
+  personal: 'Personal',
 }
 
 function isOverdue(dueDate: string | null): boolean {
@@ -296,6 +299,7 @@ interface Props {
 export function TaskManager({ tasks, projects, entities }: Props) {
   const [showDone, setShowDone] = useState(false)
   const [filterEntity, setFilterEntity] = useState<string>('all')
+  const [addingQuick, setAddingQuick] = useState(false)
 
   const filtered = filterEntity === 'all'
     ? tasks
@@ -338,8 +342,20 @@ export function TaskManager({ tasks, projects, entities }: Props) {
           >
             {showDone ? 'Hide done' : 'Show done'}
           </button>
+          <button
+            onClick={() => setAddingQuick(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+          >
+            <span className="text-sm leading-none">+</span> New Task
+          </button>
         </div>
       </div>
+
+      {addingQuick && (
+        <div className="mb-4">
+          <AddTaskRow bucket="today" projects={projects} entities={entities} onDone={() => setAddingQuick(false)} />
+        </div>
+      )}
 
       {/* Bucket sections */}
       {BUCKETS.map(bucket => (

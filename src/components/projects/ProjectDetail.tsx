@@ -36,6 +36,7 @@ interface ProjectFile {
 const ENTITY_LABELS: Record<string, string> = {
   tm: 'Triplemeter',
   sf: 'Streich Force Solutions',
+  sfe: 'Streich Force Enterprises',
   personal: 'Personal',
 }
 

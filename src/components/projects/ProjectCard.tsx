@@ -9,7 +9,10 @@ type Project = Database['public']['Tables']['projects']['Row'] & {
 type Entity = Database['public']['Tables']['entities']['Row']
 
 const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter', sf: 'Streich Force Solutions', personal: 'Personal',
+  tm: 'Triplemeter',
+  sf: 'Streich Force Solutions',
+  sfe: 'Streich Force Enterprises',
+  personal: 'Personal',
 }
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
