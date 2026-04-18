@@ -2,6 +2,7 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { GlobalSearch } from '@/components/search/GlobalSearch'
 import type { Database } from '@/types/supabase'
 import type { User } from '@supabase/supabase-js'
 
@@ -12,12 +13,6 @@ interface DashboardNavProps {
   user: User
   profile: (UserProfile & { orgs: Database['public']['Tables']['orgs']['Row'] | null }) | null
   entities: Entity[]
-}
-
-const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter',
-  sf: 'Streich Force',
-  personal: 'Personal',
 }
 
 export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
@@ -33,11 +28,12 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
   return (
     <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-800 bg-gray-950/95 backdrop-blur">
       <div className="mx-auto max-w-7xl px-4">
-        <div className="flex h-16 items-center justify-between">
-          <div className="flex items-center gap-6">
+        <div className="flex h-16 items-center gap-4">
+          {/* Left: brand + nav links */}
+          <div className="flex items-center gap-4 shrink-0">
             <Link href="/dashboard" className="flex items-center gap-2">
               <span className="text-xl">🏢</span>
-              <span className="font-bold text-white">Sonja HQ</span>
+              <span className="font-bold text-white hidden sm:block">Sonja HQ</span>
             </Link>
             <div className="hidden md:flex items-center gap-1">
               <Link href="/dashboard" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors">
@@ -48,14 +44,31 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
               </Link>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+
+          {/* Center: search */}
+          <div className="flex-1 flex justify-center">
+            <GlobalSearch />
+          </div>
+
+          {/* Right: capture, deep-dive links, user */}
+          <div className="flex items-center gap-3 shrink-0">
             <button className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 transition-colors">
               <span className="text-base leading-none">+</span>
               <span className="hidden sm:block">Capture</span>
             </button>
-            <div className="flex items-center gap-2 text-sm text-gray-400">
-              <span className="hidden sm:block">{profile?.full_name ?? user.email}</span>
-              <button onClick={handleSignOut} className="rounded px-2 py-1 text-gray-500 hover:text-gray-300 transition-colors text-xs">
+
+            {/* Deep-dive links — subtle, near username */}
+            <div className="hidden lg:flex items-center gap-2 text-xs text-gray-600 border-l border-gray-800 pl-3">
+              <Link href="/dashboard/all-tasks" className="hover:text-gray-400 transition-colors">Tasks</Link>
+              <span>·</span>
+              <Link href="/dashboard/all-files" className="hover:text-gray-400 transition-colors">Files</Link>
+              <span>·</span>
+              <Link href="/dashboard/all-logs" className="hover:text-gray-400 transition-colors">Log</Link>
+            </div>
+
+            <div className="flex items-center gap-2 text-sm text-gray-400 border-l border-gray-800 pl-3">
+              <span className="hidden sm:block text-gray-500">{profile?.full_name ?? user.email}</span>
+              <button onClick={handleSignOut} className="rounded px-2 py-1 text-gray-600 hover:text-gray-300 transition-colors text-xs">
                 Sign out
               </button>
             </div>
