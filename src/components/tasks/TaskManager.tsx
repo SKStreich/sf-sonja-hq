@@ -391,10 +391,6 @@ export function TaskManager({ tasks, projects, entities }: Props) {
               </button>
             ))}
           </div>
-          <div className="flex items-center gap-2">
-            <a href="/api/tasks/export" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Export CSV</a>
-            <a href="/dashboard/tasks/print" target="_blank" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Print</a>
-          </div>
           <button
             onClick={() => setAddingQuick(true)}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"

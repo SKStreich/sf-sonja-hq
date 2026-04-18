@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -17,22 +17,42 @@ interface DashboardNavProps {
   entities: Entity[]
 }
 
+function useDropdown() {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+  return { open, setOpen, ref }
+}
+
 export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
   const router = useRouter()
   const supabase = createClient()
   const [captureOpen, setCaptureOpen] = useState(false)
+  const exportDropdown = useDropdown()
+  const profileDropdown = useDropdown()
 
   const handleSignOut = async () => {
+    profileDropdown.setOpen(false)
     await supabase.auth.signOut()
     router.push('/login')
     router.refresh()
   }
+
+  const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Account'
 
   return (
     <>
       <nav className="fixed top-0 left-0 right-0 z-40 border-b border-gray-800 bg-gray-950/95 backdrop-blur">
         <div className="mx-auto max-w-7xl px-4">
           <div className="flex h-16 items-center gap-4">
+
             {/* Left: brand + nav links */}
             <div className="flex items-center gap-4 shrink-0">
               <Link href="/dashboard" className="flex items-center gap-2">
@@ -57,8 +77,58 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
               <GlobalSearch />
             </div>
 
-            {/* Right: capture, deep-dive links, user */}
-            <div className="flex items-center gap-3 shrink-0">
+            {/* Right: export, capture, profile */}
+            <div className="flex items-center gap-2 shrink-0">
+
+              {/* Export dropdown */}
+              <div className="relative" ref={exportDropdown.ref}>
+                <button
+                  onClick={() => exportDropdown.setOpen(o => !o)}
+                  className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors"
+                >
+                  <span className="hidden sm:block">Export</span>
+                  <span className="text-xs text-gray-600">▾</span>
+                </button>
+                {exportDropdown.open && (
+                  <div className="absolute right-0 top-10 z-50 w-52 rounded-lg border border-gray-700 bg-gray-900 py-1.5 shadow-xl">
+                    <div className="px-3 pb-1 pt-0.5 text-xs font-medium uppercase tracking-wider text-gray-600">Tasks</div>
+                    <a
+                      href="/api/tasks/export"
+                      onClick={() => exportDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+                    >
+                      <span className="text-xs">⬇</span> Export Tasks CSV
+                    </a>
+                    <a
+                      href="/dashboard/tasks/print"
+                      target="_blank"
+                      onClick={() => exportDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+                    >
+                      <span className="text-xs">🖨</span> Print Tasks
+                    </a>
+                    <div className="my-1 border-t border-gray-800" />
+                    <div className="px-3 pb-1 pt-0.5 text-xs font-medium uppercase tracking-wider text-gray-600">Projects</div>
+                    <a
+                      href="/api/projects/export"
+                      onClick={() => exportDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+                    >
+                      <span className="text-xs">⬇</span> Export Projects CSV
+                    </a>
+                    <a
+                      href="/dashboard/projects/print"
+                      target="_blank"
+                      onClick={() => exportDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors"
+                    >
+                      <span className="text-xs">🖨</span> Print All Projects
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* Capture */}
               <button
                 onClick={() => setCaptureOpen(true)}
                 className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
@@ -67,23 +137,43 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
                 <span className="hidden sm:block">Capture</span>
               </button>
 
-              {/* Deep-dive links — subtle, near username */}
-              <div className="hidden lg:flex items-center gap-2 text-xs text-gray-600 border-l border-gray-800 pl-3">
-                <Link href="/dashboard/all-files" className="hover:text-gray-400 transition-colors">Files</Link>
-                <span>·</span>
-                <Link href="/dashboard/all-logs" className="hover:text-gray-400 transition-colors">Log</Link>
-                <span>·</span>
-                <Link href="/dashboard/cost" className="hover:text-gray-400 transition-colors">Cost</Link>
+              {/* Profile dropdown */}
+              <div className="relative border-l border-gray-800 pl-2" ref={profileDropdown.ref}>
+                <button
+                  onClick={() => profileDropdown.setOpen(o => !o)}
+                  className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors"
+                >
+                  <span className="hidden sm:block max-w-[120px] truncate">{displayName}</span>
+                  <span className="text-xs text-gray-600">▾</span>
+                </button>
+                {profileDropdown.open && (
+                  <div className="absolute right-0 top-10 z-50 w-48 rounded-lg border border-gray-700 bg-gray-900 py-1.5 shadow-xl">
+                    <Link href="/dashboard/all-files" onClick={() => profileDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
+                      <span className="text-xs">📁</span> Files
+                    </Link>
+                    <Link href="/dashboard/all-logs" onClick={() => profileDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
+                      <span className="text-xs">📋</span> Log
+                    </Link>
+                    <Link href="/dashboard/cost" onClick={() => profileDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
+                      <span className="text-xs">💰</span> Cost & Usage
+                    </Link>
+                    <div className="my-1 border-t border-gray-800" />
+                    <Link href="/dashboard/settings" onClick={() => profileDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
+                      <span className="text-xs">⚙️</span> Settings
+                    </Link>
+                    <div className="my-1 border-t border-gray-800" />
+                    <button onClick={handleSignOut}
+                      className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-800 hover:text-gray-300 transition-colors">
+                      <span className="text-xs">→</span> Sign Out
+                    </button>
+                  </div>
+                )}
               </div>
 
-              <div className="flex items-center gap-2 text-sm text-gray-400 border-l border-gray-800 pl-3">
-                <Link href="/dashboard/settings" className="hidden sm:block text-gray-500 hover:text-gray-300 transition-colors">
-                  {profile?.full_name ?? user.email}
-                </Link>
-                <button onClick={handleSignOut} className="rounded px-2 py-1 text-gray-600 hover:text-gray-300 transition-colors text-xs">
-                  Sign out
-                </button>
-              </div>
             </div>
           </div>
         </div>
