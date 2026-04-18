@@ -23,8 +23,8 @@ const PRIORITY_COLORS: Record<string, string> = {
 
 const ENTITY_LABELS: Record<string, string> = {
   tm: 'Triplemeter',
-  sf: 'Streich Force Solutions',
-  sfe: 'Streich Force Enterprises',
+  sf: 'SF Solutions',
+  sfe: 'SF Enterprises',
   personal: 'Personal',
 }
 
@@ -313,35 +313,36 @@ export function TaskManager({ tasks, projects, entities }: Props) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Tasks</h1>
-          <p className="mt-0.5 text-sm text-gray-500">
-            {tasks.filter(t => t.status !== 'done').length} open · {tasks.filter(t => t.status === 'done').length} done
-          </p>
+          <div className="mt-0.5 flex items-center gap-2">
+            <p className="text-sm text-gray-500 whitespace-nowrap">
+              {tasks.filter(t => t.status !== 'done').length} Open · {tasks.filter(t => t.status === 'done').length} Done
+            </p>
+            <button
+              onClick={() => setShowDone(o => !o)}
+              className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs transition-colors ${showDone ? 'text-gray-300 bg-gray-800' : 'text-gray-600 hover:text-gray-400'}`}
+            >
+              {showDone ? 'Hide Done' : 'Show Done'}
+            </button>
+          </div>
         </div>
         <div className="flex items-center gap-3">
-          {/* Entity filter */}
-          <div className="flex items-center rounded-lg border border-gray-800 bg-gray-900 p-1 gap-1">
+          {/* Entity filter — no-wrap so it stays on one line */}
+          <div className="flex items-center rounded-lg border border-gray-800 bg-gray-900 p-1 gap-1 flex-nowrap">
             <button
               onClick={() => setFilterEntity('all')}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === 'all' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === 'all' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
             >All</button>
             {entities.map(e => (
               <button
                 key={e.id}
                 onClick={() => setFilterEntity(e.type)}
-                className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === e.type ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === e.type ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
               >
-                <span className="inline-block w-1.5 h-1.5 rounded-full mr-1.5" style={{ backgroundColor: e.color }} />
+                <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: e.color }} />
                 {ENTITY_LABELS[e.type] ?? e.name}
               </button>
             ))}
           </div>
-          {/* Show done toggle */}
-          <button
-            onClick={() => setShowDone(o => !o)}
-            className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${showDone ? 'border-gray-600 text-gray-300 bg-gray-800' : 'border-gray-800 text-gray-600 hover:text-gray-400'}`}
-          >
-            {showDone ? 'Hide done' : 'Show done'}
-          </button>
           <button
             onClick={() => setAddingQuick(true)}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"

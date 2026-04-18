@@ -16,8 +16,8 @@ interface Props {
 
 const ENTITY_LABELS: Record<string, string> = {
   tm: 'Triplemeter',
-  sf: 'Streich Force Solutions',
-  sfe: 'Streich Force Enterprises',
+  sf: 'SF Solutions',
+  sfe: 'SF Enterprises',
   personal: 'Personal',
 }
 
