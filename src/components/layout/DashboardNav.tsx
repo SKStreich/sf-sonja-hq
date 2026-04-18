@@ -71,6 +71,8 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
                 <Link href="/dashboard/all-files" className="hover:text-gray-400 transition-colors">Files</Link>
                 <span>·</span>
                 <Link href="/dashboard/all-logs" className="hover:text-gray-400 transition-colors">Log</Link>
+                <span>·</span>
+                <Link href="/dashboard/cost" className="hover:text-gray-400 transition-colors">Cost</Link>
               </div>
 
               <div className="flex items-center gap-2 text-sm text-gray-400 border-l border-gray-800 pl-3">

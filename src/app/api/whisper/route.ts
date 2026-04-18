@@ -33,6 +33,16 @@ export async function POST(req: NextRequest) {
     }
 
     const json = await res.json()
+
+    // Auto-log usage cost
+    try {
+      const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user.id).single()
+      if (profile?.org_id) {
+        const { logWhisperCall } = await import('@/app/api/usage/actions')
+        await logWhisperCall(profile.org_id)
+      }
+    } catch {}
+
     return NextResponse.json({ text: json.text ?? '' })
   } catch (e) {
     return NextResponse.json({ error: 'Transcription failed' }, { status: 500 })
