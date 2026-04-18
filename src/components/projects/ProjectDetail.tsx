@@ -239,6 +239,10 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
               className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-gray-400 hover:text-white hover:border-gray-500 transition-colors">
               Edit
             </button>
+            <Link href={`/dashboard/projects/${project.id}/print`} target="_blank"
+              className="rounded-md border border-gray-700 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-300 hover:border-gray-600 transition-colors">
+              Print
+            </Link>
             <button onClick={handleArchive} disabled={archiving}
               className="rounded-lg border border-gray-800 px-3 py-1.5 text-xs font-medium uppercase tracking-wider text-gray-600 hover:text-red-400 hover:border-red-900 transition-colors">
               Archive

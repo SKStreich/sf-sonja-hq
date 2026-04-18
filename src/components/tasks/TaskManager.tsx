@@ -2,9 +2,10 @@
 import { useState, useTransition, useRef } from 'react'
 import Link from 'next/link'
 import {
-  moveTaskBucket, completeTask, uncompleteTask, deleteTask, createManagerTask,
+  moveTaskBucket, completeTask, uncompleteTask, deleteTask, createManagerTask, cancelTask, reopenTask,
   type GtdBucket,
 } from '@/app/api/tasks/actions'
+import { TaskDetailPanel } from './TaskDetailPanel'
 
 type Task = any
 type Project = any
@@ -128,20 +129,28 @@ function AddTaskRow({ bucket, projects, entities, onDone }: AddTaskRowProps) {
   )
 }
 
+type StatusFilter = 'all' | 'open' | 'done' | 'cancelled'
+
 interface TaskRowProps {
   task: Task
-  showDone: boolean
+  statusFilter: StatusFilter
+  onOpenDetail: (task: Task) => void
 }
 
-function TaskRow({ task, showDone }: TaskRowProps) {
+function TaskRow({ task, statusFilter, onOpenDetail }: TaskRowProps) {
   const [completing, startTransition] = useTransition()
   const [menuOpen, setMenuOpen] = useState(false)
   const done = task.status === 'done'
-  const overdue = !done && isOverdue(task.due_date)
+  const cancelled = task.status === 'cancelled'
+  const overdue = !done && !cancelled && isOverdue(task.due_date)
 
-  const toggle = () => {
+  if (statusFilter === 'open' && (done || cancelled)) return null
+  if (statusFilter === 'done' && !done) return null
+  if (statusFilter === 'cancelled' && !cancelled) return null
+
+  const toggleCircle = () => {
     startTransition(async () => {
-      if (done) await uncompleteTask(task.id)
+      if (done || cancelled) await reopenTask(task.id)
       else await completeTask(task.id)
     })
   }
@@ -151,28 +160,46 @@ function TaskRow({ task, showDone }: TaskRowProps) {
     startTransition(async () => { await moveTaskBucket(task.id, bucket) })
   }
 
+  const handleCancel = () => {
+    setMenuOpen(false)
+    startTransition(async () => { await cancelTask(task.id) })
+  }
+
+  const handleReopen = () => {
+    setMenuOpen(false)
+    startTransition(async () => { await reopenTask(task.id) })
+  }
+
   const remove = () => {
     setMenuOpen(false)
     startTransition(async () => { await deleteTask(task.id, task.project_id ?? '') })
   }
 
-  if (done && !showDone) return null
-
   return (
     <div className={`group flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-900/40 transition-colors ${completing ? 'opacity-50' : ''}`}>
-      {/* Checkbox */}
+      {/* Circle */}
       <button
-        onClick={toggle}
+        onClick={toggleCircle}
         className={`mt-0.5 shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-          done ? 'bg-green-700 border-green-700' : 'border-gray-600 hover:border-gray-400'
+          done ? 'bg-green-700 border-green-700' :
+          cancelled ? 'bg-red-900 border-red-700' :
+          'border-gray-600 hover:border-gray-400'
         }`}
       >
         {done && <span className="text-white text-xs leading-none">✓</span>}
+        {cancelled && <span className="text-red-400 text-xs leading-none">✕</span>}
       </button>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <p className={`text-sm leading-snug ${done ? 'line-through text-gray-600' : 'text-white'}`}>
+        <p
+          onClick={() => onOpenDetail(task)}
+          className={`text-sm leading-snug cursor-pointer hover:underline ${
+            cancelled ? 'line-through text-red-400/60' :
+            done ? 'line-through text-gray-600' :
+            'text-white'
+          }`}
+        >
           {task.title}
         </p>
         <div className="flex flex-wrap items-center gap-2 mt-1">
@@ -227,6 +254,16 @@ function TaskRow({ task, showDone }: TaskRowProps) {
                 </button>
               ))}
               <div className="my-1 border-t border-gray-800" />
+              {!done && !cancelled && (
+                <button onClick={handleCancel} className="w-full px-3 py-1.5 text-left text-xs text-red-500 hover:bg-gray-800 transition-colors">
+                  Cancel
+                </button>
+              )}
+              {(done || cancelled) && (
+                <button onClick={handleReopen} className="w-full px-3 py-1.5 text-left text-xs text-gray-400 hover:bg-gray-800 transition-colors">
+                  Reopen
+                </button>
+              )}
               <button onClick={remove} className="w-full px-3 py-1.5 text-left text-xs text-red-500 hover:bg-gray-800 transition-colors">
                 Delete
               </button>
@@ -243,36 +280,44 @@ interface BucketSectionProps {
   tasks: Task[]
   projects: Project[]
   entities: Entity[]
-  showDone: boolean
+  statusFilter: StatusFilter
+  onOpenDetail: (task: Task) => void
 }
 
-function BucketSection({ bucket, tasks, projects, entities, showDone }: BucketSectionProps) {
+function BucketSection({ bucket, tasks, projects, entities, statusFilter, onOpenDetail }: BucketSectionProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
 
-  const visible = showDone ? tasks : tasks.filter(t => t.status !== 'done')
+  const visibleTasks = tasks.filter(t => {
+    if (statusFilter === 'open') return t.status !== 'done' && t.status !== 'cancelled'
+    if (statusFilter === 'done') return t.status === 'done'
+    if (statusFilter === 'cancelled') return t.status === 'cancelled'
+    return true
+  })
+
   const doneCount = tasks.filter(t => t.status === 'done').length
 
   return (
     <div className={`rounded-xl border ${bucket.accent} mb-4`}>
-      {/* Header */}
       <button
         onClick={() => setCollapsed(o => !o)}
         className="w-full flex items-center gap-3 px-4 py-3 text-left"
       >
         <span className={`text-xs font-bold uppercase tracking-widest ${bucket.color}`}>{bucket.label}</span>
-        <span className="text-xs text-gray-600">{visible.length}{doneCount > 0 && !showDone ? ` · ${doneCount} done` : ''}</span>
+        <span className="text-xs text-gray-600">{visibleTasks.length}{doneCount > 0 && statusFilter === 'open' ? ` · ${doneCount} done` : ''}</span>
         <span className={`ml-auto text-gray-700 text-xs transition-transform ${collapsed ? '' : 'rotate-90'}`}>▶</span>
       </button>
 
       {!collapsed && (
         <div className="px-2 pb-2">
-          {visible.length === 0 && !adding && (
+          {visibleTasks.length === 0 && !adding && (
             <p className="px-3 py-2 text-xs text-gray-700 italic">
-              {bucket.id === 'today' ? 'Nothing for today — nice.' : 'Empty.'}
+              {bucket.id === 'today' && statusFilter === 'open' ? 'Nothing for today — nice.' : 'Empty.'}
             </p>
           )}
-          {tasks.map(t => <TaskRow key={t.id} task={t} showDone={showDone} />)}
+          {tasks.map(t => (
+            <TaskRow key={t.id} task={t} statusFilter={statusFilter} onOpenDetail={onOpenDetail} />
+          ))}
           {adding
             ? <AddTaskRow bucket={bucket.id} projects={projects} entities={entities} onDone={() => setAdding(false)} />
             : (
@@ -297,9 +342,10 @@ interface Props {
 }
 
 export function TaskManager({ tasks, projects, entities }: Props) {
-  const [showDone, setShowDone] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
   const [filterEntity, setFilterEntity] = useState<string>('all')
   const [addingQuick, setAddingQuick] = useState(false)
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
   const filtered = filterEntity === 'all'
     ? tasks
@@ -307,26 +353,28 @@ export function TaskManager({ tasks, projects, entities }: Props) {
 
   const byBucket = (bucket: GtdBucket) => filtered.filter(t => t.gtd_bucket === bucket)
 
+  const openCount = tasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length
+  const doneCount = tasks.filter(t => t.status === 'done').length
+  const cancelledCount = tasks.filter(t => t.status === 'cancelled').length
+
+  const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'open', label: 'Open' },
+    { id: 'done', label: 'Done' },
+    { id: 'cancelled', label: 'Cancelled' },
+  ]
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-white">Tasks</h1>
-          <div className="mt-0.5 flex items-center gap-2">
-            <p className="text-sm text-gray-500 whitespace-nowrap">
-              {tasks.filter(t => t.status !== 'done').length} Open · {tasks.filter(t => t.status === 'done').length} Done
-            </p>
-            <button
-              onClick={() => setShowDone(o => !o)}
-              className={`whitespace-nowrap rounded px-1.5 py-0.5 text-xs transition-colors ${showDone ? 'text-gray-300 bg-gray-800' : 'text-gray-600 hover:text-gray-400'}`}
-            >
-              {showDone ? 'Hide Done' : 'Show Done'}
-            </button>
-          </div>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {openCount} Open · {doneCount} Done · {cancelledCount} Cancelled
+          </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Entity filter — no-wrap so it stays on one line */}
           <div className="flex items-center rounded-lg border border-gray-800 bg-gray-900 p-1 gap-1 flex-nowrap">
             <button
               onClick={() => setFilterEntity('all')}
@@ -343,6 +391,10 @@ export function TaskManager({ tasks, projects, entities }: Props) {
               </button>
             ))}
           </div>
+          <div className="flex items-center gap-2">
+            <a href="/api/tasks/export" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Export CSV</a>
+            <a href="/dashboard/tasks/print" target="_blank" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Print</a>
+          </div>
           <button
             onClick={() => setAddingQuick(true)}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
@@ -350,6 +402,21 @@ export function TaskManager({ tasks, projects, entities }: Props) {
             <span className="text-sm leading-none">+</span> New Task
           </button>
         </div>
+      </div>
+
+      {/* Status filter pills */}
+      <div className="flex items-center gap-1 mb-5">
+        {STATUS_FILTERS.map(sf => (
+          <button
+            key={sf.id}
+            onClick={() => setStatusFilter(sf.id)}
+            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+              statusFilter === sf.id ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+            }`}
+          >
+            {sf.label}
+          </button>
+        ))}
       </div>
 
       {addingQuick && (
@@ -366,9 +433,15 @@ export function TaskManager({ tasks, projects, entities }: Props) {
           tasks={byBucket(bucket.id)}
           projects={projects}
           entities={entities}
-          showDone={showDone}
+          statusFilter={statusFilter}
+          onOpenDetail={setSelectedTask}
         />
       ))}
+
+      {/* Detail panel */}
+      {selectedTask && (
+        <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} />
+      )}
     </div>
   )
 }

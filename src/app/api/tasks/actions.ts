@@ -108,3 +108,61 @@ export async function createManagerTask(payload: {
   if (error) throw new Error('Failed to create task: ' + error.message)
   revalidatePath('/dashboard/tasks')
 }
+
+export async function cancelTask(id: string) {
+  const { supabase } = await getContext()
+  const { error } = await supabase.from('tasks').update({ status: 'cancelled' } as any).eq('id', id)
+  if (error) throw new Error('Failed to cancel task')
+  revalidatePath('/dashboard/tasks')
+}
+
+export async function reopenTask(id: string) {
+  const { supabase } = await getContext()
+  const { error } = await supabase.from('tasks').update({ status: 'todo' } as any).eq('id', id)
+  if (error) throw new Error('Failed to reopen task')
+  revalidatePath('/dashboard/tasks')
+}
+
+export async function addTaskNote(taskId: string, content: string) {
+  const { supabase, user, org_id } = await getContext()
+  const { error } = await (supabase as any).from('task_notes').insert({
+    task_id: taskId,
+    org_id,
+    content,
+    created_by: user.id,
+  })
+  if (error) throw new Error('Failed to add note')
+  revalidatePath('/dashboard/tasks')
+}
+
+export async function deleteTaskNote(noteId: string) {
+  const { supabase } = await getContext()
+  const { error } = await (supabase as any).from('task_notes').delete().eq('id', noteId)
+  if (error) throw new Error('Failed to delete note')
+  revalidatePath('/dashboard/tasks')
+}
+
+export async function saveTaskFile(taskId: string, payload: {
+  filename: string
+  storage_path: string
+  file_size: number
+  content_type: string
+}) {
+  const { supabase, user, org_id } = await getContext()
+  const { error } = await (supabase as any).from('task_files').insert({
+    task_id: taskId,
+    org_id,
+    created_by: user.id,
+    ...payload,
+  })
+  if (error) throw new Error('Failed to save file record')
+  revalidatePath('/dashboard/tasks')
+}
+
+export async function deleteTaskFile(fileId: string, storagePath: string) {
+  const { supabase } = await getContext()
+  await supabase.storage.from('project-files').remove([storagePath])
+  const { error } = await (supabase as any).from('task_files').delete().eq('id', fileId)
+  if (error) throw new Error('Failed to delete file')
+  revalidatePath('/dashboard/tasks')
+}
