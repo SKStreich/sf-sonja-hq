@@ -41,15 +41,11 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
             </Link>
             <div className="hidden md:flex items-center gap-1">
               <Link href="/dashboard" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors">
-                All
+                Dashboard
               </Link>
-              {entities.map((entity) => (
-                <Link key={entity.id} href={`/dashboard?entity=${entity.type}`}
-                  className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors flex items-center gap-1.5">
-                  <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: entity.color ?? '#6366F1' }} />
-                  {ENTITY_LABELS[entity.type] ?? entity.name}
-                </Link>
-              ))}
+              <Link href="/dashboard/projects" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors">
+                Projects
+              </Link>
             </div>
           </div>
           <div className="flex items-center gap-3">

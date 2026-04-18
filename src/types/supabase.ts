@@ -11,6 +11,11 @@ export type IntegrationType = 'notion' | 'claude' | 'ms365' | 'slack' | 'github'
 export type IntegrationStatus = 'active' | 'error' | 'disconnected'
 export type ConfidentialityTier = 'private' | 'team' | 'shared' | 'public'
 export type UserRole = 'owner' | 'admin' | 'member' | 'read_only'
+export type ProjectMemberPermission = 'view' | 'comment' | 'edit' | 'manage'
+export type ProjectMemberStatus = 'pending' | 'accepted' | 'declined'
+export type NotificationType = 'assignment' | 'update' | 'due_date' | 'mention' | 'invite' | 'comment'
+export type ResourceService = 'supabase' | 'claude_api' | 'vercel' | 'resend' | 'whisper'
+export type ResourceMetricType = 'api_calls' | 'tokens_used' | 'emails_sent' | 'audio_minutes' | 'storage_gb' | 'bandwidth_gb' | 'function_invocations'
 
 export interface Database {
   public: {
