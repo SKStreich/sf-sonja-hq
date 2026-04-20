@@ -10,7 +10,7 @@ export default async function AcceptInvitePage({ params }: { params: { token: st
   // Look up the invitation (admin client so RLS doesn't block)
   const { data: invitation } = await (admin as any)
     .from('org_invitations')
-    .select('*, orgs(name), user_profiles!invited_by(full_name, email)')
+    .select('*, orgs(name)')
     .eq('token', params.token)
     .single()
 
@@ -41,7 +41,7 @@ export default async function AcceptInvitePage({ params }: { params: { token: st
   const { data: { user } } = await supabase.auth.getUser()
 
   const orgName = invitation.orgs?.name ?? 'Sonja HQ'
-  const inviterName = invitation.user_profiles?.full_name ?? invitation.user_profiles?.email ?? 'A teammate'
+  const inviterName = 'A teammate'
   const roleLabel = { admin: 'Admin', member: 'Member', read_only: 'Viewer' }[invitation.role as string] ?? 'Member'
 
   return (
