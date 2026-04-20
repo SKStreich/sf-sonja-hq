@@ -26,28 +26,24 @@ export function LoginForm() {
       <div className="rounded-lg border border-gray-800 bg-gray-900 p-8 text-center">
         <div className="text-4xl mb-4">📬</div>
         <h2 className="text-white font-semibold text-lg mb-2">Check your email</h2>
-        <p className="text-gray-400 text-sm">We sent a magic link to <span className="text-white">{email}</span>. Click it to sign in.</p>
+        <p className="text-gray-400 text-sm">We sent a magic link to <span className="text-white">{email}</span></p>
       </div>
     )
   }
 
   return (
-    <form onSubmit={handleLogin} className="rounded-lg border border-gray-800 bg-gray-900 p-8">
-      <div className="mb-6">
-        <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-2">Email address</label>
-        <input
-          id="email" type="email" value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required placeholder="sstreich1@outlook.com"
-          className="w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-white placeholder-gray-500 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-        />
+    <form onSubmit={handleLogin} className="rounded-lg border border-gray-800 bg-gray-900 p-8 space-y-4">
+      <div>
+        <label className="block text-xs text-gray-500 mb-1">Email address</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+          className="w-full rounded-lg bg-gray-950 px-4 py-2 text-white ring-1 ring-gray-700 outline-none" />
       </div>
-      {error && <p className="mb-4 text-sm text-red-400">{error}</p>}
-      <button type="submit" disabled={loading || !email}
-        className="w-full rounded-md bg-indigo-600 px-4 py-2 text-white font-medium hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
-        {loading ? 'Sending...' : 'Send magic link'}
+      {error && <p className="text-red-400 text-sm">{error}</p>}
+      <button type="submit" disabled={loading}
+        className="w-full rounded-lg bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors">
+        {loading ? 'Sending…' : 'Send magic link'}
       </button>
-      <p className="mt-4 text-center text-xs text-gray-500">No password required — we'll email you a secure link.</p>
+      <p className="text-center text-xs text-gray-500">No password required — we'll email you a secure link.</p>
     </form>
   )
 }

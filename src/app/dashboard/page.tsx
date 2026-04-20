@@ -1,68 +1,88 @@
 import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import { DashboardHome } from '@/components/dashboard/DashboardHome'
+import { getInsights } from '@/app/api/digest/actions'
 
 export default async function DashboardPage() {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-  const [projectsResult, tasksResult, ideasResult, chatsResult] = await Promise.all([
-    supabase.from('projects').select('id', { count: 'exact' }).eq('status', 'active'),
-    supabase.from('tasks').select('id', { count: 'exact' }).not('status', 'eq', 'done'),
-    supabase.from('ideas').select('id', { count: 'exact' }).eq('status', 'raw'),
-    supabase.from('chat_history').select('id', { count: 'exact' }),
+  const today = new Date().toISOString().slice(0, 10)
+
+  const { data: profile } = await (supabase as any).from('user_profiles').select('full_name').eq('id', user.id).single() as { data: { full_name: string | null } | null }
+  const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'there'
+
+  const [
+    { data: todayTasks },
+    { data: overdueTasks },
+    { data: activeProjects },
+    { data: recentLog },
+    { data: captures },
+    { count: openTaskCount },
+    { count: activeProjectCount },
+    { data: allOpenTasks },
+    { data: allActiveProjects },
+    { data: assignedTasks },
+    insights,
+  ] = await Promise.all([
+    (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
+      .eq('gtd_bucket', 'today').eq('archived', false)
+      .not('status', 'in', '("done","cancelled")')
+      .order('priority'),
+    (supabase as any).from('tasks').select('id,title,priority,due_date,gtd_bucket,project_id,projects(id,name)')
+      .lt('due_date', today).eq('archived', false)
+      .not('status', 'in', '("done","cancelled")')
+      .neq('gtd_bucket', 'today')
+      .order('due_date', { ascending: true }).limit(10),
+    supabase.from('projects').select('id,name,status,phase,priority,due_date,next_action,next_action_due,entities(name,type)')
+      .eq('status', 'active')
+      .order('next_action_due', { ascending: true, nullsFirst: false })
+      .order('name').limit(8),
+    (supabase as any).from('project_updates').select('id,content,update_type,created_at,project_id,projects(id,name)')
+      .order('created_at', { ascending: false }).limit(6),
+    supabase.from('captures').select('id,content,type,entity_context,created_at')
+      .eq('reviewed', false).order('created_at', { ascending: false }).limit(5),
+    (supabase as any).from('tasks').select('*', { count: 'exact', head: true })
+      .eq('archived', false).not('status', 'in', '("done","cancelled")'),
+    supabase.from('projects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+    // For entity breakdown
+    (supabase as any).from('tasks').select('entity_id, entities(id,name,type)')
+      .eq('archived', false).not('status', 'in', '("done","cancelled")'),
+    supabase.from('projects').select('entity_id, entities(id,name,type)').eq('status', 'active'),
+    // Tasks assigned to me by others
+    (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
+      .eq('assignee_id', user.id).eq('archived', false)
+      .not('status', 'in', '("done","cancelled")')
+      .order('due_date', { ascending: true, nullsFirst: false }).limit(10),
+    getInsights(),
   ])
 
-  const metrics = {
-    activeProjects: projectsResult.count ?? 0,
-    openTasks: tasksResult.count ?? 0,
-    rawIdeas: ideasResult.count ?? 0,
-    indexedChats: chatsResult.count ?? 0,
+  // Build per-entity breakdown
+  const entityMap: Record<string, { id: string; name: string; type: string; taskCount: number; projectCount: number }> = {}
+  const addEntity = (e: any) => {
+    if (!e) return
+    const ent = Array.isArray(e) ? e[0] : e
+    if (!ent?.id) return
+    if (!entityMap[ent.id]) entityMap[ent.id] = { id: ent.id, name: ent.name, type: ent.type, taskCount: 0, projectCount: 0 }
   }
-
-  const today = new Date().toISOString().split('T')[0]
-  const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-  const { data: upcomingTasks } = await supabase
-    .from('tasks').select('*, entities(name, type, color)')
-    .not('status', 'eq', 'done').not('status', 'eq', 'parked')
-    .gte('due_date', today).lte('due_date', in7Days)
-    .order('due_date').limit(5)
+  ;(allOpenTasks ?? []).forEach((t: any) => { addEntity(t.entities); if (t.entities) { const id = Array.isArray(t.entities) ? t.entities[0]?.id : t.entities?.id; if (id && entityMap[id]) entityMap[id].taskCount++ } })
+  ;(allActiveProjects ?? []).forEach((p: any) => { addEntity(p.entities); if (p.entities) { const id = Array.isArray(p.entities) ? p.entities[0]?.id : p.entities?.id; if (id && entityMap[id]) entityMap[id].projectCount++ } })
+  const entityBreakdown = Object.values(entityMap).sort((a, b) => (b.taskCount + b.projectCount) - (a.taskCount + a.projectCount))
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-8">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <MetricChip label="Active Projects" value={metrics.activeProjects} icon="📋" />
-        <MetricChip label="Open Tasks" value={metrics.openTasks} icon="✅" />
-        <MetricChip label="Raw Ideas" value={metrics.rawIdeas} icon="💡" />
-        <MetricChip label="Indexed Chats" value={metrics.indexedChats} icon="💬" />
-      </div>
-      <div className="rounded-lg border border-gray-800 bg-gray-900 p-6">
-        <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Due This Week</h2>
-        {upcomingTasks && upcomingTasks.length > 0 ? (
-          <div className="space-y-3">
-            {upcomingTasks.map((task) => (
-              <div key={task.id} className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: (task.entities as any)?.color ?? '#6366F1' }} />
-                  <span className="text-white text-sm">{task.title}</span>
-                </div>
-                <span className="text-xs text-gray-500">{task.due_date}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-500 text-sm">No tasks due this week. 🎉</p>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function MetricChip({ label, value, icon }: { label: string; value: number; icon: string }) {
-  return (
-    <div className="rounded-lg border border-gray-800 bg-gray-900 p-4">
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xl">{icon}</span>
-        <span className="text-2xl font-bold text-white">{value}</span>
-      </div>
-      <p className="text-xs text-gray-400">{label}</p>
-    </div>
+    <DashboardHome
+      displayName={displayName}
+      todayTasks={todayTasks ?? []}
+      overdueTasks={overdueTasks ?? []}
+      activeProjects={activeProjects ?? []}
+      recentLog={recentLog ?? []}
+      captures={captures ?? []}
+      openTaskCount={openTaskCount ?? 0}
+      activeProjectCount={activeProjectCount ?? 0}
+      entityBreakdown={entityBreakdown}
+      insights={insights}
+      assignedTasks={assignedTasks ?? []}
+    />
   )
 }

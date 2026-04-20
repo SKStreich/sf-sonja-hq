@@ -2,14 +2,38 @@ import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
+const alias = { '@': path.resolve(__dirname, './src') }
+const setup = ['./src/tests/setup.ts']
+
 export default defineConfig({
   plugins: [react()],
-  resolve: {
-    alias: { '@': path.resolve(__dirname, './src') },
-  },
+  resolve: { alias },
   test: {
-    environment: 'node',
     globals: true,
-    setupFiles: ['./src/tests/setup.ts'],
+    projects: [
+      {
+        // Node environment: server actions, pure helpers
+        test: {
+          name: 'node',
+          globals: true,
+          environment: 'node',
+          include: ['src/tests/unit/**/*.test.ts'],
+          setupFiles: setup,
+        },
+        resolve: { alias },
+      },
+      {
+        // Browser-like environment: React components
+        plugins: [react()],
+        test: {
+          name: 'jsdom',
+          globals: true,
+          environment: 'jsdom',
+          include: ['src/tests/unit/**/*.test.tsx'],
+          setupFiles: setup,
+        },
+        resolve: { alias },
+      },
+    ],
   },
 })
