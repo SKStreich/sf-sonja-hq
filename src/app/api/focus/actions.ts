@@ -2,26 +2,23 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-interface FocusPayload { content: string; userId: string }
-
-export async function setFocusNote({ content, userId }: FocusPayload) {
+export async function setFocusNote({ content }: { content: string }) {
   const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
 
-  await supabase
+  await (supabase as any)
     .from('focus_notes')
     .update({ archived: true })
-    .eq('user_id', userId)
+    .eq('user_id', user.id)
     .eq('archived', false)
 
-  const { error } = await supabase.from('focus_notes').insert({
-    user_id: userId,
+  const { error } = await (supabase as any).from('focus_notes').insert({
+    user_id: user.id,
     content: content.trim(),
     archived: false,
   })
 
-  if (error) {
-    console.error('[setFocusNote] Supabase error:', JSON.stringify(error))
-    throw new Error('Failed to save focus note')
-  }
+  if (error) throw new Error('Failed to save focus note')
   revalidatePath('/dashboard')
 }

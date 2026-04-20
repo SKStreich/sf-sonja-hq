@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { GlobalSearch } from '@/components/search/GlobalSearch'
 import { CaptureModal } from '@/components/capture/CaptureModal'
+import { NotificationBell } from '@/components/notifications/NotificationBell'
 import type { Database } from '@/types/supabase'
 import type { User } from '@supabase/supabase-js'
 
@@ -15,6 +16,7 @@ interface DashboardNavProps {
   user: User
   profile: (UserProfile & { orgs: Database['public']['Tables']['orgs']['Row'] | null }) | null
   entities: Entity[]
+  notifications: any[]
 }
 
 function useDropdown() {
@@ -31,7 +33,7 @@ function useDropdown() {
   return { open, setOpen, ref }
 }
 
-export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
+export function DashboardNav({ user, profile, entities, notifications }: DashboardNavProps) {
   const router = useRouter()
   const supabase = createClient()
   const [captureOpen, setCaptureOpen] = useState(false)
@@ -68,6 +70,15 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
                 </Link>
                 <Link href="/dashboard/tasks" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors">
                   Tasks
+                </Link>
+                <Link href="/dashboard/documents" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors">
+                  Docs
+                </Link>
+                <Link href="/dashboard/chats" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors">
+                  Chats
+                </Link>
+                <Link href="/dashboard/digest" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors">
+                  Ideas
                 </Link>
               </div>
             </div>
@@ -128,13 +139,17 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
                 )}
               </div>
 
-              {/* Capture */}
+              {/* Notifications */}
+              <NotificationBell initialNotifications={notifications} />
+
+              {/* Add Idea */}
               <button
                 onClick={() => setCaptureOpen(true)}
+                title="Add Idea"
                 className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 transition-colors"
               >
-                <span className="text-base leading-none">+</span>
-                <span className="hidden sm:block">Capture</span>
+                <span className="text-base leading-none">💡</span>
+                <span className="hidden sm:block">Add Idea</span>
               </button>
 
               {/* Profile dropdown */}
@@ -154,11 +169,15 @@ export function DashboardNav({ user, profile, entities }: DashboardNavProps) {
                     </Link>
                     <Link href="/dashboard/all-logs" onClick={() => profileDropdown.setOpen(false)}
                       className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
-                      <span className="text-xs">📋</span> Log
+                      <span className="text-xs">📋</span> Notes
                     </Link>
                     <Link href="/dashboard/cost" onClick={() => profileDropdown.setOpen(false)}
                       className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
                       <span className="text-xs">💰</span> Cost & Usage
+                    </Link>
+                    <Link href="/dashboard/integrations" onClick={() => profileDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
+                      <span className="text-xs">🔌</span> Integrations
                     </Link>
                     <div className="my-1 border-t border-gray-800" />
                     <Link href="/dashboard/settings" onClick={() => profileDropdown.setOpen(false)}

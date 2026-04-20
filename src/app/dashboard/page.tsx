@@ -1,78 +1,88 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { FocusBanner } from '@/components/dashboard/FocusBanner'
-import { PriorityFeed } from '@/components/dashboard/PriorityFeed'
-import { QuickCaptureButton } from '@/components/capture/QuickCaptureButton'
-import { StatsRow } from '@/components/dashboard/StatsRow'
+import { DashboardHome } from '@/components/dashboard/DashboardHome'
+import { getInsights } from '@/app/api/digest/actions'
 
 export default async function DashboardPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: focusNote } = await supabase
-    .from('focus_notes')
-    .select('*')
-    .eq('user_id', user.id)
-    .eq('archived', false)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle()
+  const today = new Date().toISOString().slice(0, 10)
 
-  const { count: openWOCount } = await supabase
-    .from('work_orders')
-    .select('*', { count: 'exact', head: true })
-    .eq('status', 'open')
+  const { data: profile } = await (supabase as any).from('user_profiles').select('full_name').eq('id', user.id).single() as { data: { full_name: string | null } | null }
+  const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'there'
 
-  const since = new Date()
-  since.setDate(since.getDate() - 7)
-  const { count: recentIdeasCount } = await supabase
-    .from('captures')
-    .select('*', { count: 'exact', head: true })
-    .eq('type', 'idea')
-    .eq('reviewed', false)
-    .gte('created_at', since.toISOString())
+  const [
+    { data: todayTasks },
+    { data: overdueTasks },
+    { data: activeProjects },
+    { data: recentLog },
+    { data: captures },
+    { count: openTaskCount },
+    { count: activeProjectCount },
+    { data: allOpenTasks },
+    { data: allActiveProjects },
+    { data: assignedTasks },
+    insights,
+  ] = await Promise.all([
+    (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
+      .eq('gtd_bucket', 'today').eq('archived', false)
+      .not('status', 'in', '("done","cancelled")')
+      .order('priority'),
+    (supabase as any).from('tasks').select('id,title,priority,due_date,gtd_bucket,project_id,projects(id,name)')
+      .lt('due_date', today).eq('archived', false)
+      .not('status', 'in', '("done","cancelled")')
+      .neq('gtd_bucket', 'today')
+      .order('due_date', { ascending: true }).limit(10),
+    supabase.from('projects').select('id,name,status,phase,priority,due_date,next_action,next_action_due,entities(name,type)')
+      .eq('status', 'active')
+      .order('next_action_due', { ascending: true, nullsFirst: false })
+      .order('name').limit(8),
+    (supabase as any).from('project_updates').select('id,content,update_type,created_at,project_id,projects(id,name)')
+      .order('created_at', { ascending: false }).limit(6),
+    supabase.from('captures').select('id,content,type,entity_context,created_at')
+      .eq('reviewed', false).order('created_at', { ascending: false }).limit(5),
+    (supabase as any).from('tasks').select('*', { count: 'exact', head: true })
+      .eq('archived', false).not('status', 'in', '("done","cancelled")'),
+    supabase.from('projects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+    // For entity breakdown
+    (supabase as any).from('tasks').select('entity_id, entities(id,name,type)')
+      .eq('archived', false).not('status', 'in', '("done","cancelled")'),
+    supabase.from('projects').select('entity_id, entities(id,name,type)').eq('status', 'active'),
+    // Tasks assigned to me by others
+    (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
+      .eq('assignee_id', user.id).eq('archived', false)
+      .not('status', 'in', '("done","cancelled")')
+      .order('due_date', { ascending: true, nullsFirst: false }).limit(10),
+    getInsights(),
+  ])
 
-  const { data: recentCaptures } = await supabase
-    .from('captures')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(10)
-
-  const stats = {
-    openWorkOrders: openWOCount ?? 0,
-    unreviewedIdeas: recentIdeasCount ?? 0,
+  // Build per-entity breakdown
+  const entityMap: Record<string, { id: string; name: string; type: string; taskCount: number; projectCount: number }> = {}
+  const addEntity = (e: any) => {
+    if (!e) return
+    const ent = Array.isArray(e) ? e[0] : e
+    if (!ent?.id) return
+    if (!entityMap[ent.id]) entityMap[ent.id] = { id: ent.id, name: ent.name, type: ent.type, taskCount: 0, projectCount: 0 }
   }
+  ;(allOpenTasks ?? []).forEach((t: any) => { addEntity(t.entities); if (t.entities) { const id = Array.isArray(t.entities) ? t.entities[0]?.id : t.entities?.id; if (id && entityMap[id]) entityMap[id].taskCount++ } })
+  ;(allActiveProjects ?? []).forEach((p: any) => { addEntity(p.entities); if (p.entities) { const id = Array.isArray(p.entities) ? p.entities[0]?.id : p.entities?.id; if (id && entityMap[id]) entityMap[id].projectCount++ } })
+  const entityBreakdown = Object.values(entityMap).sort((a, b) => (b.taskCount + b.projectCount) - (a.taskCount + a.projectCount))
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <header className="sticky top-0 z-40 border-b border-gray-800 bg-gray-950/90 backdrop-blur-sm">
-        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
-          <div className="flex items-center gap-3">
-            <span className="text-xl font-bold tracking-tight">🏢 Sonja HQ</span>
-            <span className="hidden text-xs text-gray-500 sm:block">
-              {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <QuickCaptureButton />
-            <form action="/api/auth/signout" method="POST">
-              <button type="submit" className="text-xs text-gray-500 hover:text-gray-300 transition-colors">
-                Sign out
-              </button>
-            </form>
-          </div>
-        </div>
-      </header>
-      <main className="mx-auto max-w-5xl px-6 py-8 space-y-8">
-        <FocusBanner focusNote={focusNote} userId={user.id} />
-        <StatsRow stats={stats} />
-        <section>
-          <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-gray-500">Recent Captures</h2>
-          <PriorityFeed captures={recentCaptures ?? []} />
-        </section>
-      </main>
-    </div>
+    <DashboardHome
+      displayName={displayName}
+      todayTasks={todayTasks ?? []}
+      overdueTasks={overdueTasks ?? []}
+      activeProjects={activeProjects ?? []}
+      recentLog={recentLog ?? []}
+      captures={captures ?? []}
+      openTaskCount={openTaskCount ?? 0}
+      activeProjectCount={activeProjectCount ?? 0}
+      entityBreakdown={entityBreakdown}
+      insights={insights}
+      assignedTasks={assignedTasks ?? []}
+    />
   )
 }

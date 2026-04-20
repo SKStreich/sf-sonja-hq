@@ -6,6 +6,8 @@ import { ProjectStatusBadge, ProjectPriorityBadge } from './ProjectStatusBadge'
 import { ProjectCreateDialog } from './ProjectCreateDialog'
 import { createTask, updateTask, deleteTask } from '@/app/api/tasks/actions'
 import { archiveProject, addProjectUpdate, deleteProjectUpdate, saveProjectFile, deleteProjectFile } from '@/app/api/projects/actions'
+import { linkProjectToNotion } from '@/app/api/documents/actions'
+import { saveGitHubUrl, type GitHubCommit } from '@/app/api/integrations/actions'
 import { createClient } from '@/lib/supabase/client'
 import type { Database, TaskStatus } from '@/types/supabase'
 
@@ -67,6 +69,8 @@ const UPDATE_TYPE_CONFIG: Record<string, { label: string; color: string; dot: st
 
 const SECTION_LABEL = 'text-xs font-medium uppercase tracking-wider text-gray-500 mb-3'
 
+interface OrgMember { id: string; full_name: string | null; email: string }
+
 interface Props {
   project: Project
   tasks: Task[]
@@ -74,9 +78,12 @@ interface Props {
   files: ProjectFile[]
   entity?: Entity
   entities: Entity[]
+  initialCommits?: GitHubCommit[]
+  initialGithubUrl?: string | null
+  members?: OrgMember[]
 }
 
-export function ProjectDetail({ project, tasks: initialTasks, updates: initialUpdates, files: initialFiles, entity, entities }: Props) {
+export function ProjectDetail({ project, tasks: initialTasks, updates: initialUpdates, files: initialFiles, entity, entities, initialCommits = [], initialGithubUrl = null, members = [] }: Props) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [tasks, setTasks] = useState(initialTasks)
@@ -85,11 +92,18 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
   const [newTask, setNewTask] = useState('')
   const [newUpdate, setNewUpdate] = useState('')
   const [updateType, setUpdateType] = useState('note')
-  const [activeTab, setActiveTab] = useState<'tasks' | 'log' | 'files'>('tasks')
+  const [activeTab, setActiveTab] = useState<'tasks' | 'log' | 'files' | 'github'>('tasks')
   const [isPending, startTransition] = useTransition()
   const [archiving, setArchiving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [notionUrl, setNotionUrl] = useState<string>((project as any).notion_url ?? '')
+  const [notionEditing, setNotionEditing] = useState(false)
+  const [savingNotion, startSaveNotion] = useTransition()
+  const [githubUrl, setGithubUrl] = useState<string>(initialGithubUrl ?? '')
+  const [githubEditing, setGithubEditing] = useState(false)
+  const [savingGithub, startSaveGithub] = useTransition()
+  const [commits] = useState<GitHubCommit[]>(initialCommits)
 
   // Overdue checks
   const projectOverdue = project.due_date && new Date(project.due_date) < new Date() && project.status !== 'complete'
@@ -183,6 +197,21 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
     router.push('/dashboard/projects')
   }
 
+  const handleSaveNotionUrl = () => {
+    startSaveNotion(async () => {
+      await linkProjectToNotion(project.id, notionUrl.trim() || null)
+      setNotionEditing(false)
+    })
+  }
+
+  const handleSaveGithubUrl = () => {
+    startSaveGithub(async () => {
+      await saveGitHubUrl(project.id, githubUrl.trim())
+      setGithubEditing(false)
+      router.refresh()
+    })
+  }
+
   const grouped = STATUS_ORDER.map(status => ({
     status,
     tasks: tasks.filter(t => t.status === status),
@@ -263,6 +292,40 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
           <p className="text-sm text-gray-400 leading-relaxed mb-5 max-w-2xl">{project.description}</p>
         )}
 
+        {/* Notion link */}
+        <div className="flex items-center gap-2 mb-5">
+          {notionEditing ? (
+            <>
+              <input
+                autoFocus
+                value={notionUrl}
+                onChange={e => setNotionUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleSaveNotionUrl(); if (e.key === 'Escape') setNotionEditing(false) }}
+                placeholder="https://notion.so/…"
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-indigo-600"
+              />
+              <button onClick={handleSaveNotionUrl} disabled={savingNotion}
+                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors">
+                Save
+              </button>
+              <button onClick={() => setNotionEditing(false)} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Cancel</button>
+            </>
+          ) : notionUrl ? (
+            <>
+              <a href={notionUrl} target="_blank" rel="noopener noreferrer"
+                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-indigo-400 transition-colors">
+                <span className="font-bold">N</span> Notion page ↗
+              </a>
+              <button onClick={() => setNotionEditing(true)} className="text-xs text-gray-700 hover:text-gray-500 transition-colors">Edit</button>
+            </>
+          ) : (
+            <button onClick={() => setNotionEditing(true)}
+              className="flex items-center gap-1.5 text-xs text-gray-700 hover:text-gray-500 transition-colors">
+              <span className="font-bold">N</span> Link Notion page
+            </button>
+          )}
+        </div>
+
         {/* Next Action */}
         {project.next_action && (
           <div className={`rounded-xl px-4 py-3 mb-6 ${nextActionOverdue ? 'bg-red-950/40 border border-red-900/40' : 'bg-indigo-950/40 border border-indigo-900/40'}`}>
@@ -297,6 +360,9 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
           </button>
           <button className={tabCls('files')} onClick={() => setActiveTab('files')}>
             Files <span className="ml-1 text-gray-600">{files.length}</span>
+          </button>
+          <button className={tabCls('github')} onClick={() => setActiveTab('github')}>
+            GitHub {commits.length > 0 && <span className="ml-1 text-gray-600">{commits.length}</span>}
           </button>
         </div>
 
@@ -339,6 +405,14 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
                           <span className={`flex-1 text-sm ${task.status === 'done' ? 'line-through text-gray-600' : 'text-gray-300'}`}>
                             {task.title}
                           </span>
+                          {(task as any).assignee_id && (() => {
+                            const m = members.find(m => m.id === (task as any).assignee_id)
+                            return m ? (
+                              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-800 text-indigo-200 text-[9px] font-bold shrink-0" title={m.full_name ?? m.email}>
+                                {(m.full_name ?? m.email).split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()}
+                              </span>
+                            ) : null
+                          })()}
                           <button onClick={() => handleDeleteTask(task)}
                             className="opacity-0 group-hover:opacity-100 text-gray-700 hover:text-red-400 transition-all text-base leading-none">
                             ×
@@ -404,6 +478,72 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
                     </div>
                   )
                 })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── GITHUB TAB ── */}
+        {activeTab === 'github' && (
+          <div>
+            <div className="mb-6">
+              <p className={`${SECTION_LABEL}`}>Repository</p>
+              {githubEditing ? (
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    value={githubUrl}
+                    onChange={e => setGithubUrl(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSaveGithubUrl(); if (e.key === 'Escape') setGithubEditing(false) }}
+                    placeholder="https://github.com/owner/repo"
+                    className={inputCls}
+                  />
+                  <button onClick={handleSaveGithubUrl} disabled={savingGithub}
+                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors shrink-0">
+                    Save
+                  </button>
+                  <button onClick={() => setGithubEditing(false)} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Cancel</button>
+                </div>
+              ) : githubUrl ? (
+                <div className="flex items-center gap-3">
+                  <a href={githubUrl} target="_blank" rel="noopener noreferrer"
+                    className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors font-mono truncate">
+                    {githubUrl.replace('https://github.com/', '')} ↗
+                  </a>
+                  <button onClick={() => setGithubEditing(true)} className="text-xs text-gray-700 hover:text-gray-500 shrink-0 transition-colors">Edit</button>
+                </div>
+              ) : (
+                <button onClick={() => setGithubEditing(true)}
+                  className="flex items-center gap-1.5 text-sm text-gray-700 hover:text-gray-400 transition-colors">
+                  + Link a GitHub repository
+                </button>
+              )}
+            </div>
+
+            {commits.length > 0 ? (
+              <div>
+                <p className={SECTION_LABEL}>Recent Commits</p>
+                <div className="space-y-0.5">
+                  {commits.map(commit => (
+                    <a key={commit.sha} href={commit.url} target="_blank" rel="noopener noreferrer"
+                      className="group flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-900 transition-colors">
+                      <span className="mt-0.5 font-mono text-xs text-gray-600 shrink-0 w-14 truncate">{commit.sha.slice(0, 7)}</span>
+                      <span className="flex-1 text-sm text-gray-300 group-hover:text-white transition-colors leading-snug">{commit.message.split('\n')[0]}</span>
+                      <div className="shrink-0 text-right">
+                        <p className="text-xs text-gray-600">{commit.author}</p>
+                        <p className="text-xs text-gray-700">{new Date(commit.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
+                      </div>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            ) : githubUrl ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-800 py-12">
+                <p className="text-sm text-gray-500">No commits found — check the repo URL or add a GITHUB_TOKEN env var for private repos</p>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-800 py-12">
+                <p className="text-sm text-gray-500">Link a GitHub repository above to see recent commits</p>
               </div>
             )}
           </div>

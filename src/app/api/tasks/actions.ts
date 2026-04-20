@@ -7,7 +7,7 @@ async function getContext() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
-  const { data: profile } = await supabase.from('user_profiles').select('org_id').eq('id', user.id).single()
+  const { data: profile } = await (supabase as any).from('user_profiles').select('org_id').eq('id', user.id).single() as { data: { org_id: string } | null }
   if (!profile) throw new Error('No profile found')
   return { supabase, user, org_id: profile.org_id }
 }
@@ -22,7 +22,7 @@ export async function createTask(payload: {
   due_date?: string | null
 }) {
   const { supabase, user, org_id } = await getContext()
-  const { error } = await supabase.from('tasks').insert({
+  const { error } = await (supabase as any).from('tasks').insert({
     org_id,
     user_id: user.id,
     created_by: user.id,
@@ -33,9 +33,21 @@ export async function createTask(payload: {
     status: payload.status ?? 'todo',
     priority: payload.priority ?? 'medium',
     due_date: payload.due_date ?? null,
+    gtd_bucket: 'backlog',
+    archived: false,
   })
   if (error) throw new Error('Failed to create task: ' + error.message)
   revalidatePath(`/dashboard/projects/${payload.project_id}`)
+  revalidatePath('/dashboard/tasks')
+}
+
+export async function reassignTaskProject(taskId: string, newProjectId: string | null, oldProjectId?: string | null) {
+  const { supabase } = await getContext()
+  const { error } = await (supabase as any).from('tasks').update({ project_id: newProjectId }).eq('id', taskId)
+  if (error) throw new Error('Failed to reassign task')
+  if (oldProjectId) revalidatePath(`/dashboard/projects/${oldProjectId}`)
+  if (newProjectId) revalidatePath(`/dashboard/projects/${newProjectId}`)
+  revalidatePath('/dashboard/tasks')
 }
 
 export async function updateTask(id: string, projectId: string, updates: {
@@ -47,7 +59,7 @@ export async function updateTask(id: string, projectId: string, updates: {
   gtd_bucket?: string
 }) {
   const { supabase } = await getContext()
-  const { error } = await supabase.from('tasks').update(updates as any).eq('id', id)
+  const { error } = await (supabase as any).from('tasks').update(updates).eq('id', id)
   if (error) throw new Error('Failed to update task')
   revalidatePath(`/dashboard/projects/${projectId}`)
   revalidatePath('/dashboard/tasks')
@@ -55,7 +67,7 @@ export async function updateTask(id: string, projectId: string, updates: {
 
 export async function deleteTask(id: string, projectId: string) {
   const { supabase } = await getContext()
-  const { error } = await supabase.from('tasks').delete().eq('id', id)
+  const { error } = await (supabase as any).from('tasks').delete().eq('id', id)
   if (error) throw new Error('Failed to delete task')
   revalidatePath(`/dashboard/projects/${projectId}`)
   revalidatePath('/dashboard/tasks')
@@ -72,14 +84,14 @@ export async function moveTaskBucket(id: string, bucket: GtdBucket) {
 
 export async function completeTask(id: string) {
   const { supabase } = await getContext()
-  const { error } = await supabase.from('tasks').update({ status: 'done' } as any).eq('id', id)
+  const { error } = await (supabase as any).from('tasks').update({ status: 'done' }).eq('id', id)
   if (error) throw new Error('Failed to complete task')
   revalidatePath('/dashboard/tasks')
 }
 
 export async function uncompleteTask(id: string) {
   const { supabase } = await getContext()
-  const { error } = await supabase.from('tasks').update({ status: 'todo' } as any).eq('id', id)
+  const { error } = await (supabase as any).from('tasks').update({ status: 'todo' }).eq('id', id)
   if (error) throw new Error('Failed to uncomplete task')
   revalidatePath('/dashboard/tasks')
 }
@@ -111,14 +123,14 @@ export async function createManagerTask(payload: {
 
 export async function cancelTask(id: string) {
   const { supabase } = await getContext()
-  const { error } = await supabase.from('tasks').update({ status: 'cancelled' } as any).eq('id', id)
+  const { error } = await (supabase as any).from('tasks').update({ status: 'cancelled' }).eq('id', id)
   if (error) throw new Error('Failed to cancel task')
   revalidatePath('/dashboard/tasks')
 }
 
 export async function reopenTask(id: string) {
   const { supabase } = await getContext()
-  const { error } = await supabase.from('tasks').update({ status: 'todo' } as any).eq('id', id)
+  const { error } = await (supabase as any).from('tasks').update({ status: 'todo' }).eq('id', id)
   if (error) throw new Error('Failed to reopen task')
   revalidatePath('/dashboard/tasks')
 }

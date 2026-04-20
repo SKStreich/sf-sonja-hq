@@ -1,18 +1,12 @@
-import { createClient } from '@supabase/supabase-js'
-import type { Database } from '@/types/supabase'
+import '@testing-library/jest-dom'
 
-export function createTestClient(accessToken: string) {
-  return createClient<Database>(
-    process.env.SUPABASE_TEST_URL ?? 'http://127.0.0.1:54321',
-    process.env.SUPABASE_TEST_ANON_KEY ?? '',
-    { global: { headers: { Authorization: `Bearer ${accessToken}` } } }
-  )
-}
-
-export function createServiceClient() {
-  return createClient<Database>(
-    process.env.SUPABASE_TEST_URL ?? 'http://127.0.0.1:54321',
-    process.env.SUPABASE_TEST_SERVICE_KEY ?? '',
-    { auth: { autoRefreshToken: false, persistSession: false } }
-  )
-}
+// Mock Next.js server-only modules so they can be imported in tests
+vi.mock('next/cache', () => ({ revalidatePath: vi.fn(), revalidateTag: vi.fn() }))
+vi.mock('next/navigation', () => ({
+  redirect: vi.fn(),
+  useRouter: vi.fn(() => ({ push: vi.fn(), refresh: vi.fn() })),
+  usePathname: vi.fn(() => '/'),
+}))
+vi.mock('next/headers', () => ({
+  cookies: vi.fn(() => ({ get: vi.fn(), set: vi.fn(), delete: vi.fn() })),
+}))

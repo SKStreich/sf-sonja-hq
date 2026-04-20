@@ -17,5 +17,13 @@ export default async function CostPage() {
     .gte('period_start', ninetyDaysAgo.toISOString().slice(0, 10))
     .order('period_start', { ascending: false })
 
-  return <CostDashboard usage={usage ?? []} />
+  const serviceConfig = {
+    anthropic: !!process.env.ANTHROPIC_API_KEY,
+    openai: !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'sk-placeholder',
+    resend: !!process.env.RESEND_API_KEY,
+    vercel: !!process.env.VERCEL_TOKEN,
+    netlify: !!process.env.NETLIFY_AUTH_TOKEN && !!process.env.NETLIFY_ACCOUNT_SLUG,
+  }
+
+  return <CostDashboard usage={usage ?? []} serviceConfig={serviceConfig} />
 }

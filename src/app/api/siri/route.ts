@@ -22,17 +22,17 @@ export async function POST(req: NextRequest) {
 
     const supabase = createAdminClient()
 
-    const { data: profile } = await supabase
+    const { data: profile } = await (supabase as any)
       .from('user_profiles')
       .select('id')
       .eq('capture_api_key', apiKey)
-      .single()
+      .single() as { data: { id: string } | null }
 
     if (!profile) {
       return NextResponse.json({ error: 'Invalid API key' }, { status: 401 })
     }
 
-    const { data: capture, error } = await supabase
+    const { data: capture, error } = await (supabase as any)
       .from('captures')
       .insert({
         user_id: profile.id,

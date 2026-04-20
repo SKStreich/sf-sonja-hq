@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { ProjectCard } from './ProjectCard'
 import { ProjectCreateDialog } from './ProjectCreateDialog'
+import { TimelineView } from '@/components/shared/TimelineView'
 import type { Database, ProjectStatus, ProjectPriority, EntityType } from '@/types/supabase'
 
 type Project = Database['public']['Tables']['projects']['Row']
@@ -16,7 +17,7 @@ interface Props {
 }
 
 export function ProjectsClient({ projects, entities }: Props) {
-  const [view, setView] = useState<'card' | 'list'>('card')
+  const [view, setView] = useState<'card' | 'list' | 'timeline'>('card')
   const [filterEntity, setFilterEntity] = useState<EntityType | 'all'>('all')
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all')
   const [filterPriority, setFilterPriority] = useState<ProjectPriority | 'all'>('all')
@@ -56,7 +57,7 @@ export function ProjectsClient({ projects, entities }: Props) {
             <button className={btnCls(filterEntity === 'all')} onClick={() => setFilterEntity('all')}>All</button>
             {entities.map(e => (
               <button key={e.id} className={btnCls(filterEntity === e.type as EntityType)} onClick={() => setFilterEntity(e.type as EntityType)}>
-                <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: e.color }} />
+                <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: e.color ?? undefined }} />
                 {ENTITY_LABELS[e.type] ?? e.name}
               </button>
             ))}
@@ -84,6 +85,7 @@ export function ProjectsClient({ projects, entities }: Props) {
           <div className="ml-auto flex items-center rounded-lg border border-gray-800 bg-gray-900 p-1 gap-1">
             <button className={btnCls(view === 'card')} onClick={() => setView('card')}>⊞ Cards</button>
             <button className={btnCls(view === 'list')} onClick={() => setView('list')}>≡ List</button>
+            <button className={btnCls(view === 'timeline')} onClick={() => setView('timeline')}>⋯ Timeline</button>
           </div>
         </div>
 
@@ -132,7 +134,7 @@ export function ProjectsClient({ projects, entities }: Props) {
                       <td className="px-4 py-3 hidden sm:table-cell">
                         {entity && (
                           <span className="flex items-center gap-1.5 text-gray-400 text-xs">
-                            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: entity.color }} />
+                            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: entity.color ?? undefined }} />
                             {ENTITY_LABELS[entity.type] ?? entity.name}
                           </span>
                         )}
@@ -160,6 +162,22 @@ export function ProjectsClient({ projects, entities }: Props) {
               </tbody>
             </table>
           </div>
+        )}
+
+        {/* Timeline view */}
+        {view === 'timeline' && filtered.length > 0 && (
+          <TimelineView
+            items={filtered.map(p => ({
+              id: p.id,
+              name: p.name,
+              startDate: p.created_at ? p.created_at.slice(0, 10) : null,
+              endDate: p.due_date ?? null,
+              entityType: entityMap[p.entity_id]?.type,
+              entityName: ENTITY_LABELS[entityMap[p.entity_id]?.type] ?? entityMap[p.entity_id]?.name,
+              href: `/dashboard/projects/${p.id}`,
+            }))}
+            emptyLabel="No projects to display"
+          />
         )}
       </div>
 

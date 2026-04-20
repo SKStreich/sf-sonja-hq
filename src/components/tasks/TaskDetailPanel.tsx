@@ -1,7 +1,9 @@
 'use client'
 import { useState, useEffect, useRef, useTransition } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { addTaskNote, deleteTaskNote, saveTaskFile, deleteTaskFile, completeTask, cancelTask, reopenTask } from '@/app/api/tasks/actions'
+import { addTaskNote, deleteTaskNote, saveTaskFile, deleteTaskFile, completeTask, cancelTask, reopenTask, reassignTaskProject } from '@/app/api/tasks/actions'
+import { assignTask } from '@/app/api/members/actions'
+import { createProject } from '@/app/api/projects/actions'
 
 interface TaskNote {
   id: string
@@ -25,13 +27,25 @@ interface Task {
   priority: string
   gtd_bucket: string
   due_date: string | null
+  assignee_id?: string | null
   projects?: { id: string; name: string } | null
   entities?: { name: string; type: string } | null
+}
+
+interface OrgMember { id: string; full_name: string | null; email: string }
+interface ProjectOption { id: string; name: string }
+interface EntityOption { id: string; name: string; type: string }
+
+const ENTITY_LABELS: Record<string, string> = {
+  tm: 'Triplemeter', sf: 'SF Solutions', sfe: 'SF Enterprises', personal: 'Personal',
 }
 
 interface Props {
   task: Task
   onClose: () => void
+  members?: OrgMember[]
+  projects?: ProjectOption[]
+  entities?: EntityOption[]
 }
 
 function fmt(bytes: number | null) {
@@ -52,7 +66,7 @@ const BUCKET_LABELS: Record<string, string> = {
   today: 'Today', this_week: 'This Week', backlog: 'Backlog', someday: 'Someday',
 }
 
-export function TaskDetailPanel({ task, onClose }: Props) {
+export function TaskDetailPanel({ task, onClose, members = [], projects = [], entities = [] }: Props) {
   const [tab, setTab] = useState<'notes' | 'files'>('notes')
   const [notes, setNotes] = useState<TaskNote[]>([])
   const [files, setFiles] = useState<TaskFile[]>([])
@@ -132,6 +146,46 @@ export function TaskDetailPanel({ task, onClose }: Props) {
     })
   }
 
+  const [assigneeId, setAssigneeId] = useState(task.assignee_id ?? null)
+  const [assigning, startAssign] = useTransition()
+
+  const handleAssign = (userId: string | null) => {
+    setAssigneeId(userId)
+    startAssign(() => assignTask(task.id, userId))
+  }
+
+  const [projectId, setProjectId] = useState<string | null>(task.projects?.id ?? null)
+  const [projectName, setProjectName] = useState<string>(task.projects?.name ?? '')
+  const [reassigning, startReassign] = useTransition()
+  const [newProjectOpen, setNewProjectOpen] = useState(false)
+  const [newProjectName, setNewProjectName] = useState('')
+  const [newProjectEntityId, setNewProjectEntityId] = useState(entities[0]?.id ?? '')
+  const [creatingProject, startCreateProject] = useTransition()
+
+  const handleReassignProject = (newId: string | null) => {
+    const oldId = projectId
+    setProjectId(newId)
+    setProjectName(projects.find(p => p.id === newId)?.name ?? '')
+    startReassign(() => reassignTaskProject(task.id, newId, oldId))
+  }
+
+  const handleCreateAndAssign = () => {
+    if (!newProjectName.trim() || !newProjectEntityId) return
+    startCreateProject(async () => {
+      const { id } = await createProject({
+        name: newProjectName.trim(),
+        entity_id: newProjectEntityId,
+        status: 'active',
+        priority: 'medium',
+      })
+      await reassignTaskProject(task.id, id, projectId)
+      setProjectId(id)
+      setProjectName(newProjectName.trim())
+      setNewProjectName('')
+      setNewProjectOpen(false)
+    })
+  }
+
   const isDone = task.status === 'done'
   const isCancelled = task.status === 'cancelled'
 
@@ -180,6 +234,86 @@ export function TaskDetailPanel({ task, onClose }: Props) {
             </button>
           )}
         </div>
+
+        {/* Project */}
+        <div className="px-5 py-2.5 border-b border-gray-800">
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-gray-600 shrink-0 w-14">Project</span>
+            <select
+              value={projectId ?? ''}
+              onChange={e => {
+                if (e.target.value === '__new__') {
+                  setNewProjectOpen(true)
+                } else {
+                  handleReassignProject(e.target.value || null)
+                }
+              }}
+              disabled={reassigning || creatingProject}
+              className="flex-1 rounded border border-gray-800 bg-gray-900 px-2 py-1 text-xs text-gray-300 outline-none"
+            >
+              <option value="">No project</option>
+              {projects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+              <option value="__new__">＋ New project…</option>
+            </select>
+          </div>
+
+          {/* Mini new-project form */}
+          {newProjectOpen && (
+            <div className="mt-3 rounded-lg border border-indigo-900/50 bg-indigo-950/20 p-3 space-y-2">
+              <p className="text-xs font-medium text-indigo-400">New project</p>
+              <input
+                autoFocus
+                value={newProjectName}
+                onChange={e => setNewProjectName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreateAndAssign(); if (e.key === 'Escape') setNewProjectOpen(false) }}
+                placeholder="Project name…"
+                className="w-full rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-xs text-white placeholder-gray-600 outline-none focus:border-indigo-500"
+              />
+              {entities.length > 1 && (
+                <select
+                  value={newProjectEntityId}
+                  onChange={e => setNewProjectEntityId(e.target.value)}
+                  className="w-full rounded border border-gray-700 bg-gray-900 px-2 py-1.5 text-xs text-gray-300 outline-none"
+                >
+                  {entities.map(e => (
+                    <option key={e.id} value={e.id}>{ENTITY_LABELS[e.type] ?? e.name}</option>
+                  ))}
+                </select>
+              )}
+              <div className="flex gap-2 justify-end pt-1">
+                <button
+                  onClick={() => { setNewProjectOpen(false); setNewProjectName('') }}
+                  className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                >Cancel</button>
+                <button
+                  onClick={handleCreateAndAssign}
+                  disabled={!newProjectName.trim() || creatingProject}
+                  className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors"
+                >{creatingProject ? 'Creating…' : 'Create & assign'}</button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Assignee */}
+        {members.length > 0 && (
+          <div className="flex items-center gap-3 px-5 py-2.5 border-b border-gray-800">
+            <span className="text-xs text-gray-600 shrink-0 w-14">Assignee</span>
+            <select
+              value={assigneeId ?? ''}
+              onChange={e => handleAssign(e.target.value || null)}
+              disabled={assigning}
+              className="flex-1 rounded border border-gray-800 bg-gray-900 px-2 py-1 text-xs text-gray-300 outline-none"
+            >
+              <option value="">Unassigned</option>
+              {members.map(m => (
+                <option key={m.id} value={m.id}>{m.full_name ?? m.email}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="flex border-b border-gray-800 px-5">

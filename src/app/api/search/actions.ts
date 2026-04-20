@@ -19,12 +19,12 @@ export async function globalSearch(query: string): Promise<SearchResult[]> {
   const like = `%${q}%`
 
   const [projectsRes, tasksRes, updatesRes, filesRes] = await Promise.all([
-    supabase
+    (supabase as any)
       .from('projects')
       .select('id, name, status')
       .or(`name.ilike.${like},description.ilike.${like}`)
       .limit(6),
-    supabase
+    (supabase as any)
       .from('tasks')
       .select('id, title, project_id, projects(name)')
       .ilike('title', like)

@@ -2,21 +2,81 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { regenerateCaptureKey } from '@/app/api/captures/actions'
+import { inviteOrgMember, revokeInvitation, removeMember, updateMemberRole } from '@/app/api/members/actions'
+
+interface Member { id: string; full_name: string | null; email: string; role: string; created_at: string }
+interface Invitation { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; token: string }
 
 interface Props {
   captureApiKey: string
   appUrl: string
   userEmail: string
+  currentUserId: string
+  currentUserRole: string
+  members: Member[]
+  pendingInvitations: Invitation[]
+  notionConfigured: boolean
+  notionLastSync: string | null
 }
 
-export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail }: Props) {
+const ROLE_LABELS: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Member', read_only: 'Viewer' }
+
+export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, currentUserId, currentUserRole, members: initialMembers, pendingInvitations: initialInvitations, notionConfigured, notionLastSync }: Props) {
   const [apiKey, setApiKey] = useState(initialKey)
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
   const [regenerating, startRegenerate] = useTransition()
   const [confirmRegen, setConfirmRegen] = useState(false)
 
+  // Members state
+  const [members, setMembers] = useState(initialMembers)
+  const [invitations, setInvitations] = useState(initialInvitations)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteRole, setInviteRole] = useState<'member' | 'admin' | 'read_only'>('member')
+  const [inviting, startInvite] = useTransition()
+  const [inviteError, setInviteError] = useState('')
+  const [inviteSuccess, setInviteSuccess] = useState('')
+  const [inviteLink, setInviteLink] = useState('')
+  const [memberPending, startMember] = useTransition()
+  const isAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+
   const endpoint = `${appUrl}/api/siri`
+
+  const handleInvite = () => {
+    if (!inviteEmail.trim()) return
+    setInviteError(''); setInviteSuccess(''); setInviteLink('')
+    startInvite(async () => {
+      try {
+        const { inviteUrl } = await inviteOrgMember(inviteEmail.trim(), inviteRole)
+        setInviteSuccess(`Invitation created for ${inviteEmail.trim()}`)
+        setInviteLink(inviteUrl)
+        setInviteEmail('')
+      } catch (e: any) {
+        setInviteError(e.message)
+      }
+    })
+  }
+
+  const handleRevoke = (id: string) => {
+    startMember(async () => {
+      await revokeInvitation(id)
+      setInvitations(prev => prev.filter(i => i.id !== id))
+    })
+  }
+
+  const handleRemoveMember = (id: string) => {
+    startMember(async () => {
+      try { await removeMember(id) } catch {}
+      setMembers(prev => prev.filter(m => m.id !== id))
+    })
+  }
+
+  const handleRoleChange = (memberId: string, role: 'admin' | 'member' | 'read_only') => {
+    startMember(async () => {
+      await updateMemberRole(memberId, role)
+      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role } : m))
+    })
+  }
 
   const copy = (text: string) => {
     navigator.clipboard.writeText(text)
@@ -150,6 +210,152 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail }:
   -H "Content-Type: application/json" \\
   -d '{"text":"Test capture from terminal","type":"task"}'`}
           </pre>
+        </div>
+      </section>
+
+      {/* Team Members */}
+      <section className="rounded-xl border border-gray-800 bg-gray-900/30 p-6 mb-6">
+        <h2 className="text-base font-semibold text-white mb-1">Team Members</h2>
+        <p className="text-sm text-gray-500 mb-5">
+          {isAdmin ? 'Manage who has access to your HQ.' : 'People with access to this HQ.'}
+        </p>
+
+        {/* Member list */}
+        <ul className="space-y-2 mb-6">
+          {members.map(m => (
+            <li key={m.id} className="flex items-center gap-3 rounded-lg border border-gray-800 px-4 py-2.5">
+              <div className="h-7 w-7 rounded-full bg-indigo-900/60 flex items-center justify-center text-xs font-bold text-indigo-300 shrink-0">
+                {(m.full_name ?? m.email)[0].toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-200 truncate">{m.full_name ?? m.email}</p>
+                {m.full_name && <p className="text-xs text-gray-600 truncate">{m.email}</p>}
+              </div>
+              {isAdmin && m.id !== currentUserId && m.role !== 'owner' ? (
+                <select
+                  value={m.role}
+                  onChange={e => handleRoleChange(m.id, e.target.value as any)}
+                  disabled={memberPending}
+                  className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-400 outline-none"
+                >
+                  <option value="admin">Admin</option>
+                  <option value="member">Member</option>
+                  <option value="read_only">Viewer</option>
+                </select>
+              ) : (
+                <span className="text-xs text-gray-500 shrink-0">{ROLE_LABELS[m.role] ?? m.role}</span>
+              )}
+              {isAdmin && m.id !== currentUserId && m.role !== 'owner' && (
+                <button
+                  onClick={() => handleRemoveMember(m.id)}
+                  disabled={memberPending}
+                  className="text-xs text-gray-700 hover:text-red-400 transition-colors shrink-0"
+                  title="Remove member"
+                >✕</button>
+              )}
+              {m.id === currentUserId && (
+                <span className="text-xs text-gray-700 shrink-0">You</span>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        {/* Pending invitations */}
+        {isAdmin && invitations.length > 0 && (
+          <div className="mb-6">
+            <p className="text-xs font-medium uppercase tracking-wider text-gray-600 mb-2">Pending Invitations</p>
+            <ul className="space-y-2">
+              {invitations.map(inv => (
+                <li key={inv.id} className="flex items-center gap-3 rounded-lg border border-dashed border-gray-800 px-4 py-2">
+                  <div className="h-7 w-7 rounded-full bg-gray-800 flex items-center justify-center text-xs text-gray-500 shrink-0">?</div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-400 truncate">{inv.email}</p>
+                    <p className="text-xs text-gray-600">Invited as {ROLE_LABELS[inv.role]} · expires {new Date(inv.expires_at).toLocaleDateString()}</p>
+                  </div>
+                  <button
+                    onClick={() => copy(`${appUrl}/invite/${inv.token}`)}
+                    className="text-xs text-gray-600 hover:text-indigo-400 transition-colors shrink-0"
+                    title="Copy invite link"
+                  >Copy link</button>
+                  <button
+                    onClick={() => handleRevoke(inv.id)}
+                    disabled={memberPending}
+                    className="text-xs text-gray-700 hover:text-red-400 transition-colors"
+                  >Revoke</button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Invite form */}
+        {isAdmin && (
+          <div className="rounded-lg border border-gray-800 p-4">
+            <p className="text-xs font-medium uppercase tracking-wider text-gray-600 mb-3">Invite Someone</p>
+            <div className="flex items-center gap-2">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={e => setInviteEmail(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleInvite()}
+                placeholder="email@example.com"
+                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-gray-600"
+              />
+              <select
+                value={inviteRole}
+                onChange={e => setInviteRole(e.target.value as any)}
+                className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400 outline-none"
+              >
+                <option value="member">Member</option>
+                <option value="admin">Admin</option>
+                <option value="read_only">Viewer</option>
+              </select>
+              <button
+                onClick={handleInvite}
+                disabled={!inviteEmail.trim() || inviting}
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors"
+              >
+                {inviting ? 'Sending…' : 'Send Invite'}
+              </button>
+            </div>
+            {inviteError && <p className="mt-2 text-xs text-red-400">{inviteError}</p>}
+            {inviteSuccess && <p className="mt-2 text-xs text-green-400">{inviteSuccess}</p>}
+            {inviteLink && (
+              <div className="mt-3 rounded-lg border border-indigo-900/50 bg-indigo-950/30 p-3">
+                <p className="text-xs text-indigo-400 mb-1.5">Share this link directly if the email didn't arrive:</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs text-gray-300 font-mono truncate">{inviteLink}</code>
+                  <button
+                    onClick={() => { copy(inviteLink); }}
+                    className="shrink-0 rounded bg-indigo-700 px-2.5 py-1 text-xs text-white hover:bg-indigo-600 transition-colors"
+                  >Copy</button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Integrations */}
+      <section className="rounded-xl border border-gray-800 bg-gray-900/30 p-6 mb-6">
+        <h2 className="text-base font-semibold text-white mb-1">Integrations</h2>
+        <p className="text-sm text-gray-500 mb-5">Connected services that sync data into HQ.</p>
+
+        <div className="flex items-center gap-3 rounded-lg border border-gray-800 px-4 py-3">
+          <span className="text-lg shrink-0">N</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-gray-200">Notion</p>
+            {notionConfigured ? (
+              <p className="text-xs text-gray-500">
+                Connected · Last synced {notionLastSync
+                  ? new Date(notionLastSync).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                  : 'never'}
+              </p>
+            ) : (
+              <p className="text-xs text-yellow-600">Add <code className="font-mono">NOTION_API_KEY</code> to your environment to enable sync</p>
+            )}
+          </div>
+          <span className={`h-2 w-2 rounded-full shrink-0 ${notionConfigured ? 'bg-green-500' : 'bg-gray-600'}`} />
         </div>
       </section>
     </div>

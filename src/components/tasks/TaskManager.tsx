@@ -6,6 +6,7 @@ import {
   type GtdBucket,
 } from '@/app/api/tasks/actions'
 import { TaskDetailPanel } from './TaskDetailPanel'
+import { TimelineView } from '@/components/shared/TimelineView'
 
 type Task = any
 type Project = any
@@ -131,13 +132,21 @@ function AddTaskRow({ bucket, projects, entities, onDone }: AddTaskRowProps) {
 
 type StatusFilter = 'all' | 'open' | 'done' | 'cancelled'
 
+interface OrgMemberRow { id: string; full_name: string | null; email: string }
+
+function initials(member: OrgMemberRow): string {
+  const name = member.full_name ?? member.email
+  return name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
+}
+
 interface TaskRowProps {
   task: Task
   statusFilter: StatusFilter
+  members: OrgMemberRow[]
   onOpenDetail: (task: Task) => void
 }
 
-function TaskRow({ task, statusFilter, onOpenDetail }: TaskRowProps) {
+function TaskRow({ task, statusFilter, members, onOpenDetail }: TaskRowProps) {
   const [completing, startTransition] = useTransition()
   const [menuOpen, setMenuOpen] = useState(false)
   const done = task.status === 'done'
@@ -225,6 +234,16 @@ function TaskRow({ task, statusFilter, onOpenDetail }: TaskRowProps) {
         </div>
       </div>
 
+      {/* Assignee avatar */}
+      {task.assignee_id && (() => {
+        const m = members.find(m => m.id === task.assignee_id)
+        return m ? (
+          <span className="mt-0.5 shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-indigo-800 text-indigo-200 text-[9px] font-bold" title={m.full_name ?? m.email}>
+            {initials(m)}
+          </span>
+        ) : null
+      })()}
+
       {/* Priority dot */}
       <span className={`mt-1.5 shrink-0 w-2 h-2 rounded-full ${PRIORITY_COLORS[task.priority] ?? 'bg-gray-600'}`} title={task.priority} />
 
@@ -280,11 +299,12 @@ interface BucketSectionProps {
   tasks: Task[]
   projects: Project[]
   entities: Entity[]
+  members: OrgMemberRow[]
   statusFilter: StatusFilter
   onOpenDetail: (task: Task) => void
 }
 
-function BucketSection({ bucket, tasks, projects, entities, statusFilter, onOpenDetail }: BucketSectionProps) {
+function BucketSection({ bucket, tasks, projects, entities, members, statusFilter, onOpenDetail }: BucketSectionProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [adding, setAdding] = useState(false)
 
@@ -316,7 +336,7 @@ function BucketSection({ bucket, tasks, projects, entities, statusFilter, onOpen
             </p>
           )}
           {tasks.map(t => (
-            <TaskRow key={t.id} task={t} statusFilter={statusFilter} onOpenDetail={onOpenDetail} />
+            <TaskRow key={t.id} task={t} statusFilter={statusFilter} members={members} onOpenDetail={onOpenDetail} />
           ))}
           {adding
             ? <AddTaskRow bucket={bucket.id} projects={projects} entities={entities} onDone={() => setAdding(false)} />
@@ -335,21 +355,31 @@ function BucketSection({ bucket, tasks, projects, entities, statusFilter, onOpen
   )
 }
 
+interface OrgMember { id: string; full_name: string | null; email: string }
+
 interface Props {
   tasks: Task[]
   projects: Project[]
   entities: Entity[]
+  members?: OrgMember[]
+  currentUserId?: string
 }
 
-export function TaskManager({ tasks, projects, entities }: Props) {
+export function TaskManager({ tasks, projects, entities, members = [], currentUserId }: Props) {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('open')
   const [filterEntity, setFilterEntity] = useState<string>('all')
+  const [mineOnly, setMineOnly] = useState(false)
   const [addingQuick, setAddingQuick] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+  const [view, setView] = useState<'buckets' | 'timeline'>('buckets')
 
-  const filtered = filterEntity === 'all'
-    ? tasks
-    : tasks.filter(t => t.entities?.type === filterEntity || t.projects?.entity_id === entities.find(e => e.type === filterEntity)?.id)
+  const filtered = (() => {
+    let list = filterEntity === 'all'
+      ? tasks
+      : tasks.filter(t => t.entities?.type === filterEntity || t.projects?.entity_id === entities.find(e => e.type === filterEntity)?.id)
+    if (mineOnly && currentUserId) list = list.filter(t => t.assignee_id === currentUserId)
+    return list
+  })()
 
   const byBucket = (bucket: GtdBucket) => filtered.filter(t => t.gtd_bucket === bucket)
 
@@ -390,6 +420,24 @@ export function TaskManager({ tasks, projects, entities }: Props) {
                 {ENTITY_LABELS[e.type] ?? e.name}
               </button>
             ))}
+            {currentUserId && members.length > 1 && (
+              <button
+                onClick={() => setMineOnly(o => !o)}
+                className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${mineOnly ? 'bg-indigo-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              >
+                👤 Mine
+              </button>
+            )}
+          </div>
+          <div className="flex items-center rounded-lg border border-gray-800 bg-gray-900 p-1 gap-1">
+            <button
+              onClick={() => setView('buckets')}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${view === 'buckets' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            >≡ Buckets</button>
+            <button
+              onClick={() => setView('timeline')}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${view === 'timeline' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+            >⋯ Timeline</button>
           </div>
           <button
             onClick={() => setAddingQuick(true)}
@@ -422,21 +470,40 @@ export function TaskManager({ tasks, projects, entities }: Props) {
       )}
 
       {/* Bucket sections */}
-      {BUCKETS.map(bucket => (
+      {view === 'buckets' && BUCKETS.map(bucket => (
         <BucketSection
           key={bucket.id}
           bucket={bucket}
           tasks={byBucket(bucket.id)}
           projects={projects}
           entities={entities}
+          members={members}
           statusFilter={statusFilter}
           onOpenDetail={setSelectedTask}
         />
       ))}
 
+      {/* Timeline view */}
+      {view === 'timeline' && (
+        <TimelineView
+          items={tasks
+            .filter(t => t.status !== 'done' && t.status !== 'cancelled')
+            .filter(t => filterEntity === 'all' || t.entities?.type === filterEntity)
+            .map(t => ({
+              id: t.id,
+              name: t.title,
+              startDate: t.created_at ? t.created_at.slice(0, 10) : null,
+              endDate: t.due_date ?? null,
+              entityType: t.entities?.type,
+              entityName: ENTITY_LABELS[t.entities?.type] ?? t.entities?.name,
+            }))}
+          emptyLabel="No open tasks to display on timeline"
+        />
+      )}
+
       {/* Detail panel */}
       {selectedTask && (
-        <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} />
+        <TaskDetailPanel task={selectedTask} onClose={() => setSelectedTask(null)} projects={projects} entities={entities} members={members} />
       )}
     </div>
   )

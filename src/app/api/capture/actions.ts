@@ -9,7 +9,7 @@ export async function submitCapture(payload: CapturePayload) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) throw new Error('Not authenticated')
 
-  const { error } = await supabase.from('captures').insert({
+  const { error } = await (supabase as any).from('captures').insert({
     user_id: user.id,
     type: payload.type,
     content: payload.content,

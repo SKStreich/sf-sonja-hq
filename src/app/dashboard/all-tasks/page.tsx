@@ -14,7 +14,7 @@ export default async function AllTasksPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: tasks } = await supabase
+  const { data: tasks } = await (supabase as any)
     .from('tasks')
     .select('*, projects(id, name)')
     .eq('archived', false)
@@ -46,7 +46,7 @@ export default async function AllTasksPage() {
               {STATUS_LABELS[status]} · {group.length}
             </h2>
             <div className="rounded-xl border border-gray-800 overflow-hidden">
-              {group.map((t, i) => (
+              {(group as any[]).map((t: any, i: number) => (
                 <Link
                   key={t.id}
                   href={`/dashboard/projects/${t.project_id}`}

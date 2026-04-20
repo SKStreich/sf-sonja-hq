@@ -1,7 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { addManualEntry, deleteUsageEntry, syncOpenAIUsage } from '@/app/api/usage/actions'
+import { addManualEntry, deleteUsageEntry, syncAllUsage, type SyncResult } from '@/app/api/usage/actions'
 
 type UsageRow = any
 
@@ -10,6 +10,7 @@ const SERVICE_META: Record<string, { label: string; icon: string; color: string;
   openai:    { label: 'OpenAI / Whisper',    icon: '🎙', color: 'text-green-400',   unitLabel: 'minutes',   pricingNote: '$0.006/min' },
   supabase:  { label: 'Supabase',            icon: '🗄',  color: 'text-emerald-400', unitLabel: 'requests',  pricingNote: '$25/mo Pro' },
   vercel:    { label: 'Vercel',              icon: '▲',   color: 'text-white',       unitLabel: 'deploys',   pricingNote: '$20/mo Pro' },
+  netlify:   { label: 'Netlify',             icon: '◈',   color: 'text-teal-400',    unitLabel: 'deploys',   pricingNote: '$19/mo Pro' },
   resend:    { label: 'Resend',              icon: '✉',   color: 'text-blue-400',    unitLabel: 'emails',    pricingNote: '$0.80/1k emails' },
   other:     { label: 'Other',               icon: '⚙',   color: 'text-gray-400',    unitLabel: 'units',     pricingNote: '' },
 }
@@ -140,10 +141,12 @@ function AddEntryForm({ onDone }: AddEntryFormProps) {
   )
 }
 
-export function CostDashboard({ usage }: { usage: UsageRow[] }) {
+interface ServiceConfig { anthropic: boolean; openai: boolean; resend: boolean; vercel: boolean; netlify: boolean }
+
+export function CostDashboard({ usage, serviceConfig }: { usage: UsageRow[]; serviceConfig: ServiceConfig }) {
   const [addingEntry, setAddingEntry] = useState(false)
   const [syncing, startSync] = useTransition()
-  const [syncMsg, setSyncMsg] = useState('')
+  const [syncResults, setSyncResults] = useState<SyncResult[] | null>(null)
   const [deleting, startDelete] = useTransition()
 
   const now = new Date()
@@ -166,11 +169,12 @@ export function CostDashboard({ usage }: { usage: UsageRow[] }) {
     byService[row.service].rows.push(row)
   }
 
-  const handleSync = () => {
+  const handleSyncAll = () => {
+    setSyncResults(null)
     startSync(async () => {
-      const result = await syncOpenAIUsage()
-      setSyncMsg(result.error ? `Error: ${result.error}` : `Synced ${result.synced} OpenAI records`)
-      setTimeout(() => setSyncMsg(''), 4000)
+      const results = await syncAllUsage()
+      setSyncResults(results)
+      setTimeout(() => setSyncResults(null), 8000)
     })
   }
 
@@ -190,10 +194,9 @@ export function CostDashboard({ usage }: { usage: UsageRow[] }) {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {syncMsg && <span className={`text-xs ${syncMsg.startsWith('Error') ? 'text-red-400' : 'text-green-400'}`}>{syncMsg}</span>}
-          <button onClick={handleSync} disabled={syncing}
+          <button onClick={handleSyncAll} disabled={syncing}
             className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-400 hover:text-white hover:border-gray-600 disabled:opacity-40 transition-colors">
-            {syncing ? 'Syncing…' : '↻ Sync OpenAI'}
+            {syncing ? 'Syncing…' : '↻ Sync All'}
           </button>
           <button onClick={() => setAddingEntry(true)} disabled={addingEntry}
             className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors">
@@ -201,6 +204,25 @@ export function CostDashboard({ usage }: { usage: UsageRow[] }) {
           </button>
         </div>
       </div>
+
+      {/* Sync results */}
+      {syncResults && (
+        <div className="mb-6 rounded-xl border border-gray-800 bg-gray-900/30 px-4 py-3">
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-600 mb-2">Last Sync Results</p>
+          <div className="flex flex-wrap gap-3">
+            {syncResults.map(r => (
+              <div key={r.service} className="flex items-center gap-1.5">
+                <span className={`h-1.5 w-1.5 rounded-full ${r.error ? 'bg-red-500' : 'bg-green-500'}`} />
+                <span className="text-xs text-gray-400 capitalize">{r.service}:</span>
+                {r.error
+                  ? <span className="text-xs text-red-400">{r.error}</span>
+                  : <span className="text-xs text-green-400">{r.synced} records</span>
+                }
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Summary cards */}
       <div className="grid grid-cols-3 gap-4 mb-6">
@@ -260,6 +282,37 @@ export function CostDashboard({ usage }: { usage: UsageRow[] }) {
 
       {/* Add entry form */}
       {addingEntry && <div className="mb-6"><AddEntryForm onDone={() => setAddingEntry(false)} /></div>}
+
+      {/* Service config status */}
+      <div className="rounded-xl border border-gray-800 bg-gray-900/30 px-4 py-3 mb-6">
+        <p className="text-xs font-medium uppercase tracking-wider text-gray-600 mb-2">API Keys Configured</p>
+        <div className="flex flex-wrap gap-x-6 gap-y-1">
+          {([
+            { key: 'anthropic', label: 'Anthropic', envVar: 'ANTHROPIC_API_KEY', syncable: false },
+            { key: 'openai',    label: 'OpenAI',    envVar: 'OPENAI_API_KEY',    syncable: true  },
+            { key: 'resend',    label: 'Resend',    envVar: 'RESEND_API_KEY',    syncable: true  },
+            { key: 'vercel',    label: 'Vercel',    envVar: 'VERCEL_TOKEN',      syncable: true  },
+            { key: 'netlify',   label: 'Netlify',   envVar: 'NETLIFY_AUTH_TOKEN + NETLIFY_ACCOUNT_SLUG', syncable: true },
+          ] as const).map(({ key, label, envVar, syncable }) => {
+            const configured = serviceConfig[key]
+            return (
+              <div key={key} className="flex items-center gap-1.5">
+                <span className={`h-1.5 w-1.5 rounded-full ${configured ? 'bg-green-500' : 'bg-gray-700'}`} />
+                <span className={`text-xs ${configured ? 'text-gray-400' : 'text-gray-600'}`}>{label}</span>
+                {!configured && (
+                  <span className="text-xs text-gray-700 font-mono">{envVar}</span>
+                )}
+                {configured && syncable && (
+                  <span className="text-xs text-gray-700">· auto-sync</span>
+                )}
+                {configured && !syncable && (
+                  <span className="text-xs text-gray-700">· auto-logged</span>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Recent entries */}
       {usage.length > 0 && (
