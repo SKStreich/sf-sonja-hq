@@ -65,7 +65,7 @@ export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 
   if (resendKey) {
     const resend = new Resend(resendKey)
     await resend.emails.send({
-      from: 'Sonja HQ <noreply@streichforce.com>',
+      from: 'Sonja HQ <noreply@hq.streichforce.com>',
       to: normalizedEmail,
       subject: `${profile.full_name ?? 'Someone'} invited you to ${org?.name ?? 'Sonja HQ'}`,
       html: buildInviteEmail({
