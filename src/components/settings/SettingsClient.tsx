@@ -2,10 +2,10 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { regenerateCaptureKey } from '@/app/api/captures/actions'
-import { inviteOrgMember, revokeInvitation, removeMember, updateMemberRole } from '@/app/api/members/actions'
+import { inviteOrgMember, revokeInvitation, resendInvitation, removeMember, updateMemberRole } from '@/app/api/members/actions'
 
 interface Member { id: string; full_name: string | null; email: string; role: string; created_at: string }
-interface Invitation { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; token: string }
+interface Invitation { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; accepted_at?: string; token: string }
 
 interface Props {
   captureApiKey: string
@@ -38,6 +38,9 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [inviteLink, setInviteLink] = useState('')
   const [memberPending, startMember] = useTransition()
+  const [inviteFilter, setInviteFilter] = useState<'all' | 'pending' | 'accepted' | 'revoked'>('all')
+  const [resending, startResend] = useTransition()
+  const [resendSuccess, setResendSuccess] = useState<string | null>(null)
   const isAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
 
   const endpoint = `${appUrl}/api/siri`
@@ -60,7 +63,18 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   const handleRevoke = (id: string) => {
     startMember(async () => {
       await revokeInvitation(id)
-      setInvitations(prev => prev.filter(i => i.id !== id))
+      setInvitations(prev => prev.map(i => i.id === id ? { ...i, status: 'revoked' } : i))
+    })
+  }
+
+  const handleResend = (id: string) => {
+    setResendSuccess(null)
+    startResend(async () => {
+      try {
+        const { inviteUrl } = await resendInvitation(id)
+        setInvitations(prev => prev.map(i => i.id === id ? { ...i, status: 'pending' } : i))
+        setResendSuccess(inviteUrl)
+      } catch {}
     })
   }
 
@@ -260,30 +274,110 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
           ))}
         </ul>
 
-        {/* Pending invitations */}
+        {/* Invitations */}
         {isAdmin && invitations.length > 0 && (
           <div className="mb-6">
-            <p className="text-xs font-medium uppercase tracking-wider text-gray-600 mb-2">Pending Invitations</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-medium uppercase tracking-wider text-gray-600">Invitations</p>
+              {/* Filter tabs */}
+              <div className="flex gap-1">
+                {(['all', 'pending', 'accepted', 'revoked'] as const).map(f => {
+                  const count = f === 'all' ? invitations.length : invitations.filter(i => i.status === f || (f === 'revoked' && i.status === 'expired')).length
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => setInviteFilter(f)}
+                      className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                        inviteFilter === f
+                          ? 'bg-gray-700 text-white'
+                          : 'text-gray-600 hover:text-gray-400'
+                      }`}
+                    >
+                      {f.charAt(0).toUpperCase() + f.slice(1)}
+                      {count > 0 && <span className="ml-1 opacity-60">{count}</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {resendSuccess && (
+              <div className="mb-3 rounded-lg border border-indigo-900/50 bg-indigo-950/30 p-3">
+                <p className="text-xs text-indigo-400 mb-1.5">Invitation resent — share this link if email didn't arrive:</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs text-gray-300 font-mono truncate">{resendSuccess}</code>
+                  <button onClick={() => copy(resendSuccess)} className="shrink-0 rounded bg-indigo-700 px-2.5 py-1 text-xs text-white hover:bg-indigo-600 transition-colors">Copy</button>
+                </div>
+              </div>
+            )}
+
             <ul className="space-y-2">
-              {invitations.map(inv => (
-                <li key={inv.id} className="flex items-center gap-3 rounded-lg border border-dashed border-gray-800 px-4 py-2">
-                  <div className="h-7 w-7 rounded-full bg-gray-800 flex items-center justify-center text-xs text-gray-500 shrink-0">?</div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-gray-400 truncate">{inv.email}</p>
-                    <p className="text-xs text-gray-600">Invited as {ROLE_LABELS[inv.role]} · expires {new Date(inv.expires_at).toLocaleDateString()}</p>
-                  </div>
-                  <button
-                    onClick={() => copy(`${appUrl}/invite/${inv.token}`)}
-                    className="text-xs text-gray-600 hover:text-indigo-400 transition-colors shrink-0"
-                    title="Copy invite link"
-                  >Copy link</button>
-                  <button
-                    onClick={() => handleRevoke(inv.id)}
-                    disabled={memberPending}
-                    className="text-xs text-gray-700 hover:text-red-400 transition-colors"
-                  >Revoke</button>
-                </li>
-              ))}
+              {invitations
+                .filter(inv => {
+                  if (inviteFilter === 'all') return true
+                  if (inviteFilter === 'revoked') return inv.status === 'revoked' || inv.status === 'expired'
+                  return inv.status === inviteFilter
+                })
+                .map(inv => {
+                  const isPending = inv.status === 'pending'
+                  const isAccepted = inv.status === 'accepted'
+                  const isRevoked = inv.status === 'revoked' || inv.status === 'expired'
+
+                  return (
+                    <li key={inv.id} className={`flex items-center gap-3 rounded-lg border px-4 py-2.5 ${
+                      isPending ? 'border-dashed border-gray-800' :
+                      isAccepted ? 'border-green-900/40 bg-green-950/10' :
+                      'border-gray-800/50 opacity-60'
+                    }`}>
+                      <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs shrink-0 ${
+                        isAccepted ? 'bg-green-900/40 text-green-400' : 'bg-gray-800 text-gray-500'
+                      }`}>
+                        {isAccepted ? '✓' : '?'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm text-gray-400 truncate">{inv.email}</p>
+                          <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium ${
+                            isPending ? 'bg-yellow-900/30 text-yellow-500' :
+                            isAccepted ? 'bg-green-900/30 text-green-400' :
+                            'bg-gray-800 text-gray-500'
+                          }`}>
+                            {inv.status === 'expired' ? 'expired' : inv.status}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600">
+                          {ROLE_LABELS[inv.role]}
+                          {isAccepted && inv.accepted_at
+                            ? ` · accepted ${new Date(inv.accepted_at).toLocaleDateString()}`
+                            : isPending
+                            ? ` · expires ${new Date(inv.expires_at).toLocaleDateString()}`
+                            : ` · invited ${new Date(inv.created_at).toLocaleDateString()}`}
+                        </p>
+                      </div>
+                      {isPending && (
+                        <>
+                          <button
+                            onClick={() => copy(`${appUrl}/invite/${inv.token}`)}
+                            className="text-xs text-gray-600 hover:text-indigo-400 transition-colors shrink-0"
+                            title="Copy invite link"
+                          >Copy link</button>
+                          <button
+                            onClick={() => handleResend(inv.id)}
+                            disabled={resending || memberPending}
+                            className="text-xs text-gray-600 hover:text-indigo-400 transition-colors shrink-0"
+                            title="Resend invite email"
+                          >{resending ? '…' : 'Resend'}</button>
+                          <button
+                            onClick={() => handleRevoke(inv.id)}
+                            disabled={memberPending}
+                            className="text-xs text-gray-700 hover:text-red-400 transition-colors shrink-0"
+                            title="Cancel invitation"
+                          >Cancel</button>
+                        </>
+                      )}
+                    </li>
+                  )
+                })}
             </ul>
           </div>
         )}

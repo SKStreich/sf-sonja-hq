@@ -178,8 +178,9 @@ export async function getDailyDigest(): Promise<DailyDigest> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
 
-  const ctx = await buildDigestCtx()
-  const contextStr = formatCtxString(ctx)
+  const ctx = await getContext()
+  const digestCtx = await buildDigestCtx()
+  const contextStr = formatCtxString(digestCtx)
 
   const client = new Anthropic({ apiKey })
   const response = await client.messages.create({
@@ -200,6 +201,11 @@ Current workspace state:
 ${contextStr}`,
     }],
   })
+
+  try {
+    const { logAnthropicCall } = await import('@/app/api/usage/actions')
+    await logAnthropicCall(ctx.org_id, response.usage.input_tokens, response.usage.output_tokens)
+  } catch {}
 
   const text = response.content[0].type === 'text' ? response.content[0].text : ''
   const jsonStr = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim()
@@ -222,8 +228,9 @@ export async function askAnything(question: string): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
 
-  const ctx = await buildDigestCtx()
-  const contextStr = formatCtxString(ctx)
+  const ctx = await getContext()
+  const digestCtx = await buildDigestCtx()
+  const contextStr = formatCtxString(digestCtx)
 
   const client = new Anthropic({ apiKey })
   const response = await client.messages.create({
@@ -239,6 +246,11 @@ ${contextStr}
 Question: ${question}`,
     }],
   })
+
+  try {
+    const { logAnthropicCall } = await import('@/app/api/usage/actions')
+    await logAnthropicCall(ctx.org_id, response.usage.input_tokens, response.usage.output_tokens)
+  } catch {}
 
   return response.content[0].type === 'text' ? response.content[0].text : ''
 }

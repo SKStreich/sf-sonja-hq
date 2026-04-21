@@ -251,6 +251,8 @@ Entities: tm = Triplemeter, sf = SF Solutions, sfe = SF Enterprises, personal = 
   ]
 
   let navigateTo: string | undefined
+  let totalInputTokens = 0
+  let totalOutputTokens = 0
 
   // Agentic loop — max 5 tool rounds
   for (let round = 0; round < 5; round++) {
@@ -262,8 +264,15 @@ Entities: tm = Triplemeter, sf = SF Solutions, sfe = SF Enterprises, personal = 
       messages,
     })
 
+    totalInputTokens += response.usage.input_tokens
+    totalOutputTokens += response.usage.output_tokens
+
     if (response.stop_reason === 'end_turn') {
       const text = response.content.find(b => b.type === 'text')?.text ?? ''
+      try {
+        const { logAnthropicCall } = await import('@/app/api/usage/actions')
+        await logAnthropicCall(ctx.org_id, totalInputTokens, totalOutputTokens)
+      } catch {}
       return { content: text, navigateTo }
     }
 
@@ -287,6 +296,11 @@ Entities: tm = Triplemeter, sf = SF Solutions, sfe = SF Enterprises, personal = 
     // Unexpected stop reason
     break
   }
+
+  try {
+    const { logAnthropicCall } = await import('@/app/api/usage/actions')
+    await logAnthropicCall(ctx.org_id, totalInputTokens, totalOutputTokens)
+  } catch {}
 
   return { content: 'I ran into an issue processing that. Please try again.', navigateTo }
 }

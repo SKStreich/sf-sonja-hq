@@ -82,6 +82,24 @@ export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 
   return { inviteUrl }
 }
 
+export async function resendInvitation(invitationId: string) {
+  const { supabase, profile, org_id } = await getOrgContext()
+  requireAdmin(profile.role)
+  const admin = createAdminClient()
+
+  // Fetch the existing invitation
+  const { data: inv } = await (admin as any)
+    .from('org_invitations')
+    .select('email, role')
+    .eq('id', invitationId)
+    .eq('org_id', org_id)
+    .single()
+  if (!inv) throw new Error('Invitation not found')
+
+  // Re-invite reuses inviteOrgMember which upserts token + expiry
+  return inviteOrgMember(inv.email, inv.role)
+}
+
 export async function revokeInvitation(invitationId: string) {
   const { supabase, profile, org_id } = await getOrgContext()
   requireAdmin(profile.role)

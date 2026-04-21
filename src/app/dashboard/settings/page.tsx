@@ -28,9 +28,8 @@ export default async function SettingsPage() {
     isAdmin
       ? (supabase as any)
           .from('org_invitations')
-          .select('id, email, role, status, created_at, expires_at, token')
+          .select('id, email, role, status, created_at, expires_at, accepted_at, token')
           .eq('org_id', profile?.org_id)
-          .eq('status', 'pending')
           .order('created_at', { ascending: false })
       : Promise.resolve({ data: [] }),
     (supabase as any)
