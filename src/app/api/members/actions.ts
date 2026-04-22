@@ -39,6 +39,8 @@ export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 
     .maybeSingle()
   if (existing) throw new Error('This person is already a member')
 
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+
   // Upsert invitation (re-invite resets token + expiry)
   const { data: invitation, error } = await (admin as any)
     .from('org_invitations')
@@ -48,39 +50,61 @@ export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 
       email: normalizedEmail,
       role,
       status: 'pending',
-      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      expires_at: expiresAt,
     }, { onConflict: 'org_id,email', ignoreDuplicates: false })
-    .select('token')
+    .select('id, token')
     .single()
 
   if (error) throw new Error('Failed to create invitation: ' + error.message)
+
+  // Revalidate immediately — invitation exists in DB regardless of email outcome
+  revalidatePath('/dashboard/settings')
 
   // Fetch org name for the email
   const { data: org } = await (supabase as any).from('orgs').select('name').eq('id', org_id).single() as { data: { name: string } | null }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://your-app.vercel.app'
   const inviteUrl = `${appUrl}/invite/${invitation.token}`
 
-  // Send invite email via Resend
+  // Send invite email via Resend — non-fatal: invitation is already saved if this fails
+  let emailSent = false
+  let emailError: string | undefined
   const resendKey = process.env.RESEND_API_KEY
   if (resendKey) {
-    const resend = new Resend(resendKey)
-    await resend.emails.send({
-      from: 'Streich Force HQ <info@streichforce.com>',
-      to: normalizedEmail,
-      subject: `${profile.full_name ?? 'Someone'} invited you to ${org?.name ?? 'Sonja HQ'}`,
-      html: buildInviteEmail({
-        inviterName: profile.full_name ?? profile.email ?? 'A teammate',
-        orgName: org?.name ?? 'Sonja HQ',
-        role,
-        inviteUrl,
-        expiresInDays: 7,
-        customMessage,
-      }),
-    })
+    try {
+      const resend = new Resend(resendKey)
+      await resend.emails.send({
+        from: 'Streich Force HQ <noreply@hq.streichforce.com>',
+        to: normalizedEmail,
+        subject: `${profile.full_name ?? 'Someone'} invited you to ${org?.name ?? 'Sonja HQ'}`,
+        html: buildInviteEmail({
+          inviterName: profile.full_name ?? profile.email ?? 'A teammate',
+          orgName: org?.name ?? 'Sonja HQ',
+          role,
+          inviteUrl,
+          expiresInDays: 7,
+          customMessage,
+        }),
+      })
+      emailSent = true
+    } catch (e: any) {
+      emailError = e?.message ?? 'Email send failed'
+    }
   }
 
-  revalidatePath('/dashboard/settings')
-  return { inviteUrl }
+  return {
+    inviteUrl,
+    emailSent,
+    emailError,
+    invitation: {
+      id: invitation.id,
+      email: normalizedEmail,
+      role,
+      status: 'pending' as const,
+      created_at: new Date().toISOString(),
+      expires_at: expiresAt,
+      token: invitation.token,
+    },
+  }
 }
 
 export async function resendInvitation(invitationId: string) {

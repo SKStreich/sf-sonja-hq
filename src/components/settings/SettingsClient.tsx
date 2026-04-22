@@ -52,10 +52,24 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
     setInviteError(''); setInviteSuccess(''); setInviteLink('')
     startInvite(async () => {
       try {
-        const { inviteUrl } = await inviteOrgMember(inviteEmail.trim(), inviteRole, customMessage.trim() || undefined)
-        setInviteSuccess(`Invitation created for ${inviteEmail.trim()}`)
-        setInviteLink(inviteUrl)
+        const result = await inviteOrgMember(inviteEmail.trim(), inviteRole, customMessage.trim() || undefined)
+        // Add to local invitations list immediately so it shows without a page refresh
+        setInvitations(prev => {
+          const exists = prev.find(i => i.id === result.invitation.id)
+          return exists
+            ? prev.map(i => i.id === result.invitation.id ? { ...i, ...result.invitation } : i)
+            : [result.invitation, ...prev]
+        })
+        setInviteFilter('pending')
+        if (result.emailSent) {
+          setInviteSuccess(`Invitation sent to ${result.invitation.email}`)
+        } else {
+          setInviteSuccess(`Invitation created — email failed to send. Share the link below directly.`)
+        }
+        setInviteLink(result.inviteUrl)
         setInviteEmail('')
+        setCustomMessage('')
+        setShowCustomMsg(false)
       } catch (e: any) {
         setInviteError(e.message)
       }
@@ -433,7 +447,11 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
               )}
             </div>
             {inviteError && <p className="mt-2 text-xs text-red-400">{inviteError}</p>}
-            {inviteSuccess && <p className="mt-2 text-xs text-green-400">{inviteSuccess}</p>}
+            {inviteSuccess && (
+              <p className={`mt-2 text-xs ${inviteSuccess.includes('email failed') ? 'text-yellow-500' : 'text-green-400'}`}>
+                {inviteSuccess}
+              </p>
+            )}
             {inviteLink && (
               <div className="mt-3 rounded-lg border border-indigo-900/50 bg-indigo-950/30 p-3">
                 <p className="text-xs text-indigo-400 mb-1.5">Share this link directly if the email didn't arrive:</p>
