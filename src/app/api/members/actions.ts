@@ -128,12 +128,14 @@ export async function resendInvitation(invitationId: string) {
 export async function revokeInvitation(invitationId: string) {
   const { supabase, profile, org_id } = await getOrgContext()
   requireAdmin(profile.role)
-  const { error } = await (supabase as any)
+  const admin = createAdminClient()
+  // UPDATE status instead of DELETE so history is preserved in the Revoked tab
+  const { error } = await (admin as any)
     .from('org_invitations')
-    .delete()
+    .update({ status: 'revoked' })
     .eq('id', invitationId)
     .eq('org_id', org_id)
-  if (error) throw new Error('Failed to revoke invitation')
+  if (error) throw new Error('Failed to revoke invitation: ' + error.message)
   revalidatePath('/dashboard/settings')
 }
 

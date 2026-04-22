@@ -77,9 +77,15 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   }
 
   const handleRevoke = (id: string) => {
+    // Optimistically mark revoked immediately so UI updates without waiting
+    setInvitations(prev => prev.map(i => i.id === id ? { ...i, status: 'revoked' } : i))
     startMember(async () => {
-      await revokeInvitation(id)
-      setInvitations(prev => prev.map(i => i.id === id ? { ...i, status: 'revoked' } : i))
+      try {
+        await revokeInvitation(id)
+      } catch {
+        // Revert on failure
+        setInvitations(prev => prev.map(i => i.id === id ? { ...i, status: 'pending' } : i))
+      }
     })
   }
 
