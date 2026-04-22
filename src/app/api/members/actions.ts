@@ -223,7 +223,7 @@ export async function removeMember(memberId: string): Promise<{ success: boolean
     }
     const { error } = await (admin as any)
       .from('user_profiles')
-      .delete()
+      .update({ active: false })
       .eq('id', memberId)
       .eq('org_id', org_id)
     if (error) return { success: false, error: error.message }

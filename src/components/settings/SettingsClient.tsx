@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { regenerateCaptureKey } from '@/app/api/captures/actions'
 import { inviteOrgMember, revokeInvitation, resendInvitation, removeMember, updateMemberRole } from '@/app/api/members/actions'
 
-interface Member { id: string; full_name: string | null; email: string; role: string; created_at: string }
+interface Member { id: string; full_name: string | null; email: string; role: string; created_at: string; active: boolean }
 interface Invitation { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; accepted_at?: string; token: string }
 
 interface Props {
@@ -38,6 +38,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   const [inviteSuccess, setInviteSuccess] = useState('')
   const [inviteLink, setInviteLink] = useState('')
   const [memberPending, startMember] = useTransition()
+  const [memberFilter, setMemberFilter] = useState<'active' | 'removed'>('active')
   const [inviteFilter, setInviteFilter] = useState<'all' | 'pending' | 'accepted' | 'revoked'>('all')
   const [resending, startResend] = useTransition()
   const [resendSuccess, setResendSuccess] = useState<string | null>(null)
@@ -101,13 +102,13 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   }
 
   const handleRemoveMember = (id: string) => {
-    // Optimistic remove
-    setMembers(prev => prev.filter(m => m.id !== id))
+    // Optimistic soft-deactivate — mark inactive so it moves to "Removed" tab
+    setMembers(prev => prev.map(m => m.id === id ? { ...m, active: false } : m))
     startMember(async () => {
       const result = await removeMember(id)
       if (!result.success) {
-        // Revert — refetch by reloading page since we don't have the original data
-        window.location.reload()
+        // Revert on failure — restore active state
+        setMembers(prev => prev.map(m => m.id === id ? { ...m, active: true } : m))
       }
     })
   }
@@ -266,44 +267,84 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
           {isAdmin ? 'Manage who has access to your HQ.' : 'People with access to this HQ.'}
         </p>
 
+        {/* Member filter tabs */}
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-600">People</p>
+          <div className="flex gap-1">
+            {(['active', 'removed'] as const).map(f => {
+              const count = f === 'active'
+                ? members.filter(m => m.active !== false).length
+                : members.filter(m => m.active === false).length
+              return (
+                <button
+                  key={f}
+                  onClick={() => setMemberFilter(f)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    memberFilter === f ? 'bg-gray-700 text-white' : 'text-gray-600 hover:text-gray-400'
+                  }`}
+                >
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                  {count > 0 && <span className="ml-1 opacity-60">{count}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         {/* Member list */}
         <ul className="space-y-2 mb-6">
-          {members.map(m => (
-            <li key={m.id} className="flex items-center gap-3 rounded-lg border border-gray-800 px-4 py-2.5">
-              <div className="h-7 w-7 rounded-full bg-indigo-900/60 flex items-center justify-center text-xs font-bold text-indigo-300 shrink-0">
-                {(m.full_name ?? m.email)[0].toUpperCase()}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-200 truncate">{m.full_name ?? m.email}</p>
-                {m.full_name && <p className="text-xs text-gray-600 truncate">{m.email}</p>}
-              </div>
-              {isAdmin && m.id !== currentUserId && m.role !== 'owner' ? (
-                <select
-                  value={m.role}
-                  onChange={e => handleRoleChange(m.id, e.target.value as any)}
-                  disabled={memberPending}
-                  className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-400 outline-none"
-                >
-                  <option value="admin">Admin</option>
-                  <option value="member">Member</option>
-                  <option value="read_only">Viewer</option>
-                </select>
-              ) : (
-                <span className="text-xs text-gray-500 shrink-0">{ROLE_LABELS[m.role] ?? m.role}</span>
-              )}
-              {isAdmin && m.id !== currentUserId && m.role !== 'owner' && (
-                <button
-                  onClick={() => handleRemoveMember(m.id)}
-                  disabled={memberPending}
-                  className="text-xs text-gray-700 hover:text-red-400 transition-colors shrink-0"
-                  title="Remove member"
-                >✕</button>
-              )}
-              {m.id === currentUserId && (
-                <span className="text-xs text-gray-700 shrink-0">You</span>
-              )}
+          {members
+            .filter(m => memberFilter === 'active' ? m.active !== false : m.active === false)
+            .map(m => {
+              const isRemoved = m.active === false
+              return (
+                <li key={m.id} className={`flex items-center gap-3 rounded-lg border px-4 py-2.5 ${
+                  isRemoved ? 'border-gray-800/50 opacity-50' : 'border-gray-800'
+                }`}>
+                  <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
+                    isRemoved ? 'bg-gray-800 text-gray-600' : 'bg-indigo-900/60 text-indigo-300'
+                  }`}>
+                    {(m.full_name ?? m.email)[0].toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm truncate ${isRemoved ? 'text-gray-600 line-through' : 'text-gray-200'}`}>{m.full_name ?? m.email}</p>
+                    {m.full_name && <p className="text-xs text-gray-600 truncate">{m.email}</p>}
+                  </div>
+                  {!isRemoved && isAdmin && m.id !== currentUserId && m.role !== 'owner' ? (
+                    <select
+                      value={m.role}
+                      onChange={e => handleRoleChange(m.id, e.target.value as any)}
+                      disabled={memberPending}
+                      className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-400 outline-none"
+                    >
+                      <option value="admin">Admin</option>
+                      <option value="member">Member</option>
+                      <option value="read_only">Viewer</option>
+                    </select>
+                  ) : (
+                    <span className="text-xs text-gray-500 shrink-0">
+                      {isRemoved ? 'Removed' : (ROLE_LABELS[m.role] ?? m.role)}
+                    </span>
+                  )}
+                  {!isRemoved && isAdmin && m.id !== currentUserId && m.role !== 'owner' && (
+                    <button
+                      onClick={() => handleRemoveMember(m.id)}
+                      disabled={memberPending}
+                      className="text-xs text-gray-700 hover:text-red-400 transition-colors shrink-0"
+                      title="Remove member"
+                    >✕</button>
+                  )}
+                  {m.id === currentUserId && (
+                    <span className="text-xs text-gray-700 shrink-0">You</span>
+                  )}
+                </li>
+              )
+            })}
+          {members.filter(m => memberFilter === 'active' ? m.active !== false : m.active === false).length === 0 && (
+            <li className="text-center py-6 text-xs text-gray-700">
+              {memberFilter === 'removed' ? 'No removed members.' : 'No active members.'}
             </li>
-          ))}
+          )}
         </ul>
 
         {/* Invitations */}

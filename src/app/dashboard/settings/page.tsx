@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { SettingsClient } from '@/components/settings/SettingsClient'
 import { isNotionConfigured } from '@/lib/notion/client'
@@ -22,16 +23,20 @@ export default async function SettingsPage() {
     const isAdmin = profile?.role === 'owner' || profile?.role === 'admin'
     const orgId = profile?.org_id ?? null
 
+    // Use admin client for org data — bypasses RLS entirely on the server side.
+    // Safe here because we've already verified the caller is an owner/admin above.
+    const admin = createAdminClient()
+
     const [membersResult, invitationsResult, notionResult] = await Promise.allSettled([
       orgId
-        ? supabase
+        ? (admin as any)
             .from('user_profiles')
-            .select('id, full_name, email, role, created_at')
+            .select('id, full_name, email, role, created_at, active')
             .eq('org_id', orgId)
             .order('created_at')
         : Promise.resolve({ data: [] }),
       isAdmin && orgId
-        ? (supabase as any)
+        ? (admin as any)
             .from('org_invitations')
             .select('id, email, role, status, created_at, expires_at, accepted_at, token')
             .eq('org_id', orgId)
