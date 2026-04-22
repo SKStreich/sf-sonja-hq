@@ -48,6 +48,7 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
   }
 
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Account'
+  const isAdmin = profile?.role === 'owner' || profile?.role === 'admin'
 
   return (
     <>
@@ -163,6 +164,10 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
                 </button>
                 {profileDropdown.open && (
                   <div className="absolute right-0 top-10 z-50 w-48 rounded-lg border border-gray-700 bg-gray-900 py-1.5 shadow-xl">
+                    <Link href="/dashboard/profile" onClick={() => profileDropdown.setOpen(false)}
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
+                      <span className="text-xs">👤</span> My Profile
+                    </Link>
                     <Link href="/dashboard/all-files" onClick={() => profileDropdown.setOpen(false)}
                       className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
                       <span className="text-xs">📁</span> Files
@@ -171,19 +176,23 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
                       className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
                       <span className="text-xs">📋</span> Notes
                     </Link>
-                    <Link href="/dashboard/cost" onClick={() => profileDropdown.setOpen(false)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
-                      <span className="text-xs">💰</span> Cost & Usage
-                    </Link>
-                    <Link href="/dashboard/integrations" onClick={() => profileDropdown.setOpen(false)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
-                      <span className="text-xs">🔌</span> Integrations
-                    </Link>
-                    <div className="my-1 border-t border-gray-800" />
-                    <Link href="/dashboard/settings" onClick={() => profileDropdown.setOpen(false)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
-                      <span className="text-xs">⚙️</span> Settings
-                    </Link>
+                    {isAdmin && (
+                      <>
+                        <Link href="/dashboard/cost" onClick={() => profileDropdown.setOpen(false)}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
+                          <span className="text-xs">💰</span> Cost & Usage
+                        </Link>
+                        <Link href="/dashboard/integrations" onClick={() => profileDropdown.setOpen(false)}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
+                          <span className="text-xs">🔌</span> Integrations
+                        </Link>
+                        <div className="my-1 border-t border-gray-800" />
+                        <Link href="/dashboard/settings" onClick={() => profileDropdown.setOpen(false)}
+                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-400 hover:bg-gray-800 hover:text-gray-200 transition-colors">
+                          <span className="text-xs">⚙️</span> Settings
+                        </Link>
+                      </>
+                    )}
                     <div className="my-1 border-t border-gray-800" />
                     <button onClick={handleSignOut}
                       className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-gray-500 hover:bg-gray-800 hover:text-gray-300 transition-colors">

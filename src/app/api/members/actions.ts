@@ -23,7 +23,7 @@ function requireAdmin(role: string) {
 
 // ── Invitations ───────────────────────────────────────────────────────────────
 
-export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 'read_only' = 'member') {
+export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 'read_only' = 'member', customMessage?: string) {
   const { supabase, profile, org_id } = await getOrgContext()
   requireAdmin(profile.role)
 
@@ -65,7 +65,7 @@ export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 
   if (resendKey) {
     const resend = new Resend(resendKey)
     await resend.emails.send({
-      from: 'Sonja HQ <noreply@hq.streichforce.com>',
+      from: 'Streich Force HQ <info@streichforce.com>',
       to: normalizedEmail,
       subject: `${profile.full_name ?? 'Someone'} invited you to ${org?.name ?? 'Sonja HQ'}`,
       html: buildInviteEmail({
@@ -74,6 +74,7 @@ export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 
         role,
         inviteUrl,
         expiresInDays: 7,
+        customMessage,
       }),
     })
   }
@@ -241,24 +242,58 @@ export async function markAllNotificationsRead() {
 
 // ── Email template ────────────────────────────────────────────────────────────
 
-function buildInviteEmail({ inviterName, orgName, role, inviteUrl, expiresInDays }: {
-  inviterName: string; orgName: string; role: string; inviteUrl: string; expiresInDays: number
+function buildInviteEmail({ inviterName, orgName, role, inviteUrl, expiresInDays, customMessage }: {
+  inviterName: string; orgName: string; role: string; inviteUrl: string; expiresInDays: number; customMessage?: string
 }) {
   const roleLabel = role === 'admin' ? 'Admin' : role === 'read_only' ? 'Viewer' : 'Member'
   return `<!DOCTYPE html>
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e5e7eb; margin: 0; padding: 40px 20px;">
-  <div style="max-width: 480px; margin: 0 auto; background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 40px;">
-    <h1 style="font-size: 20px; font-weight: 700; color: #fff; margin: 0 0 8px;">You're invited to ${orgName}</h1>
-    <p style="color: #9ca3af; font-size: 14px; margin: 0 0 32px;">
-      ${inviterName} has invited you to join <strong style="color: #e5e7eb;">${orgName}</strong> as a <strong style="color: #e5e7eb;">${roleLabel}</strong>.
-    </p>
-    <a href="${inviteUrl}" style="display: inline-block; background: #4f46e5; color: #fff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 12px 28px; border-radius: 8px;">
-      Accept Invitation
-    </a>
-    <p style="color: #6b7280; font-size: 12px; margin: 24px 0 0;">
-      This invitation expires in ${expiresInDays} days. If you weren't expecting this, you can safely ignore it.
-    </p>
+  <div style="max-width: 520px; margin: 0 auto;">
+
+    <!-- Logo / Brand header -->
+    <div style="text-align: center; margin-bottom: 32px;">
+      <div style="display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 56px; background: #312e81; border-radius: 14px; margin-bottom: 12px;">
+        <span style="font-size: 24px; font-weight: 800; color: #c7d2fe; letter-spacing: -1px;">SF</span>
+      </div>
+      <div style="font-size: 13px; font-weight: 600; color: #6b7280; letter-spacing: 0.08em; text-transform: uppercase;">Streich Force HQ</div>
+    </div>
+
+    <!-- Card -->
+    <div style="background: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 40px;">
+      <h1 style="font-size: 22px; font-weight: 700; color: #fff; margin: 0 0 10px;">You're invited to ${orgName}</h1>
+      <p style="color: #9ca3af; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">
+        <strong style="color: #e5e7eb;">${inviterName}</strong> has invited you to join
+        <strong style="color: #e5e7eb;">${orgName}</strong> as a
+        <strong style="color: #e5e7eb;">${roleLabel}</strong>.
+      </p>
+
+      ${customMessage ? `
+      <div style="background: #1f2937; border-left: 3px solid #4f46e5; border-radius: 4px; padding: 14px 16px; margin-bottom: 28px;">
+        <p style="color: #d1d5db; font-size: 14px; line-height: 1.6; margin: 0; font-style: italic;">"${customMessage}"</p>
+        <p style="color: #6b7280; font-size: 12px; margin: 8px 0 0;">— ${inviterName}</p>
+      </div>
+      ` : ''}
+
+      <a href="${inviteUrl}" style="display: inline-block; background: #4f46e5; color: #fff; font-size: 15px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 10px; letter-spacing: 0.01em;">
+        Accept Invitation →
+      </a>
+
+      <p style="color: #6b7280; font-size: 12px; margin: 28px 0 0; line-height: 1.6;">
+        This invitation expires in ${expiresInDays} days.<br>
+        If you weren't expecting this, you can safely ignore it.
+      </p>
+    </div>
+
+    <!-- Signature / Footer -->
+    <div style="text-align: center; margin-top: 28px; padding-top: 20px; border-top: 1px solid #1f2937;">
+      <p style="color: #4b5563; font-size: 12px; margin: 0 0 4px;">Sent from <strong style="color: #6b7280;">Streich Force HQ</strong></p>
+      <p style="color: #374151; font-size: 11px; margin: 0;">
+        Questions? Reply to this email or contact us at
+        <a href="mailto:info@streichforce.com" style="color: #4f46e5; text-decoration: none;">info@streichforce.com</a>
+      </p>
+    </div>
+
   </div>
 </body>
 </html>`

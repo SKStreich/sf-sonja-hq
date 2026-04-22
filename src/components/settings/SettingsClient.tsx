@@ -41,6 +41,8 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   const [inviteFilter, setInviteFilter] = useState<'all' | 'pending' | 'accepted' | 'revoked'>('all')
   const [resending, startResend] = useTransition()
   const [resendSuccess, setResendSuccess] = useState<string | null>(null)
+  const [showCustomMsg, setShowCustomMsg] = useState(false)
+  const [customMessage, setCustomMessage] = useState('')
   const isAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
 
   const endpoint = `${appUrl}/api/siri`
@@ -50,7 +52,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
     setInviteError(''); setInviteSuccess(''); setInviteLink('')
     startInvite(async () => {
       try {
-        const { inviteUrl } = await inviteOrgMember(inviteEmail.trim(), inviteRole)
+        const { inviteUrl } = await inviteOrgMember(inviteEmail.trim(), inviteRole, customMessage.trim() || undefined)
         setInviteSuccess(`Invitation created for ${inviteEmail.trim()}`)
         setInviteLink(inviteUrl)
         setInviteEmail('')
@@ -411,6 +413,24 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
               >
                 {inviting ? 'Sending…' : 'Send Invite'}
               </button>
+            </div>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setShowCustomMsg(v => !v)}
+                className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+              >
+                {showCustomMsg ? '▾ Hide personal message' : '▸ Add a personal message'}
+              </button>
+              {showCustomMsg && (
+                <textarea
+                  value={customMessage}
+                  onChange={e => setCustomMessage(e.target.value)}
+                  placeholder="Add a personal note to your invitation email…"
+                  rows={3}
+                  className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-300 placeholder-gray-600 outline-none focus:border-gray-600 resize-none"
+                />
+              )}
             </div>
             {inviteError && <p className="mt-2 text-xs text-red-400">{inviteError}</p>}
             {inviteSuccess && <p className="mt-2 text-xs text-green-400">{inviteSuccess}</p>}

@@ -13,6 +13,7 @@ export default async function SettingsPage() {
     .select('id, full_name, capture_api_key, role, org_id')
     .eq('id', user.id)
     .single()
+  if (profile?.role === 'member' || profile?.role === 'read_only') redirect('/dashboard/profile')
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://your-app.vercel.app'
 

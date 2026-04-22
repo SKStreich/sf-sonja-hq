@@ -8,6 +8,13 @@ export default async function CostPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
+  const { data: profile } = await (supabase as any)
+    .from('user_profiles')
+    .select('role, org_id')
+    .eq('id', user.id)
+    .single()
+  if (profile?.role === 'member' || profile?.role === 'read_only') redirect('/dashboard/profile')
+
   const ninetyDaysAgo = new Date()
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 

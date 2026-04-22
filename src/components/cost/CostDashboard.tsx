@@ -15,6 +15,8 @@ const SERVICE_META: Record<string, { label: string; icon: string; color: string;
   other:     { label: 'Other',               icon: '⚙',   color: 'text-gray-400',    unitLabel: 'units',    pricingNote: '' },
 }
 
+const TRACKED_SERVICES = ['anthropic', 'openai', 'supabase', 'vercel', 'netlify', 'resend'] as const
+
 const SERVICES = Object.keys(SERVICE_META) as (keyof typeof SERVICE_META)[]
 
 function fmtCost(n: number) {
@@ -198,6 +200,8 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
     startDelete(async () => { await deleteUsageEntry(id) })
   }
 
+  const isNotConfigured = (e: string) => e.toLowerCase().includes('not configured')
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       {/* Header */}
@@ -226,10 +230,20 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
           <div className="flex flex-wrap gap-3">
             {syncResults.map(r => (
               <div key={r.service} className="flex items-center gap-1.5">
-                <span className={`h-1.5 w-1.5 rounded-full ${r.error === 'Paused' ? 'bg-yellow-500' : r.error ? 'bg-red-500' : 'bg-green-500'}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${
+                  r.error === 'Paused'
+                    ? 'bg-yellow-500'
+                    : r.error && isNotConfigured(r.error)
+                    ? 'bg-gray-500'
+                    : r.error
+                    ? 'bg-red-500'
+                    : 'bg-green-500'
+                }`} />
                 <span className="text-xs text-gray-400 capitalize">{r.service}:</span>
                 {r.error === 'Paused'
                   ? <span className="text-xs text-yellow-500">Paused</span>
+                  : r.error && isNotConfigured(r.error)
+                  ? <span className="text-xs text-gray-600">{r.error}</span>
                   : r.error
                   ? <span className="text-xs text-red-400">{r.error}</span>
                   : <span className="text-xs text-green-400">{r.synced} records</span>
@@ -262,60 +276,25 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
         <p className="text-xs text-gray-700 mt-1 text-right">Today highlighted in indigo</p>
       </div>
 
-      {/* Per-service breakdown */}
+      {/* Combined services table */}
       <div className="rounded-xl border border-gray-800 overflow-hidden mb-6">
         <div className="border-b border-gray-800 bg-gray-900/50 px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">This Month by Service</p>
-        </div>
-        {SERVICES.map(svc => {
-          const meta = SERVICE_META[svc]
-          const data = byService[svc]
-          return (
-            <div key={svc} className="flex items-center gap-4 px-4 py-3 border-b border-gray-800/50 last:border-0 hover:bg-gray-900/20 transition-colors">
-              <span className="text-lg w-6 shrink-0 text-center">{meta.icon}</span>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${meta.color}`}>{meta.label}</p>
-                <p className="text-xs text-gray-700">{meta.pricingNote}</p>
-              </div>
-              {data ? (
-                <>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-semibold text-white">{fmtCost(data.cost)}</p>
-                    <p className="text-xs text-gray-600">{data.units > 0 ? `${data.units.toFixed(1)} ${meta.unitLabel}` : `${data.rows.length} entr${data.rows.length !== 1 ? 'ies' : 'y'}`}</p>
-                  </div>
-                  <div className="w-20 h-1.5 rounded-full bg-gray-800 shrink-0">
-                    <div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${Math.min((data.cost / Math.max(mtdTotal, 0.01)) * 100, 100)}%` }} />
-                  </div>
-                </>
-              ) : (
-                <span className="text-xs text-gray-700 shrink-0">No data</span>
-              )}
-            </div>
-          )
-        })}
-      </div>
-
-      {/* Add entry form */}
-      {addingEntry && <div className="mb-6"><AddEntryForm onDone={() => setAddingEntry(false)} /></div>}
-
-      {/* Service management */}
-      <div className="rounded-xl border border-gray-800 overflow-hidden mb-6">
-        <div className="border-b border-gray-800 bg-gray-900/50 px-4 py-3">
-          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Service Status</p>
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Services · This Month</p>
           <p className="text-xs text-gray-600 mt-0.5">Pause a service to skip it during sync. Auto-logging always resumes when the service is used.</p>
         </div>
-        {(['anthropic', 'openai', 'supabase', 'vercel', 'netlify', 'resend'] as const).map(svc => {
+        {TRACKED_SERVICES.map(svc => {
           const meta = SERVICE_META[svc]
+          const data = byService[svc]
           const configured = serviceConfig[svc] ?? false
           const status = getServiceStatus(svc)
           const idle = isIdle(svc)
           const lastSeen = lastActivityByService[svc]
 
           return (
-            <div key={svc} className="flex items-center gap-3 px-4 py-3 border-b border-gray-800/50 last:border-0">
-              <span className="text-base w-6 text-center shrink-0">{meta.icon}</span>
+            <div key={svc} className="flex items-center gap-4 px-4 py-3 border-b border-gray-800/50 last:border-0 hover:bg-gray-900/20 transition-colors">
+              <span className="text-lg w-6 shrink-0 text-center">{meta.icon}</span>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <p className={`text-sm font-medium ${meta.color}`}>{meta.label}</p>
                   {idle && status === 'active' && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-900/40 text-yellow-500">Idle</span>
@@ -324,7 +303,8 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
                     <span className="text-xs px-1.5 py-0.5 rounded bg-gray-800 text-gray-500">Paused</span>
                   )}
                 </div>
-                <p className="text-xs text-gray-700">
+                <p className="text-xs text-gray-700">{meta.pricingNote}</p>
+                <p className="text-xs text-gray-700 mt-0.5">
                   {configured ? (
                     lastSeen
                       ? `Last activity ${fmtDate(lastSeen)}`
@@ -334,6 +314,21 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
                   )}
                 </p>
               </div>
+              {data ? (
+                <>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-semibold text-white">{fmtCost(data.cost)}</p>
+                    <p className="text-xs text-gray-600">{data.units > 0 ? `${data.units.toFixed(1)} ${meta.unitLabel}` : `${data.rows.length} entr${data.rows.length !== 1 ? 'ies' : 'y'}`}</p>
+                  </div>
+                  {mtdTotal > 0 && (
+                    <div className="w-20 h-1.5 rounded-full bg-gray-800 shrink-0">
+                      <div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${Math.min((data.cost / Math.max(mtdTotal, 0.01)) * 100, 100)}%` }} />
+                    </div>
+                  )}
+                </>
+              ) : (
+                <span className="text-xs text-gray-700 shrink-0 mr-1">No data</span>
+              )}
               <button
                 onClick={() => handleToggle(svc, status)}
                 disabled={togglingService}
@@ -348,7 +343,33 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
             </div>
           )
         })}
+        {byService['other'] && (() => {
+          const svc = 'other'
+          const meta = SERVICE_META[svc]
+          const data = byService[svc]
+          return (
+            <div key={svc} className="flex items-center gap-4 px-4 py-3 border-b border-gray-800/50 last:border-0 hover:bg-gray-900/20 transition-colors">
+              <span className="text-lg w-6 shrink-0 text-center">{meta.icon}</span>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${meta.color}`}>{meta.label}</p>
+                {meta.pricingNote && <p className="text-xs text-gray-700">{meta.pricingNote}</p>}
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-semibold text-white">{fmtCost(data.cost)}</p>
+                <p className="text-xs text-gray-600">{data.units > 0 ? `${data.units.toFixed(1)} ${meta.unitLabel}` : `${data.rows.length} entr${data.rows.length !== 1 ? 'ies' : 'y'}`}</p>
+              </div>
+              {mtdTotal > 0 && (
+                <div className="w-20 h-1.5 rounded-full bg-gray-800 shrink-0">
+                  <div className="h-1.5 rounded-full bg-indigo-600" style={{ width: `${Math.min((data.cost / Math.max(mtdTotal, 0.01)) * 100, 100)}%` }} />
+                </div>
+              )}
+            </div>
+          )
+        })()}
       </div>
+
+      {/* Add entry form */}
+      {addingEntry && <div className="mb-6"><AddEntryForm onDone={() => setAddingEntry(false)} /></div>}
 
       {/* Recent entries */}
       {usage.length > 0 && (
