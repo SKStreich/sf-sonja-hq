@@ -125,18 +125,22 @@ export async function resendInvitation(invitationId: string) {
   return inviteOrgMember(inv.email, inv.role)
 }
 
-export async function revokeInvitation(invitationId: string) {
-  const { supabase, profile, org_id } = await getOrgContext()
-  requireAdmin(profile.role)
-  const admin = createAdminClient()
-  // UPDATE status instead of DELETE so history is preserved in the Revoked tab
-  const { error } = await (admin as any)
-    .from('org_invitations')
-    .update({ status: 'revoked' })
-    .eq('id', invitationId)
-    .eq('org_id', org_id)
-  if (error) throw new Error('Failed to revoke invitation: ' + error.message)
-  revalidatePath('/dashboard/settings')
+export async function revokeInvitation(invitationId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { profile, org_id } = await getOrgContext()
+    requireAdmin(profile.role)
+    const admin = createAdminClient()
+    const { error } = await (admin as any)
+      .from('org_invitations')
+      .update({ status: 'revoked' })
+      .eq('id', invitationId)
+      .eq('org_id', org_id)
+    if (error) return { success: false, error: error.message }
+    revalidatePath('/dashboard/settings')
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? 'Unknown error' }
+  }
 }
 
 export async function acceptOrgInvite(token: string) {
