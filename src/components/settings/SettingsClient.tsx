@@ -49,7 +49,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
 
   const handleInvite = () => {
     if (!inviteEmail.trim()) return
-    setInviteError(''); setInviteSuccess(''); setInviteLink('')
+    setInviteError(''); setInviteSuccess(''); setInviteLink(''); setResendSuccess(null)
     startInvite(async () => {
       try {
         const result = await inviteOrgMember(inviteEmail.trim(), inviteRole, customMessage.trim() || undefined)
@@ -89,12 +89,13 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   }
 
   const handleResend = (id: string) => {
-    setResendSuccess(null)
+    // Clear both banners so only one shows at a time
+    setResendSuccess(null); setInviteSuccess(''); setInviteLink('')
     startResend(async () => {
       try {
-        const { inviteUrl } = await resendInvitation(id)
+        const result = await resendInvitation(id)
         setInvitations(prev => prev.map(i => i.id === id ? { ...i, status: 'pending' } : i))
-        setResendSuccess(inviteUrl)
+        setResendSuccess(result.inviteUrl)
       } catch {}
     })
   }
