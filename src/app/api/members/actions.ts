@@ -187,39 +187,50 @@ export async function acceptOrgInvite(token: string) {
 
 // ── Member management ─────────────────────────────────────────────────────────
 
-export async function updateMemberRole(memberId: string, role: 'admin' | 'member' | 'read_only') {
-  const { supabase, profile, org_id } = await getOrgContext()
-  requireAdmin(profile.role)
-  const { error } = await (supabase as any)
-    .from('user_profiles')
-    .update({ role })
-    .eq('id', memberId)
-    .eq('org_id', org_id)
-  if (error) throw new Error('Failed to update role')
-  revalidatePath('/dashboard/settings')
+export async function updateMemberRole(memberId: string, role: 'admin' | 'member' | 'read_only'): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { profile, org_id } = await getOrgContext()
+    requireAdmin(profile.role)
+    const admin = createAdminClient()
+    const { error } = await (admin as any)
+      .from('user_profiles')
+      .update({ role })
+      .eq('id', memberId)
+      .eq('org_id', org_id)
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? 'Unknown error' }
+  }
 }
 
-export async function removeMember(memberId: string) {
-  const { supabase, user, profile, org_id } = await getOrgContext()
-  requireAdmin(profile.role)
-  if (memberId === user.id) throw new Error('You cannot remove yourself')
-  // Prevent removing the last owner
-  const { count } = await (supabase as any)
-    .from('user_profiles')
-    .select('*', { count: 'exact', head: true })
-    .eq('org_id', org_id)
-    .eq('role', 'owner')
-  if ((count ?? 0) <= 1) {
-    const { data: target } = await (supabase as any).from('user_profiles').select('role').eq('id', memberId).single() as { data: { role: string } | null }
-    if (target?.role === 'owner') throw new Error('Cannot remove the last owner')
+export async function removeMember(memberId: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { supabase, user, profile, org_id } = await getOrgContext()
+    requireAdmin(profile.role)
+    if (memberId === user.id) return { success: false, error: 'You cannot remove yourself' }
+    const admin = createAdminClient()
+    // Prevent removing the last owner
+    const { count } = await (admin as any)
+      .from('user_profiles')
+      .select('*', { count: 'exact', head: true })
+      .eq('org_id', org_id)
+      .eq('role', 'owner')
+    if ((count ?? 0) <= 1) {
+      const { data: target } = await (admin as any)
+        .from('user_profiles').select('role').eq('id', memberId).single() as { data: { role: string } | null }
+      if (target?.role === 'owner') return { success: false, error: 'Cannot remove the last owner' }
+    }
+    const { error } = await (admin as any)
+      .from('user_profiles')
+      .delete()
+      .eq('id', memberId)
+      .eq('org_id', org_id)
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (e: any) {
+    return { success: false, error: e?.message ?? 'Unknown error' }
   }
-  const { error } = await (supabase as any)
-    .from('user_profiles')
-    .delete()
-    .eq('id', memberId)
-    .eq('org_id', org_id)
-  if (error) throw new Error('Failed to remove member')
-  revalidatePath('/dashboard/settings')
 }
 
 // ── Task assignment ───────────────────────────────────────────────────────────

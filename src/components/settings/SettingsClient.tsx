@@ -101,16 +101,26 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   }
 
   const handleRemoveMember = (id: string) => {
+    // Optimistic remove
+    setMembers(prev => prev.filter(m => m.id !== id))
     startMember(async () => {
-      try { await removeMember(id) } catch {}
-      setMembers(prev => prev.filter(m => m.id !== id))
+      const result = await removeMember(id)
+      if (!result.success) {
+        // Revert — refetch by reloading page since we don't have the original data
+        window.location.reload()
+      }
     })
   }
 
   const handleRoleChange = (memberId: string, role: 'admin' | 'member' | 'read_only') => {
+    // Optimistic role update
+    setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role } : m))
     startMember(async () => {
-      await updateMemberRole(memberId, role)
-      setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role } : m))
+      const result = await updateMemberRole(memberId, role)
+      if (!result.success) {
+        // Revert on failure
+        setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role: m.role } : m))
+      }
     })
   }
 
