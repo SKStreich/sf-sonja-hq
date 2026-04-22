@@ -20,7 +20,7 @@ export default async function SettingsPage() {
   // Fetch org members + pending invitations (only if admin/owner)
   const isAdmin = profile?.role === 'owner' || profile?.role === 'admin'
 
-  const [{ data: members }, { data: invitations }, { data: notionIntegration }] = await Promise.all([
+  const [membersResult, invitationsResult, notionResult] = await Promise.allSettled([
     supabase
       .from('user_profiles')
       .select('id, full_name, email, role, created_at')
@@ -39,6 +39,10 @@ export default async function SettingsPage() {
       .eq('type', 'notion')
       .maybeSingle(),
   ])
+
+  const members = membersResult.status === 'fulfilled' ? (membersResult.value as any).data : null
+  const invitations = invitationsResult.status === 'fulfilled' ? (invitationsResult.value as any).data : null
+  const notionIntegration = notionResult.status === 'fulfilled' ? (notionResult.value as any).data : null
 
   return (
     <SettingsClient

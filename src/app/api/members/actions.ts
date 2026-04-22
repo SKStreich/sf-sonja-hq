@@ -57,9 +57,6 @@ export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 
 
   if (error) throw new Error('Failed to create invitation: ' + error.message)
 
-  // Revalidate immediately — invitation exists in DB regardless of email outcome
-  revalidatePath('/dashboard/settings')
-
   // Fetch org name for the email
   const { data: org } = await (supabase as any).from('orgs').select('name').eq('id', org_id).single() as { data: { name: string } | null }
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://your-app.vercel.app'
