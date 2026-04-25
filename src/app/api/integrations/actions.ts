@@ -1,7 +1,6 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { syncNotionPages } from '@/app/api/documents/actions'
 
 async function getContext() {
   const supabase = createClient()
@@ -17,10 +16,11 @@ export interface IntegrationStatus {
   name: string
   icon: string
   description: string
-  category: 'active' | 'configured' | 'disconnected'
+  category: 'active' | 'configured' | 'error' | 'disconnected'
   detail: string
   lastSync?: string | null
   canSync: boolean
+  errorMessage?: string | null
 }
 
 export async function getIntegrationStatuses(): Promise<IntegrationStatus[]> {
@@ -35,16 +35,24 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatus[]> {
   const anthropicKey = !!process.env.ANTHROPIC_API_KEY
   const githubToken = !!process.env.GITHUB_TOKEN
 
+  const notionRec = byType['notion']
+  const notionErrored = notionKey && notionRec?.status === 'error'
+
   return [
     {
       id: 'notion',
       name: 'Notion',
       icon: 'N',
       description: 'Sync pages from your Notion workspace into the Document Library.',
-      category: notionKey ? 'active' : 'disconnected',
-      detail: notionKey ? 'Connected via API key' : 'Add NOTION_API_KEY to .env.local to enable',
-      lastSync: byType['notion']?.last_sync_at ?? null,
+      category: notionErrored ? 'error' : notionKey ? 'active' : 'disconnected',
+      detail: notionErrored
+        ? 'Last sync failed — check the error and try again'
+        : notionKey
+          ? 'Connected via API key'
+          : 'Ask your admin to configure the Notion API key to enable sync',
+      lastSync: notionRec?.last_sync_at ?? null,
       canSync: notionKey,
+      errorMessage: null,
     },
     {
       id: 'claude',
@@ -52,7 +60,9 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatus[]> {
       icon: '✦',
       description: 'Powers AI Digest, Ask Anything, chat extraction, and the HQ Agent.',
       category: anthropicKey ? 'active' : 'disconnected',
-      detail: anthropicKey ? 'API key configured — claude-sonnet-4-6' : 'Add ANTHROPIC_API_KEY to .env.local to enable',
+      detail: anthropicKey
+        ? 'API key configured — claude-sonnet-4-6'
+        : 'Ask your admin to configure the Anthropic API key to enable AI features',
       canSync: false,
     },
     {
@@ -61,7 +71,9 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatus[]> {
       icon: 'gh',
       description: 'Link repos to projects and surface recent commits in the project view.',
       category: githubToken ? 'configured' : 'disconnected',
-      detail: githubToken ? 'Token configured — private repo access enabled' : 'Public repos work without a token. Add GITHUB_TOKEN for private repos.',
+      detail: githubToken
+        ? 'Token configured — private repo access enabled'
+        : 'Public repos work out of the box. Ask your admin to add a GitHub token for private repos.',
       canSync: false,
     },
     {
@@ -88,7 +100,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatus[]> {
       icon: '$',
       description: 'Surface billing events and subscription status in SF entity views.',
       category: 'disconnected',
-      detail: 'Coming soon — add STRIPE_SECRET_KEY to enable',
+      detail: 'Coming soon — Stripe connection pending',
       canSync: false,
     },
     {
@@ -97,16 +109,15 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatus[]> {
       icon: 'TM',
       description: 'Surface platform status, metrics, and events in the TM entity view.',
       category: 'disconnected',
-      detail: 'Coming soon — add TM_API_KEY to enable',
+      detail: 'Coming soon — TM API connection pending',
       canSync: false,
     },
   ]
 }
 
 export async function triggerNotionSync(): Promise<void> {
-  await syncNotionPages()
+  // Notion sync is on-demand from Knowledge Hub (Sprint 6). No-op here.
   revalidatePath('/dashboard/integrations')
-  revalidatePath('/dashboard/documents')
 }
 
 export interface GitHubCommit {

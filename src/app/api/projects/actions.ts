@@ -91,14 +91,15 @@ export async function saveProjectFile(projectId: string, payload: {
   content_type: string
 }) {
   const { supabase, user, org_id } = await getContext()
-  const { error } = await (supabase as any).from('project_files').insert({
+  const { data, error } = await (supabase as any).from('project_files').insert({
     project_id: projectId,
     org_id,
     user_id: user.id,
     ...payload,
-  })
+  }).select('*').single()
   if (error) throw new Error('Failed to save file record')
   revalidatePath(`/dashboard/projects/${projectId}`)
+  return data
 }
 
 export async function deleteProjectFile(fileId: string, storagePath: string, projectId: string) {

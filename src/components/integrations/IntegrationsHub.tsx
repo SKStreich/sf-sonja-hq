@@ -4,14 +4,16 @@ import { triggerNotionSync } from '@/app/api/integrations/actions'
 import type { IntegrationStatus } from '@/app/api/integrations/actions'
 
 const CATEGORY_COLORS: Record<IntegrationStatus['category'], { border: string; dot: string; badge: string; text: string }> = {
-  active:       { border: 'border-green-900/50',  dot: 'bg-green-500',  badge: 'bg-green-950/40 text-green-400 border-green-900/50',  text: 'text-green-400'  },
-  configured:   { border: 'border-indigo-900/50', dot: 'bg-indigo-400', badge: 'bg-indigo-950/40 text-indigo-400 border-indigo-900/50', text: 'text-indigo-400' },
-  disconnected: { border: 'border-gray-800',      dot: 'bg-gray-700',   badge: 'bg-gray-900 text-gray-600 border-gray-800',           text: 'text-gray-600'  },
+  active:       { border: 'border-green-200',  dot: 'bg-green-500',  badge: 'bg-green-50 text-green-700 border-green-200',   text: 'text-green-700'  },
+  configured:   { border: 'border-indigo-200', dot: 'bg-indigo-500', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', text: 'text-indigo-700' },
+  error:        { border: 'border-red-200',    dot: 'bg-red-500',    badge: 'bg-red-50 text-red-700 border-red-200',         text: 'text-red-700'   },
+  disconnected: { border: 'border-gray-200',   dot: 'bg-gray-400',   badge: 'bg-gray-100 text-gray-500 border-gray-200',     text: 'text-gray-500'  },
 }
 
 const CATEGORY_LABELS: Record<IntegrationStatus['category'], string> = {
   active: 'Connected',
   configured: 'Configured',
+  error: 'Error',
   disconnected: 'Not connected',
 }
 
@@ -42,15 +44,15 @@ function IntegrationCard({ integration }: { integration: IntegrationStatus }) {
   }
 
   return (
-    <div className={`rounded-xl border ${colors.border} bg-gray-900/30 p-5 flex flex-col gap-3`}>
+    <div className={`rounded-xl border ${colors.border} bg-white p-5 flex flex-col gap-3`}>
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-gray-800 flex items-center justify-center shrink-0">
-            <span className="text-xs font-bold text-gray-300">{integration.icon}</span>
+          <div className="w-9 h-9 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-gray-600">{integration.icon}</span>
           </div>
           <div>
-            <p className="text-sm font-semibold text-white">{integration.name}</p>
+            <p className="text-sm font-semibold text-gray-900">{integration.name}</p>
             <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2 py-0.5 rounded-full border ${colors.badge} mt-0.5`}>
               <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
               {CATEGORY_LABELS[integration.category]}
@@ -65,8 +67,11 @@ function IntegrationCard({ integration }: { integration: IntegrationStatus }) {
       {/* Detail / last sync */}
       <div className="space-y-1">
         <p className={`text-xs ${colors.text}`}>{integration.detail}</p>
+        {integration.errorMessage && (
+          <p className="text-xs text-red-600 font-mono break-all">{integration.errorMessage}</p>
+        )}
         {integration.lastSync !== undefined && (
-          <p className="text-xs text-gray-600">Last synced: {formatSync(integration.lastSync)}</p>
+          <p className="text-xs text-gray-400">Last synced: {formatSync(integration.lastSync)}</p>
         )}
       </div>
 
@@ -75,7 +80,7 @@ function IntegrationCard({ integration }: { integration: IntegrationStatus }) {
         <button
           onClick={handleSync}
           disabled={syncing}
-          className="self-start rounded-md border border-gray-700 bg-gray-800/60 px-3 py-1.5 text-xs font-medium text-gray-300 hover:bg-gray-700 hover:text-white disabled:opacity-40 transition-colors"
+          className="self-start rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 transition-colors"
         >
           {syncing ? 'Syncing…' : synced ? '✓ Synced' : '↻ Sync Now'}
         </button>
@@ -91,16 +96,26 @@ interface Props {
 export function IntegrationsHub({ integrations }: Props) {
   const active = integrations.filter(i => i.category === 'active')
   const configured = integrations.filter(i => i.category === 'configured')
+  const errored = integrations.filter(i => i.category === 'error')
   const disconnected = integrations.filter(i => i.category === 'disconnected')
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Integrations</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Integrations</h1>
         <p className="mt-1 text-sm text-gray-500">
           Manage the services connected to your HQ workspace.
         </p>
       </div>
+
+      {errored.length > 0 && (
+        <section className="mb-8">
+          <h2 className="text-xs font-bold uppercase tracking-widest text-red-600 mb-4">Needs attention</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {errored.map(i => <IntegrationCard key={i.id} integration={i} />)}
+          </div>
+        </section>
+      )}
 
       {active.length > 0 && (
         <section className="mb-8">
@@ -129,12 +144,6 @@ export function IntegrationsHub({ integrations }: Props) {
         </section>
       )}
 
-      {/* Health check note */}
-      <div className="mt-4 rounded-xl border border-gray-800 bg-gray-900/20 px-4 py-3 flex items-center gap-3">
-        <span className="text-xs text-gray-600">System health endpoint:</span>
-        <code className="text-xs text-gray-400 font-mono">/api/health</code>
-        <span className="text-xs text-gray-600">— returns DB connectivity status</span>
-      </div>
     </div>
   )
 }

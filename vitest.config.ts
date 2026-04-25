@@ -34,6 +34,18 @@ export default defineConfig({
         },
         resolve: { alias },
       },
+      {
+        // Integration: real local Supabase (no global mock setup)
+        test: {
+          name: 'rls',
+          globals: true,
+          environment: 'node',
+          include: ['src/tests/rls/**/*.test.ts'],
+          testTimeout: 20_000,
+          hookTimeout: 20_000,
+        },
+        resolve: { alias },
+      },
     ],
   },
 })

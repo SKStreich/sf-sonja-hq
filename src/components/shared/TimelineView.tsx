@@ -20,10 +20,10 @@ const ENTITY_BAR: Record<string, string> = {
 }
 
 const ENTITY_TEXT: Record<string, string> = {
-  tm: 'text-blue-400',
-  sf: 'text-indigo-400',
-  sfe: 'text-purple-400',
-  personal: 'text-green-400',
+  tm: 'text-blue-600',
+  sf: 'text-indigo-600',
+  sfe: 'text-purple-600',
+  personal: 'text-green-600',
 }
 
 function addMonths(date: Date, n: number): Date {
@@ -76,17 +76,17 @@ export function TimelineView({ items, monthsBefore = 1, monthsAfter = 5, emptyLa
   }), [items, windowStart, windowEnd, totalMs, today])
 
   return (
-    <div className="rounded-xl border border-gray-800 overflow-hidden">
+    <div className="rounded-xl border border-gray-200 overflow-hidden">
       {/* Month headers */}
-      <div className="relative flex border-b border-gray-800 bg-gray-900/60">
-        <div className="w-36 shrink-0 px-3 py-2 border-r border-gray-800" />
+      <div className="relative flex border-b border-gray-200 bg-gray-50">
+        <div className="w-36 shrink-0 px-3 py-2 border-r border-gray-200" />
         <div className="flex-1 relative flex">
           {months.map((m, i) => (
-            <div key={i} className="flex-1 px-2 py-2 border-r border-gray-800/40 last:border-0">
+            <div key={i} className="flex-1 px-2 py-2 border-r border-gray-200/60 last:border-0">
               <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
                 {m.toLocaleDateString('en-US', { month: 'short' })}
                 {' '}
-                <span className="font-normal text-gray-600">'{m.toLocaleDateString('en-US', { year: '2-digit' })}</span>
+                <span className="font-normal text-gray-400">'{m.toLocaleDateString('en-US', { year: '2-digit' })}</span>
               </span>
             </div>
           ))}
@@ -107,15 +107,15 @@ export function TimelineView({ items, monthsBefore = 1, monthsAfter = 5, emptyLa
       {rows.map(row => {
         const barColor = row.isOverdue
           ? 'bg-red-500'
-          : (ENTITY_BAR[row.entityType ?? ''] ?? 'bg-gray-600')
+          : (ENTITY_BAR[row.entityType ?? ''] ?? 'bg-gray-400')
 
         const inner = (
-          <div className="flex items-stretch border-b border-gray-800/30 last:border-0 hover:bg-gray-900/40 transition-colors group cursor-pointer">
+          <div className="flex items-stretch border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors group cursor-pointer">
             {/* Name column */}
-            <div className="w-36 shrink-0 px-3 py-2.5 border-r border-gray-800/40 flex flex-col justify-center">
-              <p className="text-xs text-gray-300 truncate group-hover:text-white leading-tight">{row.name}</p>
+            <div className="w-36 shrink-0 px-3 py-2.5 border-r border-gray-200 flex flex-col justify-center">
+              <p className="text-xs text-gray-700 truncate group-hover:text-gray-900 leading-tight">{row.name}</p>
               {row.entityName && (
-                <p className={`text-[10px] mt-0.5 truncate ${ENTITY_TEXT[row.entityType ?? ''] ?? 'text-gray-600'}`}>
+                <p className={`text-[10px] mt-0.5 truncate ${ENTITY_TEXT[row.entityType ?? ''] ?? 'text-gray-400'}`}>
                   {row.entityName}
                 </p>
               )}
@@ -124,12 +124,12 @@ export function TimelineView({ items, monthsBefore = 1, monthsAfter = 5, emptyLa
             <div className="flex-1 relative h-10 overflow-hidden">
               {/* Month grid lines */}
               {months.map((_, i) => (
-                <div key={i} className="absolute top-0 bottom-0 w-px bg-gray-800/30 pointer-events-none"
+                <div key={i} className="absolute top-0 bottom-0 w-px bg-gray-200/50 pointer-events-none"
                   style={{ left: `${(i / months.length) * 100}%` }} />
               ))}
               {/* Today line */}
               <div
-                className="absolute top-0 bottom-0 w-0.5 bg-indigo-500/30 pointer-events-none"
+                className="absolute top-0 bottom-0 w-0.5 bg-indigo-400/40 pointer-events-none"
                 style={{ left: `${todayPct}%` }}
               />
               {/* Bar or dot */}

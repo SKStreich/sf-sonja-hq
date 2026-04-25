@@ -48,7 +48,7 @@ export function NotificationBell({ initialNotifications }: { initialNotification
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative flex items-center justify-center rounded-md px-2 py-1.5 text-gray-400 hover:text-gray-200 hover:bg-gray-800/50 transition-colors"
+        className="relative flex items-center justify-center rounded-md px-2 py-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
         aria-label="Notifications"
       >
         <span className="text-base">🔔</span>
@@ -62,31 +62,31 @@ export function NotificationBell({ initialNotifications }: { initialNotification
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-gray-700 bg-gray-900 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-800">
+          <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
               <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Notifications</span>
               {unread > 0 && (
-                <button onClick={handleReadAll} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">
+                <button onClick={handleReadAll} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
                   Mark all read
                 </button>
               )}
             </div>
 
             {notifications.length === 0 ? (
-              <div className="py-8 text-center text-sm text-gray-600">No notifications</div>
+              <div className="py-8 text-center text-sm text-gray-400">No notifications</div>
             ) : (
-              <ul className="max-h-80 overflow-y-auto divide-y divide-gray-800/50">
+              <ul className="max-h-80 overflow-y-auto divide-y divide-gray-100">
                 {notifications.map(n => (
                   <li
                     key={n.id}
                     onClick={() => handleRead(n.id)}
-                    className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-800/40 ${n.read ? 'opacity-50' : ''}`}
+                    className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 ${n.read ? 'opacity-50' : ''}`}
                   >
                     <span className="mt-0.5 text-base shrink-0">{TYPE_ICON[n.type] ?? '🔔'}</span>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm text-gray-200 leading-snug">{n.title}</p>
+                      <p className="text-sm text-gray-800 leading-snug">{n.title}</p>
                       {n.message && <p className="text-xs text-gray-500 truncate mt-0.5">{n.message}</p>}
-                      <p className="text-xs text-gray-700 mt-1">{relativeTime(n.created_at)}</p>
+                      <p className="text-xs text-gray-400 mt-1">{relativeTime(n.created_at)}</p>
                     </div>
                     {!n.read && <span className="mt-1.5 h-2 w-2 rounded-full bg-indigo-500 shrink-0" />}
                   </li>

@@ -94,6 +94,31 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
     },
   },
   {
+    name: 'search_knowledge',
+    description: 'Search Knowledge Hub entries (docs, notes, ideas, critiques, chats) by keyword. Returns titles, summaries, and ids — use read_knowledge_entry for full body content. Excludes vault entries.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        query: { type: 'string', description: 'Search keyword (matches title and body)' },
+        kind: { type: 'string', description: 'Optional: idea | doc | chat | note | critique' },
+        entity_type: { type: 'string', description: 'Optional entity filter: tm, sf, sfe, personal' },
+        limit: { type: 'number', description: 'Max results, default 10' },
+      },
+      required: ['query'],
+    },
+  },
+  {
+    name: 'read_knowledge_entry',
+    description: 'Fetch the full body of a single Knowledge Hub entry by id. Use this after search_knowledge or when the user references a specific entry. Returns title, body (truncated to 30k chars), summary, kind, entity, tags. Refuses to read vault entries unless the caller is the owner.',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        entry_id: { type: 'string', description: 'The knowledge_entries.id UUID' },
+      },
+      required: ['entry_id'],
+    },
+  },
+  {
     name: 'navigate_to',
     description: 'Send the user to a specific page within HQ.',
     input_schema: {
@@ -219,6 +244,55 @@ async function executeTool(name: string, input: Record<string, any>, ctx: Awaite
     return `Updated next action on "${project.name}" to: "${input.next_action}"`
   }
 
+  if (name === 'search_knowledge') {
+    const q = (input.query as string ?? '').trim()
+    const limit = Math.min(20, Math.max(1, Number(input.limit) || 10))
+    let query = (supabase as any)
+      .from('knowledge_entries')
+      .select('id, title, summary, kind, entity, tags, updated_at')
+      .eq('org_id', org_id)
+      .eq('status', 'active')
+      .neq('access', 'vault')
+      .order('updated_at', { ascending: false })
+      .limit(limit)
+    if (input.kind) query = query.eq('kind', input.kind)
+    if (input.entity_type) query = query.eq('entity', input.entity_type)
+    if (q) query = query.or(`title.ilike.%${q}%,body.ilike.%${q}%,summary.ilike.%${q}%`)
+    const { data, error } = await query
+    if (error) return `Search failed: ${error.message}`
+    if (!data || data.length === 0) return 'No matching knowledge entries found.'
+    return data.map((e: any) =>
+      `- [${e.kind}/${e.entity}] ${e.title ?? '(untitled)'} — ${e.summary ?? '(no summary)'} (id: ${e.id})`
+    ).join('\n')
+  }
+
+  if (name === 'read_knowledge_entry') {
+    const id = String(input.entry_id ?? '').trim()
+    if (!id) return 'entry_id is required.'
+    const { data: entry, error } = await (supabase as any)
+      .from('knowledge_entries')
+      .select('id, title, body, summary, kind, entity, tags, access, user_id, status')
+      .eq('id', id)
+      .eq('org_id', org_id)
+      .maybeSingle()
+    if (error) return `Read failed: ${error.message}`
+    if (!entry) return 'Entry not found or not in your org.'
+    if (entry.status !== 'active') return 'Entry is archived or deleted.'
+    if (entry.access === 'vault' && entry.user_id !== user.id) {
+      return 'This entry is in the vault and only the owner can read it.'
+    }
+    const body = (entry.body ?? '').slice(0, 30000)
+    return [
+      `title: ${entry.title ?? '(untitled)'}`,
+      `kind: ${entry.kind}  entity: ${entry.entity}`,
+      `tags: ${(entry.tags ?? []).join(', ') || '(none)'}`,
+      `summary: ${entry.summary ?? '(no summary)'}`,
+      '',
+      'BODY:',
+      body || '(empty)',
+    ].join('\n')
+  }
+
   if (name === 'navigate_to') {
     const url = input.project_id
       ? `/dashboard/projects/${input.project_id}`
@@ -243,6 +317,10 @@ export async function sendAgentMessage(
 
 Be concise and direct. When you create or update something, confirm it briefly. When asked to navigate, use the navigate_to tool and tell her where you're sending her. You have access to live workspace data via tools — use them when you need current information rather than guessing.
 
+When the user asks about a specific document, idea, note, chat, or critique, use search_knowledge to find candidates and read_knowledge_entry to get the full body before answering. Don't claim you only have metadata — pull the body. Vault entries are private to their owner; respect that.
+
+If the user message includes a token like "ENTRY_CONTEXT: <uuid>" you should immediately call read_knowledge_entry on that uuid before responding.
+
 Entities: tm = Triplemeter, sf = SF Solutions, sfe = SF Enterprises, personal = Personal.`
 
   const messages: Anthropic.MessageParam[] = [
@@ -264,8 +342,8 @@ Entities: tm = Triplemeter, sf = SF Solutions, sfe = SF Enterprises, personal = 
       messages,
     })
 
-    totalInputTokens += response.usage.input_tokens
-    totalOutputTokens += response.usage.output_tokens
+    totalInputTokens += response.usage?.input_tokens ?? 0
+    totalOutputTokens += response.usage?.output_tokens ?? 0
 
     if (response.stop_reason === 'end_turn') {
       const text = response.content.find(b => b.type === 'text')?.text ?? ''

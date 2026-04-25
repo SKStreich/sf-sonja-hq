@@ -141,7 +141,7 @@ describe('markAllNotificationsRead', () => {
 describe('updateMemberRole', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('throws if caller is not admin', async () => {
+  it('returns error if caller is not admin', async () => {
     mockGetUser.mockResolvedValue({ data: { user: MOCK_USER } })
     const memberProfile = { ...MOCK_PROFILE, role: 'member' }
     mockFrom.mockImplementation(() => ({
@@ -150,7 +150,7 @@ describe('updateMemberRole', () => {
       update: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: memberProfile, error: null }),
     }))
-    await expect(updateMemberRole('other-user', 'admin')).rejects.toThrow('Admin access required')
+    await expect(updateMemberRole('other-user', 'admin')).resolves.toMatchObject({ success: false, error: expect.stringMatching(/admin/i) })
   })
 
   it('updates role if caller is admin', async () => {
@@ -168,7 +168,7 @@ describe('updateMemberRole', () => {
 describe('removeMember', () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it('throws if trying to remove self', async () => {
+  it('returns error if trying to remove self', async () => {
     mockGetUser.mockResolvedValue({ data: { user: MOCK_USER } })
     mockFrom.mockImplementation(() => ({
       select: vi.fn().mockReturnThis(),
@@ -176,6 +176,6 @@ describe('removeMember', () => {
       delete: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: MOCK_PROFILE, error: null }),
     }))
-    await expect(removeMember(MOCK_USER.id)).rejects.toThrow('cannot remove yourself')
+    await expect(removeMember(MOCK_USER.id)).resolves.toMatchObject({ success: false, error: expect.stringMatching(/yourself/i) })
   })
 })

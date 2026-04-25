@@ -104,16 +104,16 @@ export function ProjectCreateDialog({ open, onClose, entities, project }: Props)
 
   if (!open) return null
 
-  const inputCls = 'w-full rounded-lg bg-gray-950 px-3 py-2 text-sm text-white ring-1 ring-gray-700 focus:ring-indigo-500 outline-none transition-all'
+  const inputCls = 'w-full rounded-lg bg-white px-3 py-2 text-sm text-gray-900 ring-1 ring-gray-200 focus:ring-indigo-400 outline-none transition-all'
   const labelCls = 'block text-xs font-medium uppercase tracking-wider text-gray-500 mb-1.5'
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="fixed left-1/2 top-[5vh] z-50 w-full max-w-lg -translate-x-1/2 rounded-2xl border border-gray-700 bg-gray-900 shadow-2xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-gray-800 px-5 py-4 sticky top-0 bg-gray-900 z-10">
-          <h2 className="text-sm font-semibold text-white">{isEdit ? 'Edit Project' : 'New Project'}</h2>
-          <button onClick={onClose} className="text-gray-500 hover:text-gray-300 transition-colors text-lg leading-none">×</button>
+      <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed left-1/2 top-[5vh] z-50 w-full max-w-lg -translate-x-1/2 rounded-2xl border border-gray-200 bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 sticky top-0 bg-white z-10">
+          <h2 className="text-sm font-semibold text-gray-900">{isEdit ? 'Edit Project' : 'New Project'}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none">×</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
@@ -173,7 +173,7 @@ export function ProjectCreateDialog({ open, onClose, entities, project }: Props)
           </div>
 
           {/* Next Action */}
-          <div className="rounded-xl bg-gray-950/60 p-3 space-y-3 ring-1 ring-gray-800">
+          <div className="rounded-xl bg-gray-50 p-3 space-y-3 ring-1 ring-gray-200">
             <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Next Action</p>
             <div>
               <label className={labelCls}>Action Type</label>
@@ -193,11 +193,11 @@ export function ProjectCreateDialog({ open, onClose, entities, project }: Props)
             </div>
           </div>
 
-          {error && <p className="text-red-400 text-xs">{error}</p>}
+          {error && <p className="text-red-600 text-xs">{error}</p>}
 
           <div className="flex items-center justify-end gap-3 pt-1">
             <button type="button" onClick={onClose}
-              className="text-sm text-gray-500 hover:text-gray-300 transition-colors">
+              className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
               Cancel
             </button>
             <button type="submit" disabled={!form.name.trim() || isPending}
