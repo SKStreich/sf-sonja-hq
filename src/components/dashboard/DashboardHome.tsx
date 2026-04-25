@@ -40,14 +40,14 @@ function formatDate(date: string): string {
 const PRIORITY_DOT: Record<string, string> = {
   high: 'bg-red-500',
   medium: 'bg-orange-400',
-  low: 'bg-gray-500',
+  low: 'bg-gray-400',
 }
 
 const UPDATE_TYPE_BORDER: Record<string, string> = {
-  progress: 'border-blue-500',
+  progress: 'border-blue-400',
   blocker: 'border-red-500',
   decision: 'border-purple-500',
-  note: 'border-gray-600',
+  note: 'border-gray-300',
   milestone: 'border-green-500',
 }
 
@@ -63,9 +63,19 @@ interface EntityBreakdown {
 
 interface InsightData {
   overdueTaskCount: number
-  stalledProjects: { id: string; name: string; entity_name?: string }[]
-  unreviewedCaptureCount: number
+  rawIdeaCount: number
   todayTaskCount: number
+}
+
+interface KnowledgeItem {
+  id: string
+  kind: string
+  title: string | null
+  summary: string | null
+  body: string | null
+  entity: string
+  idea_status: string | null
+  created_at: string
 }
 
 interface Props {
@@ -74,7 +84,7 @@ interface Props {
   overdueTasks: any[]
   activeProjects: any[]
   recentLog: any[]
-  captures: any[]
+  recentKnowledge: KnowledgeItem[]
   openTaskCount: number
   activeProjectCount: number
   entityBreakdown: EntityBreakdown[]
@@ -82,20 +92,22 @@ interface Props {
   assignedTasks: any[]
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Entity styles ─────────────────────────────────────────────────────────────
 
 const ENTITY_COLORS: Record<string, string> = {
-  tm: 'border-blue-800 bg-blue-950/30',
-  sf: 'border-indigo-800 bg-indigo-950/30',
-  sfe: 'border-purple-800 bg-purple-950/30',
-  personal: 'border-green-800 bg-green-950/30',
+  tm: 'border-blue-200 bg-blue-50',
+  sf: 'border-indigo-200 bg-indigo-50',
+  sfe: 'border-purple-200 bg-purple-50',
+  personal: 'border-green-200 bg-green-50',
 }
 const ENTITY_TEXT: Record<string, string> = {
-  tm: 'text-blue-400',
-  sf: 'text-indigo-400',
-  sfe: 'text-purple-400',
-  personal: 'text-green-400',
+  tm: 'text-blue-700',
+  sf: 'text-indigo-700',
+  sfe: 'text-purple-700',
+  personal: 'text-green-700',
 }
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function DashboardHome({
   displayName,
@@ -103,14 +115,15 @@ export function DashboardHome({
   overdueTasks,
   activeProjects,
   recentLog,
-  captures,
+  recentKnowledge,
   openTaskCount,
   activeProjectCount,
   entityBreakdown,
   insights,
   assignedTasks,
 }: Props) {
-  const [capturesOpen, setCapturesOpen] = useState(captures.length > 0)
+  const [knowledgeOpen, setKnowledgeOpen] = useState(recentKnowledge.length > 0)
+  const [entityFilter, setEntityFilter] = useState<string | null>(null)
   const today = new Date().toISOString().slice(0, 10)
 
   const dateLabel = new Date().toLocaleDateString('en-US', {
@@ -119,54 +132,84 @@ export function DashboardHome({
     day: 'numeric',
   })
 
+  // Entity-scope filter — applied to all tasks/projects lists below.
+  const matchesEntity = (row: any): boolean => {
+    if (!entityFilter) return true
+    const rowEntity = Array.isArray(row.entities) ? row.entities[0] : row.entities
+    const projectEntity = row.projects?.entities
+      ? (Array.isArray(row.projects.entities) ? row.projects.entities[0] : row.projects.entities)
+      : null
+    return rowEntity?.type === entityFilter || projectEntity?.type === entityFilter
+  }
+  const fTodayTasks = todayTasks.filter(matchesEntity)
+  const fOverdueTasks = overdueTasks.filter(matchesEntity)
+  const fActiveProjects = activeProjects.filter(matchesEntity)
+  const fAssignedTasks = assignedTasks.filter(matchesEntity)
+  const entityTabs = [
+    { value: null as string | null, label: 'All' },
+    ...entityBreakdown.map(e => ({ value: e.type, label: e.name })),
+  ]
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
 
       {/* ── Greeting ───────────────────────────────────────────────────────── */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">{greeting(displayName)}</h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">{greeting(displayName)}</h1>
         <p className="mt-1 text-sm text-gray-500">{dateLabel}</p>
       </div>
 
-      {/* ── Insight chips ──────────────────────────────────────────────────── */}
-      {(insights.overdueTaskCount > 0 || insights.stalledProjects.length > 0 || insights.unreviewedCaptureCount > 0) && (
-        <div className="mb-6 flex flex-wrap gap-2">
-          {insights.overdueTaskCount > 0 && (
-            <Link href="/dashboard/tasks" className="flex items-center gap-1.5 rounded-full border border-red-900/60 bg-red-950/30 px-3 py-1 text-xs font-medium text-red-400 hover:bg-red-950/50 transition-colors">
-              <span>⚠</span> {insights.overdueTaskCount} overdue task{insights.overdueTaskCount !== 1 ? 's' : ''}
-            </Link>
-          )}
-          {insights.stalledProjects.length > 0 && (
-            <Link href="/dashboard/digest" className="flex items-center gap-1.5 rounded-full border border-orange-900/60 bg-orange-950/30 px-3 py-1 text-xs font-medium text-orange-400 hover:bg-orange-950/50 transition-colors">
-              <span>◎</span> {insights.stalledProjects.length} stalled project{insights.stalledProjects.length !== 1 ? 's' : ''}
-            </Link>
-          )}
-          {insights.unreviewedCaptureCount > 0 && (
-            <Link href="/dashboard/captures" className="flex items-center gap-1.5 rounded-full border border-yellow-900/60 bg-yellow-950/30 px-3 py-1 text-xs font-medium text-yellow-500 hover:bg-yellow-950/50 transition-colors">
-              <span>●</span> {insights.unreviewedCaptureCount} capture{insights.unreviewedCaptureCount !== 1 ? 's' : ''} in inbox
-            </Link>
-          )}
-          <Link href="/dashboard/digest" className="flex items-center gap-1.5 rounded-full border border-indigo-900/60 bg-indigo-950/30 px-3 py-1 text-xs font-medium text-indigo-400 hover:bg-indigo-950/50 transition-colors">
-            <span>✦</span> AI Digest
-          </Link>
+      {/* ── Entity tabs ────────────────────────────────────────────────────── */}
+      {entityBreakdown.length > 0 && (
+        <div className="mb-6 flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1 w-fit">
+          {entityTabs.map(tab => (
+            <button
+              key={tab.label}
+              onClick={() => setEntityFilter(tab.value)}
+              className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                entityFilter === tab.value
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
       )}
+
+      {/* ── Insight chips ──────────────────────────────────────────────────── */}
+      <div className="mb-6 flex flex-wrap gap-2">
+        {insights.overdueTaskCount > 0 && (
+          <Link href="/dashboard/tasks" className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors">
+            <span>⚠</span> {insights.overdueTaskCount} overdue task{insights.overdueTaskCount !== 1 ? 's' : ''}
+          </Link>
+        )}
+        {insights.rawIdeaCount > 0 && (
+          <Link href="/dashboard/knowledge" className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors">
+            <span>💡</span> {insights.rawIdeaCount} raw idea{insights.rawIdeaCount !== 1 ? 's' : ''} to review
+          </Link>
+        )}
+        <Link href="/dashboard/knowledge" className="flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors">
+          <span>✦</span> Knowledge Hub
+        </Link>
+      </div>
 
       {/* ── Entity platform cards ───────────────────────────────────────────── */}
       {entityBreakdown.length > 0 && (
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {entityBreakdown.map(e => (
-            <div key={e.id} className={`rounded-xl border p-3 ${ENTITY_COLORS[e.type] ?? 'border-gray-800 bg-gray-900/30'}`}>
+            <div key={e.id} className={`rounded-xl border p-3 ${ENTITY_COLORS[e.type] ?? 'border-gray-200 bg-gray-50'}`}>
               <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${ENTITY_TEXT[e.type] ?? 'text-gray-500'}`}>{e.name}</p>
               <div className="flex items-center gap-3">
                 <Link href={`/dashboard/projects?entity=${e.type}`} className="text-center">
-                  <p className="text-lg font-bold text-white">{e.projectCount}</p>
-                  <p className="text-[10px] text-gray-600">projects</p>
+                  <p className="text-lg font-bold text-gray-900">{e.projectCount}</p>
+                  <p className="text-[10px] text-gray-400">projects</p>
                 </Link>
-                <div className="w-px h-6 bg-gray-800" />
+                <div className="w-px h-6 bg-gray-200" />
                 <Link href={`/dashboard/tasks?entity=${e.type}`} className="text-center">
-                  <p className="text-lg font-bold text-white">{e.taskCount}</p>
-                  <p className="text-[10px] text-gray-600">tasks</p>
+                  <p className="text-lg font-bold text-gray-900">{e.taskCount}</p>
+                  <p className="text-[10px] text-gray-400">tasks</p>
                 </Link>
               </div>
             </div>
@@ -175,14 +218,14 @@ export function DashboardHome({
       )}
 
       {/* ── Cross-entity timeline ──────────────────────────────────────────── */}
-      {activeProjects.length > 0 && (
+      {fActiveProjects.length > 0 && (
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Project Timeline</h2>
-            <Link href="/dashboard/projects" className="text-xs text-gray-600 hover:text-gray-400 transition-colors">View all →</Link>
+            <Link href="/dashboard/projects" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">View all →</Link>
           </div>
           <TimelineView
-            items={activeProjects.map((p: any) => {
+            items={fActiveProjects.map((p: any) => {
               const entity = Array.isArray(p.entities) ? p.entities[0] : p.entities
               return {
                 id: p.id,
@@ -205,29 +248,29 @@ export function DashboardHome({
       <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Link
           href="/dashboard/tasks"
-          className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 transition-colors hover:border-gray-700 hover:bg-gray-900/60"
+          className="rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:border-gray-300 hover:bg-gray-50"
         >
           <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Open Tasks</p>
-          <p className="mt-1 text-3xl font-bold text-white">{openTaskCount}</p>
+          <p className="mt-1 text-3xl font-bold text-gray-900">{openTaskCount}</p>
         </Link>
 
         <Link
           href="/dashboard/projects"
-          className="rounded-xl border border-gray-800 bg-gray-900/40 p-4 transition-colors hover:border-gray-700 hover:bg-gray-900/60"
+          className="rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:border-gray-300 hover:bg-gray-50"
         >
           <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Active Projects</p>
-          <p className="mt-1 text-3xl font-bold text-white">{activeProjectCount}</p>
+          <p className="mt-1 text-3xl font-bold text-gray-900">{activeProjectCount}</p>
         </Link>
 
-        <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Today</p>
-          <p className="mt-1 text-3xl font-bold text-white">{todayTasks.length}</p>
+          <p className="mt-1 text-3xl font-bold text-gray-900">{fTodayTasks.length}</p>
         </div>
 
-        <div className="rounded-xl border border-gray-800 bg-gray-900/40 p-4">
+        <div className="rounded-xl border border-gray-200 bg-white p-4">
           <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Overdue</p>
-          <p className={`mt-1 text-3xl font-bold ${overdueTasks.length > 0 ? 'text-red-400' : 'text-white'}`}>
-            {overdueTasks.length}
+          <p className={`mt-1 text-3xl font-bold ${fOverdueTasks.length > 0 ? 'text-red-500' : 'text-gray-900'}`}>
+            {fOverdueTasks.length}
           </p>
         </div>
       </div>
@@ -239,38 +282,37 @@ export function DashboardHome({
         <div className="flex flex-col gap-6">
 
           {/* Today's Tasks */}
-          <section className="rounded-xl border border-gray-800 bg-gray-900/30 p-4">
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Today</h2>
-              {todayTasks.length > 0 && (
-                <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs font-semibold text-gray-300">
-                  {todayTasks.length}
+              {fTodayTasks.length > 0 && (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                  {fTodayTasks.length}
                 </span>
               )}
             </div>
 
-            {todayTasks.length === 0 ? (
+            {fTodayTasks.length === 0 ? (
               <p className="py-4 text-center text-sm text-gray-500">Nothing on the list for today 🎉</p>
             ) : (
               <ul className="space-y-2">
-                {todayTasks.map((task: any) => (
+                {fTodayTasks.map((task: any) => (
                   <li key={task.id} className="flex items-start gap-3">
-                    {/* Circle checkbox placeholder */}
-                    <span className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full border border-gray-600" />
+                    <span className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full border border-gray-300" />
                     <div className="min-w-0 flex-1">
                       <Link
                         href="/dashboard/tasks"
-                        className="block truncate text-sm text-gray-200 hover:text-white"
+                        className="block truncate text-sm text-gray-700 hover:text-gray-900"
                       >
                         {task.title}
                       </Link>
                       {task.projects?.name && (
-                        <p className="truncate text-xs text-gray-500">{task.projects.name}</p>
+                        <p className="truncate text-xs text-gray-400">{task.projects.name}</p>
                       )}
                     </div>
                     {task.priority && (
                       <span
-                        className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${PRIORITY_DOT[task.priority] ?? 'bg-gray-600'}`}
+                        className={`mt-1.5 h-2 w-2 flex-shrink-0 rounded-full ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`}
                         title={task.priority}
                       />
                     )}
@@ -279,47 +321,47 @@ export function DashboardHome({
               </ul>
             )}
 
-            <div className="mt-4 border-t border-gray-800 pt-3">
-              <Link href="/dashboard/tasks" className="text-xs text-gray-500 hover:text-gray-300">
+            <div className="mt-4 border-t border-gray-100 pt-3">
+              <Link href="/dashboard/tasks" className="text-xs text-gray-400 hover:text-gray-600">
                 View all tasks →
               </Link>
             </div>
           </section>
 
           {/* Overdue Tasks */}
-          {overdueTasks.length > 0 && (
-            <section className="rounded-xl border border-red-900/40 bg-gray-900/30 p-4">
+          {fOverdueTasks.length > 0 && (
+            <section className="rounded-xl border border-red-200 bg-white p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Overdue</h2>
-                <span className="rounded-full bg-red-900/60 px-2 py-0.5 text-xs font-semibold text-red-300">
-                  {overdueTasks.length}
+                <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">
+                  {fOverdueTasks.length}
                 </span>
               </div>
 
               <ul className="space-y-2">
-                {overdueTasks.map((task: any) => (
+                {fOverdueTasks.map((task: any) => (
                   <li key={task.id} className="flex items-start gap-3">
-                    <span className="mt-0.5 flex-shrink-0 text-red-400">⚠</span>
+                    <span className="mt-0.5 flex-shrink-0 text-red-500">⚠</span>
                     <div className="min-w-0 flex-1">
                       <Link
                         href="/dashboard/tasks"
-                        className="block truncate text-sm text-gray-200 hover:text-white"
+                        className="block truncate text-sm text-gray-700 hover:text-gray-900"
                       >
                         {task.title}
                       </Link>
                       {task.projects?.name && (
-                        <p className="truncate text-xs text-gray-500">{task.projects.name}</p>
+                        <p className="truncate text-xs text-gray-400">{task.projects.name}</p>
                       )}
                     </div>
                     {task.due_date && (
-                      <span className="flex-shrink-0 text-xs text-red-400">{formatDate(task.due_date)}</span>
+                      <span className="flex-shrink-0 text-xs text-red-500">{formatDate(task.due_date)}</span>
                     )}
                   </li>
                 ))}
               </ul>
 
-              <div className="mt-4 border-t border-gray-800 pt-3">
-                <Link href="/dashboard/tasks" className="text-xs text-gray-500 hover:text-gray-300">
+              <div className="mt-4 border-t border-gray-100 pt-3">
+                <Link href="/dashboard/tasks" className="text-xs text-gray-400 hover:text-gray-600">
                   View all tasks →
                 </Link>
               </div>
@@ -331,21 +373,21 @@ export function DashboardHome({
         <div className="flex flex-col gap-6">
 
           {/* Active Projects */}
-          <section className="rounded-xl border border-gray-800 bg-gray-900/30 p-4">
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Active Projects</h2>
-              {activeProjects.length > 0 && (
-                <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs font-semibold text-gray-300">
-                  {activeProjects.length}
+              {fActiveProjects.length > 0 && (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                  {fActiveProjects.length}
                 </span>
               )}
             </div>
 
-            {activeProjects.length === 0 ? (
+            {fActiveProjects.length === 0 ? (
               <p className="py-4 text-center text-sm text-gray-500">No active projects</p>
             ) : (
               <ul className="space-y-3">
-                {activeProjects.map((project: any) => {
+                {fActiveProjects.map((project: any) => {
                   const entity = Array.isArray(project.entities) ? project.entities[0] : project.entities
                   const nadOverdue = project.next_action_due && isOverdue(project.next_action_due)
                   return (
@@ -353,30 +395,30 @@ export function DashboardHome({
                       <div className="flex items-center gap-2">
                         <Link
                           href={`/dashboard/projects/${project.id}`}
-                          className="truncate text-sm font-medium text-gray-200 hover:text-white"
+                          className="truncate text-sm font-medium text-gray-800 hover:text-gray-900"
                         >
                           {project.name}
                         </Link>
                         {entity?.name && (
-                          <span className="flex-shrink-0 rounded bg-gray-800 px-1.5 py-0.5 text-xs text-gray-400">
+                          <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500">
                             {entity.name}
                           </span>
                         )}
                         {project.phase && (
-                          <span className="flex-shrink-0 rounded bg-gray-800 px-1.5 py-0.5 text-xs text-gray-500">
+                          <span className="flex-shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-400">
                             {project.phase}
                           </span>
                         )}
                       </div>
                       {project.next_action && (
-                        <p className="truncate text-xs text-gray-500" title={project.next_action}>
+                        <p className="truncate text-xs text-gray-400" title={project.next_action}>
                           {project.next_action.length > 70
                             ? project.next_action.slice(0, 70) + '…'
                             : project.next_action}
                         </p>
                       )}
                       {project.next_action_due && (
-                        <p className={`text-xs ${nadOverdue ? 'text-red-400' : 'text-gray-600'}`}>
+                        <p className={`text-xs ${nadOverdue ? 'text-red-500' : 'text-gray-400'}`}>
                           Due {formatDate(project.next_action_due)}
                         </p>
                       )}
@@ -386,49 +428,49 @@ export function DashboardHome({
               </ul>
             )}
 
-            <div className="mt-4 border-t border-gray-800 pt-3">
-              <Link href="/dashboard/projects" className="text-xs text-gray-500 hover:text-gray-300">
+            <div className="mt-4 border-t border-gray-100 pt-3">
+              <Link href="/dashboard/projects" className="text-xs text-gray-400 hover:text-gray-600">
                 View all projects →
               </Link>
             </div>
           </section>
 
           {/* Assigned to me */}
-          {assignedTasks.length > 0 && (
-            <section className="rounded-xl border border-indigo-900/40 bg-gray-900/30 p-4">
+          {fAssignedTasks.length > 0 && (
+            <section className="rounded-xl border border-indigo-200 bg-white p-4">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Assigned to me</h2>
-                <span className="rounded-full bg-indigo-900/60 px-2 py-0.5 text-xs font-semibold text-indigo-300">
-                  {assignedTasks.length}
+                <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-600">
+                  {fAssignedTasks.length}
                 </span>
               </div>
               <ul className="space-y-2">
-                {assignedTasks.map((task: any) => (
+                {fAssignedTasks.map((task: any) => (
                   <li key={task.id} className="flex items-start gap-3">
-                    <span className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full border border-indigo-700" />
+                    <span className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full border border-indigo-300" />
                     <div className="min-w-0 flex-1">
-                      <Link href="/dashboard/tasks" className="block truncate text-sm text-gray-200 hover:text-white">
+                      <Link href="/dashboard/tasks" className="block truncate text-sm text-gray-700 hover:text-gray-900">
                         {task.title}
                       </Link>
                       {task.projects?.name && (
-                        <p className="truncate text-xs text-gray-500">{task.projects.name}</p>
+                        <p className="truncate text-xs text-gray-400">{task.projects.name}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       {task.due_date && (
-                        <span className={`text-xs ${isOverdue(task.due_date) ? 'text-red-400' : 'text-gray-600'}`}>
+                        <span className={`text-xs ${isOverdue(task.due_date) ? 'text-red-500' : 'text-gray-400'}`}>
                           {formatDate(task.due_date)}
                         </span>
                       )}
                       {task.priority && (
-                        <span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority] ?? 'bg-gray-600'}`} title={task.priority} />
+                        <span className={`h-2 w-2 rounded-full ${PRIORITY_DOT[task.priority] ?? 'bg-gray-300'}`} title={task.priority} />
                       )}
                     </div>
                   </li>
                 ))}
               </ul>
-              <div className="mt-4 border-t border-gray-800 pt-3">
-                <Link href="/dashboard/tasks" className="text-xs text-gray-500 hover:text-gray-300">
+              <div className="mt-4 border-t border-gray-100 pt-3">
+                <Link href="/dashboard/tasks" className="text-xs text-gray-400 hover:text-gray-600">
                   View in tasks →
                 </Link>
               </div>
@@ -436,7 +478,7 @@ export function DashboardHome({
           )}
 
           {/* Recent Log */}
-          <section className="rounded-xl border border-gray-800 bg-gray-900/30 p-4">
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Recent Activity</h2>
             </div>
@@ -455,17 +497,17 @@ export function DashboardHome({
                       key={entry.id}
                       className={`border-l-2 pl-3 ${borderColor}`}
                     >
-                      <p className="text-sm text-gray-300">{truncated}</p>
+                      <p className="text-sm text-gray-700">{truncated}</p>
                       <div className="mt-0.5 flex items-center gap-2">
                         {entry.projects?.name && (
                           <Link
                             href={`/dashboard/projects/${entry.project_id}`}
-                            className="text-xs text-gray-500 hover:text-gray-300"
+                            className="text-xs text-gray-400 hover:text-gray-600"
                           >
                             {entry.projects.name}
                           </Link>
                         )}
-                        <span className="text-xs text-gray-600">{relativeTime(entry.created_at)}</span>
+                        <span className="text-xs text-gray-400">{relativeTime(entry.created_at)}</span>
                       </div>
                     </li>
                   )
@@ -473,8 +515,8 @@ export function DashboardHome({
               </ul>
             )}
 
-            <div className="mt-4 border-t border-gray-800 pt-3">
-              <Link href="/dashboard/all-logs" className="text-xs text-gray-500 hover:text-gray-300">
+            <div className="mt-4 border-t border-gray-100 pt-3">
+              <Link href="/dashboard/all-logs" className="text-xs text-gray-400 hover:text-gray-600">
                 View all log →
               </Link>
             </div>
@@ -482,58 +524,60 @@ export function DashboardHome({
         </div>
       </div>
 
-      {/* ── Ideas Inbox ────────────────────────────────────────────────────── */}
-      <section className="rounded-xl border border-gray-800 bg-gray-900/30 p-4">
+      {/* ── Recent Knowledge ───────────────────────────────────────────────── */}
+      <section className="rounded-xl border border-gray-200 bg-white p-4">
         <button
           type="button"
-          onClick={() => setCapturesOpen((o) => !o)}
+          onClick={() => setKnowledgeOpen((o) => !o)}
           className="flex w-full items-center justify-between"
         >
           <div className="flex items-center gap-2">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Ideas Inbox</h2>
-            {captures.length > 0 && (
-              <span className="rounded-full bg-gray-700 px-2 py-0.5 text-xs font-semibold text-gray-300">
-                {captures.length}
+            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Recent Knowledge</h2>
+            {recentKnowledge.length > 0 && (
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                {recentKnowledge.length}
               </span>
             )}
           </div>
-          <span className="text-xs text-gray-600">{capturesOpen ? '▲' : '▼'}</span>
+          <span className="text-xs text-gray-400">{knowledgeOpen ? '▲' : '▼'}</span>
         </button>
 
-        {capturesOpen && (
+        {knowledgeOpen && (
           <div className="mt-4">
-            {captures.length === 0 ? (
-              <p className="py-4 text-center text-sm text-gray-500">Inbox zero 🎉</p>
+            {recentKnowledge.length === 0 ? (
+              <p className="py-4 text-center text-sm text-gray-500">Nothing here yet — capture an idea, doc, or note.</p>
             ) : (
               <ul className="space-y-3">
-                {captures.map((capture: any) => (
-                  <li key={capture.id} className="flex items-start gap-3">
-                    <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${
-                      capture.type === 'idea'
-                        ? 'bg-purple-900/50 text-purple-300'
-                        : capture.type === 'task'
-                        ? 'bg-blue-900/50 text-blue-300'
-                        : 'bg-gray-800 text-gray-400'
-                    }`}>
-                      {capture.type ?? 'note'}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm text-gray-200">{capture.content}</p>
-                      <div className="mt-0.5 flex items-center gap-2">
-                        {capture.entity_context && (
-                          <span className="text-xs text-gray-500">{capture.entity_context}</span>
-                        )}
-                        <span className="text-xs text-gray-600">{relativeTime(capture.created_at)}</span>
+                {recentKnowledge.map((item) => {
+                  const kindStyle: Record<string, string> = {
+                    idea: 'bg-amber-100 text-amber-800',
+                    doc: 'bg-blue-100 text-blue-800',
+                    chat: 'bg-purple-100 text-purple-800',
+                    note: 'bg-gray-100 text-gray-700',
+                  }
+                  const preview = item.summary ?? item.body?.slice(0, 120) ?? ''
+                  return (
+                    <li key={item.id} className="flex items-start gap-3">
+                      <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${kindStyle[item.kind] ?? kindStyle.note}`}>
+                        {item.kind}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-gray-800">{item.title ?? '(untitled)'}</p>
+                        {preview && <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{preview}</p>}
+                        <div className="mt-0.5 flex items-center gap-2">
+                          <span className="text-xs uppercase tracking-wide text-gray-400">{item.entity}</span>
+                          <span className="text-xs text-gray-400">{relativeTime(item.created_at)}</span>
+                        </div>
                       </div>
-                    </div>
-                  </li>
-                ))}
+                    </li>
+                  )
+                })}
               </ul>
             )}
 
-            <div className="mt-4 border-t border-gray-800 pt-3">
-              <Link href="/dashboard/captures" className="text-xs text-gray-500 hover:text-gray-300">
-                Review all captures →
+            <div className="mt-4 border-t border-gray-100 pt-3">
+              <Link href="/dashboard/knowledge" className="text-xs text-gray-400 hover:text-gray-600">
+                Open Knowledge Hub →
               </Link>
             </div>
           </div>

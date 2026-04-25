@@ -7,6 +7,8 @@ import type { AgentMessage } from '@/app/api/agent/actions'
 interface Props {
   open: boolean
   onClose: () => void
+  starter?: string | null
+  onConsumedStarter?: () => void
 }
 
 const SUGGESTED = [
@@ -16,7 +18,7 @@ const SUGGESTED = [
   'Take me to captures inbox',
 ]
 
-export function AgentPanel({ open, onClose }: Props) {
+export function AgentPanel({ open, onClose, starter, onConsumedStarter }: Props) {
   const router = useRouter()
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [input, setInput] = useState('')
@@ -27,6 +29,15 @@ export function AgentPanel({ open, onClose }: Props) {
   useEffect(() => {
     if (open) inputRef.current?.focus()
   }, [open])
+
+  // Auto-send starter message when panel opens with one (e.g. "Discuss this entry").
+  useEffect(() => {
+    if (open && starter) {
+      send(starter)
+      onConsumedStarter?.()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, starter])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -63,35 +74,35 @@ export function AgentPanel({ open, onClose }: Props) {
       {/* Backdrop */}
       {open && (
         <div
-          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+          className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm"
           onClick={onClose}
         />
       )}
 
       {/* Panel */}
       <div
-        className={`fixed right-0 top-16 bottom-0 z-50 flex w-full max-w-sm flex-col border-l border-gray-800 bg-gray-950 shadow-2xl transition-transform duration-200 ${
+        className={`fixed right-0 top-16 bottom-0 z-50 flex w-full max-w-sm flex-col border-l border-gray-200 bg-white shadow-xl transition-transform duration-200 ${
           open ? 'translate-x-0' : 'translate-x-full'
         }`}
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-800 px-4 py-3 shrink-0">
+        <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3 shrink-0">
           <div className="flex items-center gap-2">
-            <span className="text-indigo-400">✦</span>
-            <h2 className="text-sm font-semibold text-white">HQ Agent</h2>
+            <span className="text-indigo-600">✦</span>
+            <h2 className="text-sm font-semibold text-gray-900">HQ Agent</h2>
           </div>
           <div className="flex items-center gap-2">
             {messages.length > 0 && (
               <button
                 onClick={() => setMessages([])}
-                className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
               >
                 Clear
               </button>
             )}
             <button
               onClick={onClose}
-              className="text-gray-600 hover:text-gray-400 transition-colors text-lg leading-none"
+              className="text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
             >
               ✕
             </button>
@@ -110,7 +121,7 @@ export function AgentPanel({ open, onClose }: Props) {
                   <button
                     key={s}
                     onClick={() => send(s)}
-                    className="w-full rounded-lg border border-gray-800 bg-gray-900/50 px-3 py-2 text-left text-xs text-gray-400 hover:border-gray-700 hover:text-gray-200 transition-colors"
+                    className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-left text-xs text-gray-600 hover:border-gray-300 hover:text-gray-900 transition-colors"
                   >
                     {s}
                   </button>
@@ -125,7 +136,7 @@ export function AgentPanel({ open, onClose }: Props) {
                 className={`max-w-[85%] rounded-xl px-3 py-2 text-sm leading-relaxed ${
                   msg.role === 'user'
                     ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-900 border border-gray-800 text-gray-200'
+                    : 'bg-gray-100 border border-gray-200 text-gray-800'
                 }`}
               >
                 <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -135,8 +146,8 @@ export function AgentPanel({ open, onClose }: Props) {
 
           {pending && (
             <div className="flex justify-start">
-              <div className="rounded-xl border border-gray-800 bg-gray-900 px-3 py-2">
-                <span className="text-xs text-indigo-400 animate-pulse">✦ thinking…</span>
+              <div className="rounded-xl border border-gray-200 bg-gray-100 px-3 py-2">
+                <span className="text-xs text-indigo-500 animate-pulse">✦ thinking…</span>
               </div>
             </div>
           )}
@@ -145,7 +156,7 @@ export function AgentPanel({ open, onClose }: Props) {
         </div>
 
         {/* Input */}
-        <div className="border-t border-gray-800 px-4 py-3 shrink-0">
+        <div className="border-t border-gray-200 px-4 py-3 shrink-0">
           <div className="flex items-center gap-2">
             <input
               ref={inputRef}
@@ -155,7 +166,7 @@ export function AgentPanel({ open, onClose }: Props) {
               onKeyDown={handleKey}
               placeholder="Ask anything…"
               disabled={pending}
-              className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-indigo-500 transition-colors disabled:opacity-50"
+              className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400 transition-colors disabled:opacity-50"
             />
             <button
               onClick={() => send(input)}

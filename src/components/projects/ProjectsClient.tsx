@@ -33,7 +33,7 @@ export function ProjectsClient({ projects, entities }: Props) {
   })
 
   const btnCls = (active: boolean) =>
-    `rounded-md px-3 py-1.5 text-xs font-medium transition-all ${active ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`
+    `rounded-md px-3 py-1.5 text-xs font-medium transition-all ${active ? 'bg-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-700'}`
 
   return (
     <>
@@ -41,7 +41,7 @@ export function ProjectsClient({ projects, entities }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">Projects</h1>
+            <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
             <p className="mt-0.5 text-sm text-gray-500">{filtered.length} project{filtered.length !== 1 ? 's' : ''}</p>
           </div>
           <button onClick={() => setCreateOpen(true)}
@@ -53,7 +53,7 @@ export function ProjectsClient({ projects, entities }: Props) {
         {/* Filters + view toggle */}
         <div className="flex flex-wrap items-center gap-3 mb-6">
           {/* Entity filter */}
-          <div className="flex items-center rounded-lg border border-gray-800 bg-gray-900 p-1 gap-1">
+          <div className="flex items-center rounded-lg border border-gray-200 bg-white p-1 gap-1">
             <button className={btnCls(filterEntity === 'all')} onClick={() => setFilterEntity('all')}>All</button>
             {entities.map(e => (
               <button key={e.id} className={btnCls(filterEntity === e.type as EntityType)} onClick={() => setFilterEntity(e.type as EntityType)}>
@@ -65,7 +65,7 @@ export function ProjectsClient({ projects, entities }: Props) {
 
           {/* Status filter */}
           <select value={filterStatus} onChange={e => setFilterStatus(e.target.value as ProjectStatus | 'all')}
-            className="rounded-lg border border-gray-800 bg-gray-900 px-3 py-1.5 text-xs text-gray-400 outline-none focus:border-gray-700">
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 outline-none focus:border-gray-300">
             <option value="all">All statuses</option>
             {(Object.keys(STATUS_LABELS) as ProjectStatus[]).map(s => (
               <option key={s} value={s}>{STATUS_LABELS[s]}</option>
@@ -74,7 +74,7 @@ export function ProjectsClient({ projects, entities }: Props) {
 
           {/* Priority filter */}
           <select value={filterPriority} onChange={e => setFilterPriority(e.target.value as ProjectPriority | 'all')}
-            className="rounded-lg border border-gray-800 bg-gray-900 px-3 py-1.5 text-xs text-gray-400 outline-none focus:border-gray-700">
+            className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-600 outline-none focus:border-gray-300">
             <option value="all">All priorities</option>
             <option value="high">High</option>
             <option value="medium">Medium</option>
@@ -82,7 +82,7 @@ export function ProjectsClient({ projects, entities }: Props) {
           </select>
 
           {/* View toggle */}
-          <div className="ml-auto flex items-center rounded-lg border border-gray-800 bg-gray-900 p-1 gap-1">
+          <div className="ml-auto flex items-center rounded-lg border border-gray-200 bg-white p-1 gap-1">
             <button className={btnCls(view === 'card')} onClick={() => setView('card')}>⊞ Cards</button>
             <button className={btnCls(view === 'list')} onClick={() => setView('list')}>≡ List</button>
             <button className={btnCls(view === 'timeline')} onClick={() => setView('timeline')}>⋯ Timeline</button>
@@ -91,10 +91,10 @@ export function ProjectsClient({ projects, entities }: Props) {
 
         {/* Empty state */}
         {filtered.length === 0 && (
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-800 py-20">
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 py-20">
             <div className="text-4xl mb-3">📋</div>
-            <p className="text-gray-400 font-medium mb-1">No projects yet</p>
-            <p className="text-gray-600 text-sm mb-4">Create your first project to get started</p>
+            <p className="text-gray-500 font-medium mb-1">No projects yet</p>
+            <p className="text-gray-400 text-sm mb-4">Create your first project to get started</p>
             <button onClick={() => setCreateOpen(true)}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors">
               + New project
@@ -111,10 +111,10 @@ export function ProjectsClient({ projects, entities }: Props) {
 
         {/* List view */}
         {view === 'list' && filtered.length > 0 && (
-          <div className="rounded-xl border border-gray-800 overflow-hidden">
+          <div className="rounded-xl border border-gray-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-800 bg-gray-900/50">
+                <tr className="border-b border-gray-200 bg-gray-50">
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Project</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 hidden sm:table-cell">Entity</th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500">Status</th>
@@ -128,12 +128,12 @@ export function ProjectsClient({ projects, entities }: Props) {
                   const entity = entityMap[p.entity_id]
                   const isOverdue = p.due_date && new Date(p.due_date) < new Date() && p.status !== 'complete'
                   return (
-                    <tr key={p.id} className="border-b border-gray-800/50 hover:bg-gray-900/40 transition-colors cursor-pointer"
+                    <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => window.location.href = `/dashboard/projects/${p.id}`}>
-                      <td className="px-4 py-3 text-white font-medium">{p.name}</td>
+                      <td className="px-4 py-3 text-gray-900 font-medium">{p.name}</td>
                       <td className="px-4 py-3 hidden sm:table-cell">
                         {entity && (
-                          <span className="flex items-center gap-1.5 text-gray-400 text-xs">
+                          <span className="flex items-center gap-1.5 text-gray-500 text-xs">
                             <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: entity.color ?? undefined }} />
                             {ENTITY_LABELS[entity.type] ?? entity.name}
                           </span>
@@ -141,19 +141,19 @@ export function ProjectsClient({ projects, entities }: Props) {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                          p.status === 'active' ? 'bg-indigo-900/60 text-indigo-300' :
-                          p.status === 'complete' ? 'bg-green-900/60 text-green-300' :
-                          p.status === 'on_hold' ? 'bg-yellow-900/60 text-yellow-300' :
-                          'bg-gray-800 text-gray-400'
+                          p.status === 'active' ? 'bg-indigo-100 text-indigo-700' :
+                          p.status === 'complete' ? 'bg-green-100 text-green-700' :
+                          p.status === 'on_hold' ? 'bg-amber-100 text-amber-700' :
+                          'bg-gray-100 text-gray-600'
                         }`}>{p.status.replace('_', ' ')}</span>
                       </td>
                       <td className="px-4 py-3 hidden md:table-cell">
-                        <span className={`text-xs ${p.priority === 'high' ? 'text-red-400' : p.priority === 'medium' ? 'text-orange-400' : 'text-gray-500'}`}>
+                        <span className={`text-xs ${p.priority === 'high' ? 'text-red-600' : p.priority === 'medium' ? 'text-orange-600' : 'text-gray-500'}`}>
                           {p.priority}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-500 text-xs hidden lg:table-cell max-w-xs truncate">{p.next_action ?? '—'}</td>
-                      <td className={`px-4 py-3 text-xs hidden md:table-cell ${isOverdue ? 'text-red-400' : 'text-gray-500'}`}>
+                      <td className={`px-4 py-3 text-xs hidden md:table-cell ${isOverdue ? 'text-red-500' : 'text-gray-500'}`}>
                         {p.due_date ? new Date(p.due_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}
                       </td>
                     </tr>

@@ -22,7 +22,7 @@ export async function createTask(payload: {
   due_date?: string | null
 }) {
   const { supabase, user, org_id } = await getContext()
-  const { error } = await (supabase as any).from('tasks').insert({
+  const { data, error } = await (supabase as any).from('tasks').insert({
     org_id,
     user_id: user.id,
     created_by: user.id,
@@ -35,10 +35,11 @@ export async function createTask(payload: {
     due_date: payload.due_date ?? null,
     gtd_bucket: 'backlog',
     archived: false,
-  })
+  }).select('*').single()
   if (error) throw new Error('Failed to create task: ' + error.message)
   revalidatePath(`/dashboard/projects/${payload.project_id}`)
   revalidatePath('/dashboard/tasks')
+  return data
 }
 
 export async function reassignTaskProject(taskId: string, newProjectId: string | null, oldProjectId?: string | null) {

@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardHome } from '@/components/dashboard/DashboardHome'
-import { getInsights } from '@/app/api/digest/actions'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -18,13 +17,14 @@ export default async function DashboardPage() {
     { data: overdueTasks },
     { data: activeProjects },
     { data: recentLog },
-    { data: captures },
+    { data: recentKnowledge },
     { count: openTaskCount },
     { count: activeProjectCount },
+    { count: overdueTaskCount },
+    { count: rawIdeaCount },
     { data: allOpenTasks },
     { data: allActiveProjects },
     { data: assignedTasks },
-    insights,
   ] = await Promise.all([
     (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
       .eq('gtd_bucket', 'today').eq('archived', false)
@@ -41,21 +41,25 @@ export default async function DashboardPage() {
       .order('name').limit(8),
     (supabase as any).from('project_updates').select('id,content,update_type,created_at,project_id,projects(id,name)')
       .order('created_at', { ascending: false }).limit(6),
-    supabase.from('captures').select('id,content,type,entity_context,created_at')
-      .eq('reviewed', false).order('created_at', { ascending: false }).limit(5),
+    (supabase as any).from('knowledge_entries')
+      .select('id,kind,title,summary,body,entity,idea_status,created_at')
+      .eq('access', 'standard').eq('status', 'active')
+      .order('created_at', { ascending: false }).limit(5),
     (supabase as any).from('tasks').select('*', { count: 'exact', head: true })
       .eq('archived', false).not('status', 'in', '("done","cancelled")'),
     supabase.from('projects').select('*', { count: 'exact', head: true }).eq('status', 'active'),
-    // For entity breakdown
+    (supabase as any).from('tasks').select('id', { count: 'exact', head: true })
+      .lt('due_date', today).eq('archived', false)
+      .not('status', 'in', '("done","cancelled")'),
+    (supabase as any).from('knowledge_entries').select('id', { count: 'exact', head: true })
+      .eq('kind', 'idea').eq('idea_status', 'raw').eq('status', 'active'),
     (supabase as any).from('tasks').select('entity_id, entities(id,name,type)')
       .eq('archived', false).not('status', 'in', '("done","cancelled")'),
     supabase.from('projects').select('entity_id, entities(id,name,type)').eq('status', 'active'),
-    // Tasks assigned to me by others
     (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
       .eq('assignee_id', user.id).eq('archived', false)
       .not('status', 'in', '("done","cancelled")')
       .order('due_date', { ascending: true, nullsFirst: false }).limit(10),
-    getInsights(),
   ])
 
   // Build per-entity breakdown
@@ -70,6 +74,12 @@ export default async function DashboardPage() {
   ;(allActiveProjects ?? []).forEach((p: any) => { addEntity(p.entities); if (p.entities) { const id = Array.isArray(p.entities) ? p.entities[0]?.id : p.entities?.id; if (id && entityMap[id]) entityMap[id].projectCount++ } })
   const entityBreakdown = Object.values(entityMap).sort((a, b) => (b.taskCount + b.projectCount) - (a.taskCount + a.projectCount))
 
+  const insights = {
+    overdueTaskCount: overdueTaskCount ?? 0,
+    rawIdeaCount: rawIdeaCount ?? 0,
+    todayTaskCount: (todayTasks ?? []).length,
+  }
+
   return (
     <DashboardHome
       displayName={displayName}
@@ -77,7 +87,7 @@ export default async function DashboardPage() {
       overdueTasks={overdueTasks ?? []}
       activeProjects={activeProjects ?? []}
       recentLog={recentLog ?? []}
-      captures={captures ?? []}
+      recentKnowledge={recentKnowledge ?? []}
       openTaskCount={openTaskCount ?? 0}
       activeProjectCount={activeProjectCount ?? 0}
       entityBreakdown={entityBreakdown}

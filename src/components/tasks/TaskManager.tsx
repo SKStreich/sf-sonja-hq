@@ -13,14 +13,14 @@ type Project = any
 type Entity = any
 
 const BUCKETS: { id: GtdBucket; label: string; color: string; accent: string }[] = [
-  { id: 'today',     label: 'Today',     color: 'text-orange-400',  accent: 'border-orange-900/40 bg-orange-950/10' },
-  { id: 'this_week', label: 'This Week', color: 'text-indigo-400',  accent: 'border-indigo-900/40 bg-indigo-950/10' },
-  { id: 'backlog',   label: 'Backlog',   color: 'text-gray-400',    accent: 'border-gray-800 bg-transparent' },
-  { id: 'someday',   label: 'Someday',   color: 'text-gray-600',    accent: 'border-gray-800/50 bg-transparent' },
+  { id: 'today',     label: 'Today',     color: 'text-orange-600',  accent: 'border-orange-200 bg-orange-50/50' },
+  { id: 'this_week', label: 'This Week', color: 'text-indigo-600',  accent: 'border-indigo-200 bg-indigo-50/50' },
+  { id: 'backlog',   label: 'Backlog',   color: 'text-gray-500',    accent: 'border-gray-200 bg-transparent' },
+  { id: 'someday',   label: 'Someday',   color: 'text-gray-400',    accent: 'border-gray-100 bg-transparent' },
 ]
 
 const PRIORITY_COLORS: Record<string, string> = {
-  high: 'bg-red-500', medium: 'bg-orange-400', low: 'bg-gray-600',
+  high: 'bg-red-500', medium: 'bg-orange-400', low: 'bg-gray-400',
 }
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -81,7 +81,7 @@ function AddTaskRow({ bucket, projects, entities, onDone }: AddTaskRowProps) {
   }
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-gray-700 bg-gray-900/30 p-3 mt-2">
+    <div className="flex flex-col gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-3 mt-2">
       <input
         ref={inputRef}
         autoFocus
@@ -89,13 +89,13 @@ function AddTaskRow({ bucket, projects, entities, onDone }: AddTaskRowProps) {
         onChange={e => setTitle(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') onDone() }}
         placeholder="Task title…"
-        className="w-full bg-transparent text-sm text-white placeholder-gray-600 outline-none"
+        className="w-full bg-transparent text-sm text-gray-900 placeholder-gray-400 outline-none"
       />
       <div className="flex flex-wrap items-center gap-2">
         <select
           value={projectId}
           onChange={e => setProjectId(e.target.value)}
-          className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-400 outline-none"
+          className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 outline-none"
         >
           <option value="">No project</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
@@ -103,7 +103,7 @@ function AddTaskRow({ bucket, projects, entities, onDone }: AddTaskRowProps) {
         <select
           value={priority}
           onChange={e => setPriority(e.target.value as any)}
-          className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-400 outline-none"
+          className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 outline-none"
         >
           <option value="high">High</option>
           <option value="medium">Medium</option>
@@ -113,10 +113,10 @@ function AddTaskRow({ bucket, projects, entities, onDone }: AddTaskRowProps) {
           type="date"
           value={dueDate}
           onChange={e => setDueDate(e.target.value)}
-          className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-400 outline-none"
+          className="rounded border border-gray-200 bg-white px-2 py-1 text-xs text-gray-600 outline-none"
         />
         <div className="ml-auto flex gap-2">
-          <button onClick={onDone} className="text-xs text-gray-600 hover:text-gray-400 transition-colors">Cancel</button>
+          <button onClick={onDone} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">Cancel</button>
           <button
             onClick={submit}
             disabled={!title.trim() || pending}
@@ -185,18 +185,18 @@ function TaskRow({ task, statusFilter, members, onOpenDetail }: TaskRowProps) {
   }
 
   return (
-    <div className={`group flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-900/40 transition-colors ${completing ? 'opacity-50' : ''}`}>
+    <div className={`group flex items-start gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors ${completing ? 'opacity-50' : ''}`}>
       {/* Circle */}
       <button
         onClick={toggleCircle}
         className={`mt-0.5 shrink-0 w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${
-          done ? 'bg-green-700 border-green-700' :
-          cancelled ? 'bg-red-900 border-red-700' :
-          'border-gray-600 hover:border-gray-400'
+          done ? 'bg-green-500 border-green-500' :
+          cancelled ? 'bg-red-100 border-red-400' :
+          'border-gray-300 hover:border-gray-500'
         }`}
       >
         {done && <span className="text-white text-xs leading-none">✓</span>}
-        {cancelled && <span className="text-red-400 text-xs leading-none">✕</span>}
+        {cancelled && <span className="text-red-500 text-xs leading-none">✕</span>}
       </button>
 
       {/* Content */}
@@ -204,9 +204,9 @@ function TaskRow({ task, statusFilter, members, onOpenDetail }: TaskRowProps) {
         <p
           onClick={() => onOpenDetail(task)}
           className={`text-sm leading-snug cursor-pointer hover:underline ${
-            cancelled ? 'line-through text-red-400/60' :
-            done ? 'line-through text-gray-600' :
-            'text-white'
+            cancelled ? 'line-through text-red-400/70' :
+            done ? 'line-through text-gray-400' :
+            'text-gray-900'
           }`}
         >
           {task.title}
@@ -215,19 +215,19 @@ function TaskRow({ task, statusFilter, members, onOpenDetail }: TaskRowProps) {
           {task.projects && (
             <Link
               href={`/dashboard/projects/${task.project_id}`}
-              className="text-xs text-indigo-500 hover:text-indigo-400 transition-colors truncate max-w-[180px]"
+              className="text-xs text-indigo-600 hover:text-indigo-700 transition-colors truncate max-w-[180px]"
               onClick={e => e.stopPropagation()}
             >
               {task.projects.name}
             </Link>
           )}
           {!task.projects && task.entities && (
-            <span className="text-xs text-gray-600">
+            <span className="text-xs text-gray-400">
               {ENTITY_LABELS[task.entities.type] ?? task.entities.name}
             </span>
           )}
           {task.due_date && (
-            <span className={`text-xs ${overdue ? 'text-red-400' : 'text-gray-600'}`}>
+            <span className={`text-xs ${overdue ? 'text-red-500' : 'text-gray-400'}`}>
               {overdue ? '⚠ ' : ''}{formatDue(task.due_date)}
             </span>
           )}
@@ -238,52 +238,52 @@ function TaskRow({ task, statusFilter, members, onOpenDetail }: TaskRowProps) {
       {task.assignee_id && (() => {
         const m = members.find(m => m.id === task.assignee_id)
         return m ? (
-          <span className="mt-0.5 shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-indigo-800 text-indigo-200 text-[9px] font-bold" title={m.full_name ?? m.email}>
+          <span className="mt-0.5 shrink-0 flex items-center justify-center w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold" title={m.full_name ?? m.email}>
             {initials(m)}
           </span>
         ) : null
       })()}
 
       {/* Priority dot */}
-      <span className={`mt-1.5 shrink-0 w-2 h-2 rounded-full ${PRIORITY_COLORS[task.priority] ?? 'bg-gray-600'}`} title={task.priority} />
+      <span className={`mt-1.5 shrink-0 w-2 h-2 rounded-full ${PRIORITY_COLORS[task.priority] ?? 'bg-gray-300'}`} title={task.priority} />
 
       {/* Actions menu */}
       <div className="relative shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
           onClick={() => setMenuOpen(o => !o)}
-          className="rounded p-1 text-gray-600 hover:text-gray-400 hover:bg-gray-800 transition-colors text-sm"
+          className="rounded p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors text-sm"
         >
           ⋮
         </button>
         {menuOpen && (
           <>
             <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-            <div className="absolute right-0 top-7 z-20 w-40 rounded-lg border border-gray-700 bg-gray-900 py-1 shadow-xl">
-              <div className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-gray-600">Move to</div>
+            <div className="absolute right-0 top-7 z-20 w-40 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+              <div className="px-3 py-1 text-xs font-medium uppercase tracking-wider text-gray-400">Move to</div>
               {BUCKETS.map(b => (
                 <button
                   key={b.id}
                   onClick={() => moveTo(b.id)}
                   disabled={task.gtd_bucket === b.id}
                   className={`w-full px-3 py-1.5 text-left text-xs transition-colors ${
-                    task.gtd_bucket === b.id ? 'text-gray-700 cursor-default' : `${b.color} hover:bg-gray-800`
+                    task.gtd_bucket === b.id ? 'text-gray-300 cursor-default' : `${b.color} hover:bg-gray-50`
                   }`}
                 >
                   {b.label}
                 </button>
               ))}
-              <div className="my-1 border-t border-gray-800" />
+              <div className="my-1 border-t border-gray-100" />
               {!done && !cancelled && (
-                <button onClick={handleCancel} className="w-full px-3 py-1.5 text-left text-xs text-red-500 hover:bg-gray-800 transition-colors">
+                <button onClick={handleCancel} className="w-full px-3 py-1.5 text-left text-xs text-red-500 hover:bg-gray-50 transition-colors">
                   Cancel
                 </button>
               )}
               {(done || cancelled) && (
-                <button onClick={handleReopen} className="w-full px-3 py-1.5 text-left text-xs text-gray-400 hover:bg-gray-800 transition-colors">
+                <button onClick={handleReopen} className="w-full px-3 py-1.5 text-left text-xs text-gray-600 hover:bg-gray-50 transition-colors">
                   Reopen
                 </button>
               )}
-              <button onClick={remove} className="w-full px-3 py-1.5 text-left text-xs text-red-500 hover:bg-gray-800 transition-colors">
+              <button onClick={remove} className="w-full px-3 py-1.5 text-left text-xs text-red-500 hover:bg-gray-50 transition-colors">
                 Delete
               </button>
             </div>
@@ -324,14 +324,14 @@ function BucketSection({ bucket, tasks, projects, entities, members, statusFilte
         className="w-full flex items-center gap-3 px-4 py-3 text-left"
       >
         <span className={`text-xs font-bold uppercase tracking-widest ${bucket.color}`}>{bucket.label}</span>
-        <span className="text-xs text-gray-600">{visibleTasks.length}{doneCount > 0 && statusFilter === 'open' ? ` · ${doneCount} done` : ''}</span>
-        <span className={`ml-auto text-gray-700 text-xs transition-transform ${collapsed ? '' : 'rotate-90'}`}>▶</span>
+        <span className="text-xs text-gray-400">{visibleTasks.length}{doneCount > 0 && statusFilter === 'open' ? ` · ${doneCount} done` : ''}</span>
+        <span className={`ml-auto text-gray-400 text-xs transition-transform ${collapsed ? '' : 'rotate-90'}`}>▶</span>
       </button>
 
       {!collapsed && (
         <div className="px-2 pb-2">
           {visibleTasks.length === 0 && !adding && (
-            <p className="px-3 py-2 text-xs text-gray-700 italic">
+            <p className="px-3 py-2 text-xs text-gray-400 italic">
               {bucket.id === 'today' && statusFilter === 'open' ? 'Nothing for today — nice.' : 'Empty.'}
             </p>
           )}
@@ -343,7 +343,7 @@ function BucketSection({ bucket, tasks, projects, entities, members, statusFilte
             : (
               <button
                 onClick={() => setAdding(true)}
-                className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-700 hover:text-gray-500 hover:bg-gray-900/40 transition-colors w-full"
+                className="mt-1 flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors w-full"
               >
                 <span>+</span> Add task
               </button>
@@ -394,27 +394,30 @@ export function TaskManager({ tasks, projects, entities, members = [], currentUs
     { id: 'cancelled', label: 'Cancelled' },
   ]
 
+  const btnActive = 'bg-gray-200 text-gray-900'
+  const btnInactive = 'text-gray-500 hover:text-gray-700'
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-8">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-white">Tasks</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Tasks</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {openCount} Open · {doneCount} Done · {cancelledCount} Cancelled
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center rounded-lg border border-gray-800 bg-gray-900 p-1 gap-1 flex-nowrap">
+          <div className="flex items-center rounded-lg border border-gray-200 bg-white p-1 gap-1 flex-nowrap">
             <button
               onClick={() => setFilterEntity('all')}
-              className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === 'all' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === 'all' ? btnActive : btnInactive}`}
             >All</button>
             {entities.map(e => (
               <button
                 key={e.id}
                 onClick={() => setFilterEntity(e.type)}
-                className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === e.type ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === e.type ? btnActive : btnInactive}`}
               >
                 <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: e.color }} />
                 {ENTITY_LABELS[e.type] ?? e.name}
@@ -423,20 +426,20 @@ export function TaskManager({ tasks, projects, entities, members = [], currentUs
             {currentUserId && members.length > 1 && (
               <button
                 onClick={() => setMineOnly(o => !o)}
-                className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${mineOnly ? 'bg-indigo-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+                className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${mineOnly ? 'bg-indigo-100 text-indigo-700' : btnInactive}`}
               >
                 👤 Mine
               </button>
             )}
           </div>
-          <div className="flex items-center rounded-lg border border-gray-800 bg-gray-900 p-1 gap-1">
+          <div className="flex items-center rounded-lg border border-gray-200 bg-white p-1 gap-1">
             <button
               onClick={() => setView('buckets')}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${view === 'buckets' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${view === 'buckets' ? btnActive : btnInactive}`}
             >≡ Buckets</button>
             <button
               onClick={() => setView('timeline')}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${view === 'timeline' ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'}`}
+              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${view === 'timeline' ? btnActive : btnInactive}`}
             >⋯ Timeline</button>
           </div>
           <button
@@ -455,7 +458,7 @@ export function TaskManager({ tasks, projects, entities, members = [], currentUs
             key={sf.id}
             onClick={() => setStatusFilter(sf.id)}
             className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              statusFilter === sf.id ? 'bg-gray-700 text-white' : 'text-gray-500 hover:text-gray-300'
+              statusFilter === sf.id ? 'bg-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-700'
             }`}
           >
             {sf.label}

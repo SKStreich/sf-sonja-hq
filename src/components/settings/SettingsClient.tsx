@@ -146,16 +146,16 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
       <div className="mb-8">
-        <Link href="/dashboard" className="text-xs uppercase tracking-wider text-gray-600 hover:text-gray-400 transition-colors">
+        <Link href="/dashboard" className="text-xs uppercase tracking-wider text-gray-500 hover:text-gray-700 transition-colors">
           ← Dashboard
         </Link>
-        <h1 className="mt-2 text-2xl font-bold text-white">Settings</h1>
+        <h1 className="mt-2 text-2xl font-bold text-gray-900">Settings</h1>
         <p className="mt-0.5 text-sm text-gray-500">{userEmail}</p>
       </div>
 
       {/* Siri / External Capture */}
-      <section className="rounded-xl border border-gray-800 bg-gray-900/30 p-6 mb-6">
-        <h2 className="text-base font-semibold text-white mb-1">Siri Shortcuts & External Capture</h2>
+      <section className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">Siri Shortcuts & External Capture</h2>
         <p className="text-sm text-gray-500 mb-5">
           Use your personal API key to send captures to HQ from anywhere — Siri, iOS Shortcuts, automation tools, or any HTTP client.
         </p>
@@ -164,18 +164,18 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
         <div className="mb-5">
           <label className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2 block">Your Capture API Key</label>
           <div className="flex items-center gap-2">
-            <div className="flex-1 rounded-lg border border-gray-700 bg-gray-950 px-4 py-2.5 font-mono text-sm text-gray-300">
+            <div className="flex-1 rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 font-mono text-sm text-gray-700">
               {revealed ? apiKey : maskedKey}
             </div>
             <button
               onClick={() => setRevealed(r => !r)}
-              className="rounded-lg border border-gray-700 px-3 py-2.5 text-xs text-gray-500 hover:text-gray-300 hover:border-gray-600 transition-colors"
+              className="rounded-lg border border-gray-300 px-3 py-2.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-600 transition-colors"
             >
               {revealed ? 'Hide' : 'Show'}
             </button>
             <button
               onClick={() => copy(apiKey)}
-              className="rounded-lg border border-gray-700 px-3 py-2.5 text-xs text-gray-500 hover:text-gray-300 hover:border-gray-600 transition-colors"
+              className="rounded-lg border border-gray-300 px-3 py-2.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-600 transition-colors"
             >
               {copied ? '✓ Copied' : 'Copy'}
             </button>
@@ -201,12 +201,12 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
         <div className="mb-6">
           <label className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2 block">Capture Endpoint</label>
           <div className="flex items-center gap-2">
-            <div className="flex-1 rounded-lg border border-gray-700 bg-gray-950 px-4 py-2.5 font-mono text-xs text-gray-400 break-all">
+            <div className="flex-1 rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 font-mono text-xs text-gray-700 break-all">
               {endpoint}
             </div>
             <button
               onClick={() => copy(endpoint)}
-              className="rounded-lg border border-gray-700 px-3 py-2.5 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+              className="rounded-lg border border-gray-300 px-3 py-2.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
             >
               Copy
             </button>
@@ -214,42 +214,42 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
         </div>
 
         {/* Siri Setup Instructions */}
-        <div className="rounded-lg border border-gray-800 p-4">
-          <h3 className="text-sm font-semibold text-white mb-3">📱 Set Up Siri Shortcut</h3>
-          <ol className="space-y-3 text-sm text-gray-400">
+        <div className="rounded-lg border border-gray-200 p-4">
+          <h3 className="text-sm font-semibold text-gray-900 mb-3">📱 Set Up Siri Shortcut</h3>
+          <ol className="space-y-3 text-sm text-gray-700">
             <li className="flex gap-3">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-900/60 text-indigo-300 text-xs flex items-center justify-center font-bold">1</span>
-              <span>Open the <strong className="text-gray-300">Shortcuts</strong> app on your iPhone and tap <strong className="text-gray-300">+</strong> to create a new shortcut.</span>
+              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">1</span>
+              <span>Open the <strong className="text-gray-700">Shortcuts</strong> app on your iPhone and tap <strong className="text-gray-700">+</strong> to create a new shortcut.</span>
             </li>
             <li className="flex gap-3">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-900/60 text-indigo-300 text-xs flex items-center justify-center font-bold">2</span>
-              <span>Add a <strong className="text-gray-300">Dictate Text</strong> action (or <em>Ask for Input</em> if you prefer to type).</span>
+              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">2</span>
+              <span>Add a <strong className="text-gray-700">Dictate Text</strong> action (or <em>Ask for Input</em> if you prefer to type).</span>
             </li>
             <li className="flex gap-3">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-900/60 text-indigo-300 text-xs flex items-center justify-center font-bold">3</span>
-              <span>Add a <strong className="text-gray-300">Get Contents of URL</strong> action. Set it to:</span>
+              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">3</span>
+              <span>Add a <strong className="text-gray-700">Get Contents of URL</strong> action. Set it to:</span>
             </li>
           </ol>
-          <div className="mt-3 ml-8 rounded-lg bg-gray-950 border border-gray-700 p-3 font-mono text-xs text-gray-400 space-y-1">
-            <div><span className="text-gray-600">URL: </span><span className="text-indigo-300">{endpoint}</span></div>
-            <div><span className="text-gray-600">Method: </span><span className="text-green-400">POST</span></div>
+          <div className="mt-3 ml-8 rounded-lg bg-gray-50 border border-gray-300 p-3 font-mono text-xs text-gray-700 space-y-1">
+            <div><span className="text-gray-600">URL: </span><span className="text-indigo-700">{endpoint}</span></div>
+            <div><span className="text-gray-600">Method: </span><span className="text-green-700">POST</span></div>
             <div><span className="text-gray-600">Headers: </span><span className="text-yellow-400">Authorization: Bearer [your key]</span></div>
-            <div><span className="text-gray-600">Body (JSON): </span><span className="text-gray-300">{'{"text": [Dictated Text], "type": "task"}'}</span></div>
+            <div><span className="text-gray-600">Body (JSON): </span><span className="text-gray-700">{'{"text": [Dictated Text], "type": "task"}'}</span></div>
           </div>
-          <ol className="space-y-3 text-sm text-gray-400 mt-3" start={4}>
+          <ol className="space-y-3 text-sm text-gray-700 mt-3" start={4}>
             <li className="flex gap-3">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-900/60 text-indigo-300 text-xs flex items-center justify-center font-bold">4</span>
-              <span>Name the shortcut <strong className="text-gray-300">&ldquo;Capture to HQ&rdquo;</strong> and add it to Siri — say <em>&ldquo;Hey Siri, Capture to HQ&rdquo;</em>.</span>
+              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">4</span>
+              <span>Name the shortcut <strong className="text-gray-700">&ldquo;Capture to HQ&rdquo;</strong> and add it to Siri — say <em>&ldquo;Hey Siri, Capture to HQ&rdquo;</em>.</span>
             </li>
             <li className="flex gap-3">
-              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-900/60 text-indigo-300 text-xs flex items-center justify-center font-bold">5</span>
-              <span>Your capture will appear in the HQ dashboard instantly. Set <code className="text-indigo-300">type</code> to <code className="text-indigo-300">&ldquo;idea&rdquo;</code> for ideas or <code className="text-indigo-300">&ldquo;task&rdquo;</code> for tasks.</span>
+              <span className="shrink-0 w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-xs flex items-center justify-center font-bold">5</span>
+              <span>Your capture will appear in the HQ dashboard instantly. Set <code className="text-indigo-700">type</code> to <code className="text-indigo-700">&ldquo;idea&rdquo;</code> for ideas or <code className="text-indigo-700">&ldquo;task&rdquo;</code> for tasks.</span>
             </li>
           </ol>
         </div>
 
         {/* Quick test */}
-        <div className="mt-4 rounded-lg border border-gray-800 bg-gray-950/50 p-4">
+        <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
           <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2">Test with curl</h3>
           <pre className="text-xs text-gray-500 whitespace-pre-wrap break-all font-mono leading-relaxed">
 {`curl -X POST ${endpoint} \\
@@ -261,8 +261,8 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
       </section>
 
       {/* Team Members */}
-      <section className="rounded-xl border border-gray-800 bg-gray-900/30 p-6 mb-6">
-        <h2 className="text-base font-semibold text-white mb-1">Team Members</h2>
+      <section className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">Team Members</h2>
         <p className="text-sm text-gray-500 mb-5">
           {isAdmin ? 'Manage who has access to your HQ.' : 'People with access to this HQ.'}
         </p>
@@ -280,7 +280,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
                   key={f}
                   onClick={() => setMemberFilter(f)}
                   className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                    memberFilter === f ? 'bg-gray-700 text-white' : 'text-gray-600 hover:text-gray-400'
+                    memberFilter === f ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >
                   {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -299,15 +299,15 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
               const isRemoved = m.active === false
               return (
                 <li key={m.id} className={`flex items-center gap-3 rounded-lg border px-4 py-2.5 ${
-                  isRemoved ? 'border-gray-800/50 opacity-50' : 'border-gray-800'
+                  isRemoved ? 'border-gray-200 opacity-50' : 'border-gray-200'
                 }`}>
                   <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${
-                    isRemoved ? 'bg-gray-800 text-gray-600' : 'bg-indigo-900/60 text-indigo-300'
+                    isRemoved ? 'bg-gray-100 text-gray-600' : 'bg-indigo-100 text-indigo-700'
                   }`}>
                     {(m.full_name ?? m.email)[0].toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className={`text-sm truncate ${isRemoved ? 'text-gray-600 line-through' : 'text-gray-200'}`}>{m.full_name ?? m.email}</p>
+                    <p className={`text-sm truncate ${isRemoved ? 'text-gray-600 line-through' : 'text-gray-900'}`}>{m.full_name ?? m.email}</p>
                     {m.full_name && <p className="text-xs text-gray-600 truncate">{m.email}</p>}
                   </div>
                   {!isRemoved && isAdmin && m.id !== currentUserId && m.role !== 'owner' ? (
@@ -315,7 +315,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
                       value={m.role}
                       onChange={e => handleRoleChange(m.id, e.target.value as any)}
                       disabled={memberPending}
-                      className="rounded border border-gray-700 bg-gray-900 px-2 py-1 text-xs text-gray-400 outline-none"
+                      className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 outline-none"
                     >
                       <option value="admin">Admin</option>
                       <option value="member">Member</option>
@@ -362,8 +362,8 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
                       onClick={() => setInviteFilter(f)}
                       className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                         inviteFilter === f
-                          ? 'bg-gray-700 text-white'
-                          : 'text-gray-600 hover:text-gray-400'
+                          ? 'bg-indigo-100 text-indigo-700'
+                          : 'text-gray-500 hover:text-gray-700'
                       }`}
                     >
                       {f.charAt(0).toUpperCase() + f.slice(1)}
@@ -378,8 +378,8 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
               <div className="mb-3 rounded-lg border border-indigo-900/50 bg-indigo-950/30 p-3">
                 <p className="text-xs text-indigo-400 mb-1.5">Invitation resent — share this link if email didn't arrive:</p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs text-gray-300 font-mono truncate">{resendSuccess}</code>
-                  <button onClick={() => copy(resendSuccess)} className="shrink-0 rounded bg-indigo-700 px-2.5 py-1 text-xs text-white hover:bg-indigo-600 transition-colors">Copy</button>
+                  <code className="flex-1 text-xs text-gray-700 font-mono truncate">{resendSuccess}</code>
+                  <button onClick={() => copy(resendSuccess)} className="shrink-0 rounded bg-indigo-600 px-2.5 py-1 text-xs text-gray-900 hover:bg-indigo-600 transition-colors">Copy</button>
                 </div>
               </div>
             )}
@@ -398,22 +398,22 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
 
                   return (
                     <li key={inv.id} className={`flex items-center gap-3 rounded-lg border px-4 py-2.5 ${
-                      isPending ? 'border-dashed border-gray-800' :
+                      isPending ? 'border-dashed border-gray-200' :
                       isAccepted ? 'border-green-900/40 bg-green-950/10' :
-                      'border-gray-800/50 opacity-60'
+                      'border-gray-200 opacity-60'
                     }`}>
                       <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs shrink-0 ${
-                        isAccepted ? 'bg-green-900/40 text-green-400' : 'bg-gray-800 text-gray-500'
+                        isAccepted ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'
                       }`}>
                         {isAccepted ? '✓' : '?'}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm text-gray-400 truncate">{inv.email}</p>
+                          <p className="text-sm text-gray-700 truncate">{inv.email}</p>
                           <span className={`shrink-0 text-xs px-1.5 py-0.5 rounded font-medium ${
                             isPending ? 'bg-yellow-900/30 text-yellow-500' :
-                            isAccepted ? 'bg-green-900/30 text-green-400' :
-                            'bg-gray-800 text-gray-500'
+                            isAccepted ? 'bg-green-900/30 text-green-700' :
+                            'bg-gray-100 text-gray-500'
                           }`}>
                             {inv.status === 'expired' ? 'expired' : inv.status}
                           </span>
@@ -457,7 +457,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
 
         {/* Invite form */}
         {isAdmin && (
-          <div className="rounded-lg border border-gray-800 p-4">
+          <div className="rounded-lg border border-gray-200 p-4">
             <p className="text-xs font-medium uppercase tracking-wider text-gray-600 mb-3">Invite Someone</p>
             <div className="flex items-center gap-2">
               <input
@@ -466,12 +466,12 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
                 onChange={e => setInviteEmail(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleInvite()}
                 placeholder="email@example.com"
-                className="flex-1 rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-white placeholder-gray-600 outline-none focus:border-gray-600"
+                className="flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-gray-600"
               />
               <select
                 value={inviteRole}
                 onChange={e => setInviteRole(e.target.value as any)}
-                className="rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-400 outline-none"
+                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none"
               >
                 <option value="member">Member</option>
                 <option value="admin">Admin</option>
@@ -480,7 +480,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
               <button
                 onClick={handleInvite}
                 disabled={!inviteEmail.trim() || inviting}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors"
+                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-indigo-500 disabled:opacity-40 transition-colors"
               >
                 {inviting ? 'Sending…' : 'Send Invite'}
               </button>
@@ -489,7 +489,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
               <button
                 type="button"
                 onClick={() => setShowCustomMsg(v => !v)}
-                className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+                className="text-xs text-gray-500 hover:text-gray-700 transition-colors"
               >
                 {showCustomMsg ? '▾ Hide personal message' : '▸ Add a personal message'}
               </button>
@@ -499,13 +499,13 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
                   onChange={e => setCustomMessage(e.target.value)}
                   placeholder="Add a personal note to your invitation email…"
                   rows={3}
-                  className="mt-2 w-full rounded-lg border border-gray-700 bg-gray-900 px-3 py-2 text-sm text-gray-300 placeholder-gray-600 outline-none focus:border-gray-600 resize-none"
+                  className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-gray-600 resize-none"
                 />
               )}
             </div>
             {inviteError && <p className="mt-2 text-xs text-red-400">{inviteError}</p>}
             {inviteSuccess && (
-              <p className={`mt-2 text-xs ${inviteSuccess.includes('email failed') ? 'text-yellow-500' : 'text-green-400'}`}>
+              <p className={`mt-2 text-xs ${inviteSuccess.includes('email failed') ? 'text-yellow-500' : 'text-green-700'}`}>
                 {inviteSuccess}
               </p>
             )}
@@ -513,10 +513,10 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
               <div className="mt-3 rounded-lg border border-indigo-900/50 bg-indigo-950/30 p-3">
                 <p className="text-xs text-indigo-400 mb-1.5">Share this link directly if the email didn't arrive:</p>
                 <div className="flex items-center gap-2">
-                  <code className="flex-1 text-xs text-gray-300 font-mono truncate">{inviteLink}</code>
+                  <code className="flex-1 text-xs text-gray-700 font-mono truncate">{inviteLink}</code>
                   <button
                     onClick={() => { copy(inviteLink); }}
-                    className="shrink-0 rounded bg-indigo-700 px-2.5 py-1 text-xs text-white hover:bg-indigo-600 transition-colors"
+                    className="shrink-0 rounded bg-indigo-600 px-2.5 py-1 text-xs text-gray-900 hover:bg-indigo-600 transition-colors"
                   >Copy</button>
                 </div>
               </div>
@@ -526,14 +526,14 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
       </section>
 
       {/* Integrations */}
-      <section className="rounded-xl border border-gray-800 bg-gray-900/30 p-6 mb-6">
-        <h2 className="text-base font-semibold text-white mb-1">Integrations</h2>
+      <section className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">Integrations</h2>
         <p className="text-sm text-gray-500 mb-5">Connected services that sync data into HQ.</p>
 
-        <div className="flex items-center gap-3 rounded-lg border border-gray-800 px-4 py-3">
+        <div className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3">
           <span className="text-lg shrink-0">N</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-gray-200">Notion</p>
+            <p className="text-sm text-gray-900">Notion</p>
             {notionConfigured ? (
               <p className="text-xs text-gray-500">
                 Connected · Last synced {notionLastSync

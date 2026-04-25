@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AgentPanel } from '@/components/agent/AgentPanel'
 
 interface Props {
@@ -9,15 +9,29 @@ interface Props {
 
 export function DashboardShell({ children, nav }: Props) {
   const [agentOpen, setAgentOpen] = useState(false)
+  const [starter, setStarter] = useState<string | null>(null)
+
+  useEffect(() => {
+    function onOpen(e: Event) {
+      const detail = (e as CustomEvent).detail as { starter?: string } | undefined
+      if (detail?.starter) setStarter(detail.starter)
+      setAgentOpen(true)
+    }
+    window.addEventListener('hq-agent:open', onOpen as EventListener)
+    return () => window.removeEventListener('hq-agent:open', onOpen as EventListener)
+  }, [])
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      {/* Pass toggle fn down via a custom event so nav button can trigger it */}
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       <div id="dashboard-shell" data-agent-open={agentOpen ? 'true' : 'false'}>
         {nav}
         <main className="pt-16">{children}</main>
-        <AgentPanel open={agentOpen} onClose={() => setAgentOpen(false)} />
-        {/* Floating agent button (visible when panel is closed) */}
+        <AgentPanel
+          open={agentOpen}
+          starter={starter}
+          onConsumedStarter={() => setStarter(null)}
+          onClose={() => { setAgentOpen(false); setStarter(null) }}
+        />
         {!agentOpen && (
           <button
             onClick={() => setAgentOpen(true)}

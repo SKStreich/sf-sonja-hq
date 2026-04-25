@@ -124,6 +124,67 @@ describe('sendAgentMessage', () => {
     await expect(sendAgentMessage([], 'hello')).rejects.toThrow('Not authenticated')
   })
 
+  it('read_knowledge_entry returns body for non-vault entry', async () => {
+    const entry = {
+      id: 'e1', title: 'My doc', body: 'The full body text.', summary: 's',
+      kind: 'doc', entity: 'sf', tags: ['x'], access: 'standard', user_id: 'someone-else', status: 'active',
+    }
+    setupMocks({
+      user_profiles: { data: MOCK_PROFILE, error: null },
+      knowledge_entries: { data: entry, error: null },
+    })
+    // Make .maybeSingle work too
+    mockFrom.mockImplementation((table: string) => {
+      const chain = makeChain({ data: table === 'knowledge_entries' ? entry : MOCK_PROFILE, error: null })
+      chain.maybeSingle = vi.fn().mockResolvedValue({ data: table === 'knowledge_entries' ? entry : MOCK_PROFILE, error: null })
+      return chain
+    })
+
+    let toolResult = ''
+    mockMessagesCreate
+      .mockResolvedValueOnce({
+        stop_reason: 'tool_use',
+        content: [{ type: 'tool_use', id: 't1', name: 'read_knowledge_entry', input: { entry_id: 'e1' } }],
+      })
+      .mockImplementationOnce(async (args: any) => {
+        const lastUser = args.messages[args.messages.length - 1]
+        toolResult = lastUser.content[0].content
+        return { stop_reason: 'end_turn', content: [{ type: 'text', text: 'OK' }] }
+      })
+
+    await sendAgentMessage([], 'read entry e1')
+    expect(toolResult).toContain('The full body text.')
+    expect(toolResult).toContain('My doc')
+  })
+
+  it('read_knowledge_entry refuses vault entry not owned by user', async () => {
+    const entry = {
+      id: 'v1', title: 'Vault doc', body: 'secret', summary: null,
+      kind: 'doc', entity: 'sf', tags: [], access: 'vault', user_id: 'other-user', status: 'active',
+    }
+    setupMocks({ user_profiles: { data: MOCK_PROFILE, error: null } })
+    mockFrom.mockImplementation((table: string) => {
+      const chain = makeChain({ data: table === 'knowledge_entries' ? entry : MOCK_PROFILE, error: null })
+      chain.maybeSingle = vi.fn().mockResolvedValue({ data: table === 'knowledge_entries' ? entry : MOCK_PROFILE, error: null })
+      return chain
+    })
+
+    let toolResult = ''
+    mockMessagesCreate
+      .mockResolvedValueOnce({
+        stop_reason: 'tool_use',
+        content: [{ type: 'tool_use', id: 't1', name: 'read_knowledge_entry', input: { entry_id: 'v1' } }],
+      })
+      .mockImplementationOnce(async (args: any) => {
+        toolResult = args.messages[args.messages.length - 1].content[0].content
+        return { stop_reason: 'end_turn', content: [{ type: 'text', text: 'noted' }] }
+      })
+
+    await sendAgentMessage([], 'read v1')
+    expect(toolResult).toMatch(/vault/i)
+    expect(toolResult).not.toContain('secret')
+  })
+
   it('caps the agentic loop at 5 rounds', async () => {
     setupMocks({ user_profiles: { data: MOCK_PROFILE, error: null } })
     // Always returns tool_use to trigger the loop cap
