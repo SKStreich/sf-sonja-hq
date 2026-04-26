@@ -13,6 +13,13 @@ import {
 import { getOriginalView, type OriginalView } from '@/app/api/knowledge/upload'
 import { listChatMessages, sendChatMessage, type ChatMessage } from '@/app/api/knowledge/chat'
 import {
+  getWorkspaceAncestors, createWorkspacePage, listWorkspaceChildren,
+  getWorkspaceSiblings,
+  type WorkspaceNode,
+} from '@/app/api/knowledge/workspace'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
+import {
   listShares, createShare, revokeShare, extendShare,
   listForwardRequests, decideForwardRequest,
   type Share, type ForwardRequest,
@@ -94,6 +101,9 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
+      {entry.kind === 'workspace' && (
+        <WorkspaceBreadcrumb entryId={entry.id} currentTitle={title} />
+      )}
       <div className="mb-4 flex items-center gap-3 text-sm">
         <Link href="/dashboard/knowledge" className="text-gray-500 hover:text-indigo-600">← Knowledge</Link>
         <span className="text-gray-300">/</span>
@@ -178,6 +188,15 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
           </div>
           {entry.kind === 'chat' ? (
             <ChatThread chatId={entry.id} />
+          ) : entry.kind === 'workspace' ? (
+            <>
+              <MarkdownSplitPane
+                value={body}
+                onChange={v => { setBody(v); markDirty() }}
+              />
+              <WorkspaceChildren parentId={entry.id} />
+              <WorkspaceSiblings entryId={entry.id} />
+            </>
           ) : (
             <textarea
               value={body}
@@ -910,6 +929,320 @@ function SharesTab({ entryId, onOpenNewShare }: { entryId: string; onOpenNewShar
           </ul>
         )}
       </div>
+    </div>
+  )
+}
+
+function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [view, setView] = useState<'split' | 'edit' | 'preview'>('split')
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // Insert text at the textarea cursor (or wrap selected text). For wraps,
+  // pass `wrap` true and `before`/`after` as the surrounding tokens.
+  const insertAtCursor = (opts: {
+    before?: string
+    after?: string
+    placeholder?: string
+    block?: boolean   // ensure newline before/after for block-level insertion
+  }) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const before = opts.before ?? ''
+    const after = opts.after ?? ''
+    const placeholder = opts.placeholder ?? ''
+    const start = ta.selectionStart
+    const end = ta.selectionEnd
+    const selected = value.slice(start, end) || placeholder
+    let prefix = ''
+    let suffix = ''
+    if (opts.block) {
+      const charBefore = value.slice(Math.max(0, start - 2), start)
+      const charAfter = value.slice(end, end + 2)
+      if (start > 0 && !charBefore.endsWith('\n\n')) prefix = charBefore.endsWith('\n') ? '\n' : '\n\n'
+      if (end < value.length && !charAfter.startsWith('\n')) suffix = '\n'
+    }
+    const insertion = `${prefix}${before}${selected}${after}${suffix}`
+    const next = value.slice(0, start) + insertion + value.slice(end)
+    onChange(next)
+    // Restore focus + put cursor inside the inserted token.
+    setTimeout(() => {
+      ta.focus()
+      const cursorPos = start + prefix.length + before.length + selected.length
+      ta.setSelectionRange(cursorPos, cursorPos)
+    }, 0)
+  }
+
+  // Toggle the Nth GFM task-list checkbox in `value`. Matches `- [ ]` or `- [x]`
+  // (also `* [ ]`, `+ [ ]`, with leading whitespace) at start of line.
+  const toggleTask = (index: number) => {
+    let i = 0
+    let done = false
+    const re = /^(\s*[-*+]\s+\[)([ xX])(\])/gm
+    const next = value.replace(re, (full, pre, mark, post) => {
+      if (done) return full
+      if (i++ === index) {
+        done = true
+        return pre + (mark === ' ' ? 'x' : ' ') + post
+      }
+      return full
+    })
+    if (next !== value) onChange(next)
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white">
+      <div className="sticky top-16 z-20 rounded-t-lg border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-1 px-2 py-1.5 text-xs">
+          <button onClick={() => setView('edit')} className={`rounded px-2 py-1 ${view === 'edit' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'}`}>Edit</button>
+          <button onClick={() => setView('split')} className={`rounded px-2 py-1 ${view === 'split' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'}`}>Split</button>
+          <button onClick={() => setView('preview')} className={`rounded px-2 py-1 ${view === 'preview' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'}`}>Preview</button>
+          <span className="ml-auto text-[11px] text-gray-400 hidden sm:inline">Tip: use the toolbar — no Markdown knowledge needed</span>
+        </div>
+        {view !== 'preview' && (
+          <FormatToolbar onInsert={insertAtCursor} />
+        )}
+      </div>
+      <div className={`grid gap-0 ${view === 'split' ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
+        {view !== 'preview' && (
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            rows={28}
+            placeholder={'Type here, or use the toolbar above to add headings, bullets, links, and more.'}
+            className="w-full resize-none border-0 bg-white p-4 font-sans text-sm text-gray-900 outline-none md:border-r md:border-gray-200"
+          />
+        )}
+        {view !== 'edit' && (
+          <div className="prose prose-sm max-w-none p-4 text-gray-900 prose-headings:font-semibold prose-headings:text-gray-900 prose-a:text-indigo-600 prose-code:rounded prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.85em] prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-pre:text-gray-100">
+            {value.trim() ? (
+              <MarkdownPreview value={value} onToggleTask={toggleTask} />
+            ) : (
+              <p className="italic text-gray-400">Preview will appear here.</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function MarkdownPreview({ value, onToggleTask }: { value: string; onToggleTask: (i: number) => void }) {
+  // Track which task-list checkbox we're rendering (in document order) so the
+  // onChange handler can edit the matching `[ ]`/`[x]` in the source.
+  const counter = { i: 0 }
+  return (
+    <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
+      components={{
+        input: ({ node, ...props }: any) => {
+          if (props.type === 'checkbox') {
+            const idx = counter.i++
+            const checked = !!props.checked
+            return (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); onToggleTask(idx) }}
+                aria-label={checked ? 'Mark task incomplete' : 'Mark task complete'}
+                className={`mr-1 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border align-middle ${
+                  checked
+                    ? 'border-indigo-600 bg-indigo-600 text-white'
+                    : 'border-gray-400 bg-white hover:border-indigo-500'
+                }`}
+                style={{ cursor: 'pointer', pointerEvents: 'auto' }}
+              >
+                {checked && <span className="text-[10px] leading-none">✓</span>}
+              </button>
+            )
+          }
+          return <input {...props} />
+        },
+      }}
+    >
+      {value}
+    </ReactMarkdown>
+  )
+}
+
+function WorkspaceBreadcrumb({ entryId, currentTitle }: { entryId: string; currentTitle: string }) {
+  const [crumbs, setCrumbs] = useState<Array<{ id: string; title: string | null }>>([])
+  useEffect(() => {
+    let cancelled = false
+    getWorkspaceAncestors(entryId)
+      .then(c => { if (!cancelled) setCrumbs(c) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [entryId])
+
+  return (
+    <div className="mb-3 flex items-center gap-1 text-xs text-gray-500">
+      <Link href="/dashboard/knowledge" className="hover:text-indigo-600">Pages</Link>
+      {crumbs.map(c => (
+        <span key={c.id} className="flex items-center gap-1">
+          <span className="text-gray-300">/</span>
+          <Link href={`/dashboard/knowledge/${c.id}`} className="hover:text-indigo-600">
+            {c.title || 'Untitled'}
+          </Link>
+        </span>
+      ))}
+      <span className="text-gray-300">/</span>
+      <span className="font-medium text-gray-700">{currentTitle || 'Untitled page'}</span>
+    </div>
+  )
+}
+
+function FormatToolbar({ onInsert }: {
+  onInsert: (opts: { before?: string; after?: string; placeholder?: string; block?: boolean }) => void
+}) {
+  type Btn = { label: string; title: string; onClick: () => void; bold?: boolean; italic?: boolean }
+  const buttons: Btn[] = [
+    { label: 'H1', title: 'Big heading', onClick: () => onInsert({ before: '# ', placeholder: 'Heading', block: true }) },
+    { label: 'H2', title: 'Section heading', onClick: () => onInsert({ before: '## ', placeholder: 'Section', block: true }) },
+    { label: 'H3', title: 'Subsection heading', onClick: () => onInsert({ before: '### ', placeholder: 'Subsection', block: true }) },
+    { label: 'B', title: 'Bold', bold: true, onClick: () => onInsert({ before: '**', after: '**', placeholder: 'bold text' }) },
+    { label: 'I', title: 'Italic', italic: true, onClick: () => onInsert({ before: '*', after: '*', placeholder: 'italic text' }) },
+    { label: '“ ”', title: 'Quote', onClick: () => onInsert({ before: '> ', placeholder: 'Quote', block: true }) },
+    { label: '• List', title: 'Bullet list', onClick: () => onInsert({ before: '- ', placeholder: 'item', block: true }) },
+    { label: '1. List', title: 'Numbered list', onClick: () => onInsert({ before: '1. ', placeholder: 'item', block: true }) },
+    { label: '☐ Task', title: 'Task / checklist item', onClick: () => onInsert({ before: '- [ ] ', placeholder: 'task', block: true }) },
+    { label: '🔗 Link', title: 'Link', onClick: () => onInsert({ before: '[', after: '](https://)', placeholder: 'link text' }) },
+    { label: '</>', title: 'Code', onClick: () => onInsert({ before: '`', after: '`', placeholder: 'code' }) },
+    { label: '⊞ Table', title: 'Insert a 3-column starter table', onClick: () => onInsert({
+      before: '| Column 1 | Column 2 | Column 3 |\n| --- | --- | --- |\n| ',
+      after: ' |  |  |\n|  |  |  |',
+      placeholder: 'cell',
+      block: true,
+    }) },
+    { label: '— Divider', title: 'Horizontal rule', onClick: () => onInsert({ before: '\n---\n', block: true }) },
+  ]
+  return (
+    <div className="flex flex-wrap items-center gap-1 border-b border-gray-200 bg-gray-50 px-2 py-1.5">
+      {buttons.map(b => (
+        <button
+          key={b.label}
+          type="button"
+          onClick={b.onClick}
+          title={b.title}
+          className={`rounded px-2 py-1 text-xs text-gray-700 hover:bg-white hover:text-indigo-700 hover:shadow-sm transition-colors ${
+            b.bold ? 'font-bold' : b.italic ? 'italic' : 'font-medium'
+          }`}
+        >
+          {b.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function WorkspaceChildren({ parentId }: { parentId: string }) {
+  const router = useRouter()
+  const [children, setChildren] = useState<WorkspaceNode[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busy, startBusy] = useTransition()
+  const [err, setErr] = useState('')
+
+  const load = () => {
+    setLoading(true)
+    listWorkspaceChildren(parentId)
+      .then(c => setChildren(c))
+      .catch(e => setErr(e?.message ?? 'Load failed'))
+      .finally(() => setLoading(false))
+  }
+  useEffect(load, [parentId])
+
+  const addChild = () => {
+    setErr('')
+    startBusy(async () => {
+      try {
+        const { id } = await createWorkspacePage({ parentId, title: 'Untitled page' })
+        router.push(`/dashboard/knowledge/${id}`)
+      } catch (e: any) { setErr(e?.message ?? 'Create failed') }
+    })
+  }
+
+  return (
+    <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+          Child pages {children.length > 0 && <span className="text-gray-400">({children.length})</span>}
+        </h3>
+        <button onClick={addChild} disabled={busy}
+          className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40">
+          {busy ? '…' : '+ Add child page'}
+        </button>
+      </div>
+      {err && <div className="mb-3 rounded bg-red-50 px-3 py-2 text-sm text-red-700">{err}</div>}
+      {loading ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : children.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          No child pages yet. Click <strong>+ Add child page</strong> to nest a page under this one.
+        </p>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {children.map(c => (
+            <li key={c.id} className="py-2">
+              <Link href={`/dashboard/knowledge/${c.id}`}
+                className="flex items-center gap-2 text-sm text-gray-900 hover:text-indigo-700">
+                <span className="text-gray-400">📄</span>
+                <span className="flex-1 truncate">{c.title || 'Untitled page'}</span>
+                {c.has_children && <span className="text-[10px] text-gray-400">has subpages</span>}
+                <span className="text-[10px] uppercase tracking-wider text-gray-400">{c.entity}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function WorkspaceSiblings({ entryId }: { entryId: string }) {
+  const [data, setData] = useState<{
+    parent: { id: string; title: string | null } | null
+    siblings: WorkspaceNode[]
+  } | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getWorkspaceSiblings(entryId)
+      .then(d => { if (!cancelled) setData(d) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [entryId])
+
+  if (!data) return null
+  if (!data.parent && data.siblings.length === 0) return null
+
+  return (
+    <div className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs">
+      {data.parent && (
+        <Link
+          href={`/dashboard/knowledge/${data.parent.id}`}
+          className="flex items-center gap-1 rounded bg-indigo-50 px-2 py-1 font-medium text-indigo-700 hover:bg-indigo-100"
+        >
+          ← {data.parent.title || 'Untitled parent'}
+        </Link>
+      )}
+      {data.siblings.length > 0 && (
+        <>
+          <span className="text-gray-400">{data.parent ? 'Siblings:' : 'Other top-level pages:'}</span>
+          <div className="flex flex-wrap items-center gap-1">
+            {data.siblings.slice(0, 12).map(s => (
+              <Link
+                key={s.id}
+                href={`/dashboard/knowledge/${s.id}`}
+                className="rounded border border-gray-200 px-2 py-0.5 text-gray-700 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+              >
+                {s.title || 'Untitled'}
+              </Link>
+            ))}
+            {data.siblings.length > 12 && (
+              <span className="text-gray-400">+{data.siblings.length - 12} more</span>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

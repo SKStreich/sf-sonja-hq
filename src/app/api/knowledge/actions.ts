@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
 
-const KINDS = ['idea', 'doc', 'chat', 'note', 'critique'] as const
+const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
 
 const ENTITIES_CONST = ['tm', 'sf', 'sfe', 'personal'] as const
@@ -44,6 +44,7 @@ export interface KnowledgeEntry {
   created_at: string
   updated_at: string
   user_id: string
+  parent_id: string | null
 }
 
 async function getCtx() {

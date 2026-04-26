@@ -10,9 +10,10 @@ import { CardView } from './views/CardView'
 import { ListView } from './views/ListView'
 import { InsightsView } from './views/InsightsView'
 import { VaultView } from './views/VaultView'
+import { WorkspaceView } from './views/WorkspaceView'
 import { ChatDrawer } from './ChatDrawer'
 
-type ViewMode = 'card' | 'list' | 'insights' | 'vault'
+type ViewMode = 'card' | 'list' | 'insights' | 'vault' | 'pages'
 
 const KINDS: { value: Kind | null; label: string }[] = [
   { value: null, label: 'All' },
@@ -33,6 +34,7 @@ const ENTITIES: { value: Entity | null; label: string }[] = [
 const VIEW_MODES: { value: ViewMode; label: string; icon: string }[] = [
   { value: 'card', label: 'Cards', icon: '▦' },
   { value: 'list', label: 'List', icon: '☰' },
+  { value: 'pages', label: 'Pages', icon: '📄' },
   { value: 'insights', label: 'Insights', icon: '✦' },
   { value: 'vault', label: 'Vault', icon: '🔒' },
 ]
@@ -187,6 +189,7 @@ export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
         {view === 'card' && <CardView entries={visibleEntries} onDelete={async id => { await deleteEntry(id); refresh() }} onChat={e => setChatTarget({ id: e.id, title: e.title ?? undefined })} />}
         {view === 'list' && <ListView entries={visibleEntries} onDelete={async id => { await deleteEntry(id); refresh() }} />}
         {view === 'insights' && <InsightsView entries={entries} />}
+        {view === 'pages' && <WorkspaceView />}
         {view === 'vault' && (
           <VaultView
             entries={vault}

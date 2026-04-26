@@ -8,6 +8,7 @@ const KIND_STYLES: Record<string, string> = {
   chat: 'bg-purple-100 text-purple-800',
   note: 'bg-gray-100 text-gray-700',
   critique: 'bg-indigo-100 text-indigo-800',
+  workspace: 'bg-teal-100 text-teal-800',
   vault: 'bg-red-100 text-red-800',
 }
 
@@ -25,14 +26,25 @@ interface Props {
 }
 
 export function CardView({ entries, onDelete, onChat }: Props) {
-  if (entries.length === 0) {
+  // Hide workspace pages that have a parent — they're shown as a count pill on
+  // the parent card and are accessible from the parent's detail page. Only
+  // top-level workspace pages and non-workspace entries appear in the grid.
+  const childCount = new Map<string, number>()
+  for (const e of entries) {
+    if (e.kind === 'workspace' && e.parent_id) {
+      childCount.set(e.parent_id, (childCount.get(e.parent_id) ?? 0) + 1)
+    }
+  }
+  const visible = entries.filter(e => !(e.kind === 'workspace' && e.parent_id))
+
+  if (visible.length === 0) {
     return <EmptyState />
   }
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {entries.map(e => (
+      {visible.map(e => (
         <article key={e.id} className="group flex flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
-          <div className="mb-2 flex items-center gap-1.5">
+          <div className="mb-2 flex items-center gap-1.5 flex-wrap">
             <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_STYLES[e.kind] ?? KIND_STYLES.note}`}>
               {e.kind}
             </span>
@@ -42,6 +54,12 @@ export function CardView({ entries, onDelete, onChat }: Props) {
             {e.idea_status && e.idea_status !== 'raw' && (
               <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">{e.idea_status}</span>
             )}
+            {e.kind === 'workspace' && childCount.get(e.id) ? (
+              <span title={`${childCount.get(e.id)} child page${childCount.get(e.id) === 1 ? '' : 's'}`}
+                className="ml-auto inline-flex items-center gap-0.5 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700">
+                📄 {childCount.get(e.id)}
+              </span>
+            ) : null}
           </div>
           <Link href={`/dashboard/knowledge/${e.id}`} className="mb-1">
             <h3 className="line-clamp-2 text-sm font-semibold text-gray-900 hover:text-indigo-700">
