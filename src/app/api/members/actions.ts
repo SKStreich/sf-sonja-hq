@@ -66,10 +66,13 @@ export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 
   let emailSent = false
   let emailError: string | undefined
   const resendKey = process.env.RESEND_API_KEY
-  if (resendKey) {
+  if (!resendKey) {
+    emailError = 'RESEND_API_KEY not configured — email not sent. Copy the invite link below to share manually.'
+    console.warn('[invite] RESEND_API_KEY missing; email skipped for', normalizedEmail)
+  } else {
     try {
       const resend = new Resend(resendKey)
-      await resend.emails.send({
+      const result = await resend.emails.send({
         from: 'Streich Force HQ <info@streichforce.com>',
         to: normalizedEmail,
         subject: `${profile.full_name ?? 'Someone'} invited you to ${org?.name ?? 'Sonja HQ'}`,
@@ -82,9 +85,17 @@ export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 
           customMessage,
         }),
       })
-      emailSent = true
+      // Resend SDK returns { data, error } — error is non-throwing, must check.
+      if ((result as any)?.error) {
+        emailError = `Resend rejected the send: ${(result as any).error.message ?? JSON.stringify((result as any).error)}`
+        console.error('[invite] Resend error:', (result as any).error)
+      } else {
+        emailSent = true
+        console.log('[invite] Resend accepted; id=', (result as any)?.data?.id, 'to=', normalizedEmail)
+      }
     } catch (e: any) {
       emailError = e?.message ?? 'Email send failed'
+      console.error('[invite] Resend threw:', e)
     }
   }
 
