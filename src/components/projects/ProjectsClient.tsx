@@ -44,10 +44,25 @@ export function ProjectsClient({ projects, entities }: Props) {
             <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
             <p className="mt-0.5 text-sm text-gray-500">{filtered.length} project{filtered.length !== 1 ? 's' : ''}</p>
           </div>
-          <button onClick={() => setCreateOpen(true)}
-            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors">
-            <span>+</span> New project
-          </button>
+          <div className="flex items-center gap-2">
+            <a href="/api/projects/export"
+              title="Download projects as CSV"
+              aria-label="Download projects CSV"
+              className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
+              ⬇
+            </a>
+            <a href="/dashboard/projects/print"
+              target="_blank"
+              title="Print all projects"
+              aria-label="Print projects"
+              className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
+              🖨
+            </a>
+            <button onClick={() => setCreateOpen(true)}
+              className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors">
+              <span>+</span> New project
+            </button>
+          </div>
         </div>
 
         {/* Filters + view toggle */}

@@ -35,7 +35,6 @@ function useDropdown() {
 export function DashboardNav({ user, profile, entities, notifications }: DashboardNavProps) {
   const router = useRouter()
   const supabase = createClient()
-  const exportDropdown = useDropdown()
   const profileDropdown = useDropdown()
 
   const handleSignOut = async () => {
@@ -84,56 +83,8 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
               <GlobalSearch />
             </div>
 
-            {/* Right: export, capture, profile */}
+            {/* Right: notifications, capture, profile */}
             <div className="flex items-center gap-2 shrink-0">
-
-              {/* Export dropdown */}
-              <div className="relative" ref={exportDropdown.ref}>
-                <button
-                  onClick={() => exportDropdown.setOpen(o => !o)}
-                  className="flex items-center gap-1 rounded-md px-2.5 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
-                >
-                  <span className="hidden sm:block">Export</span>
-                  <span className="text-xs text-gray-400">▾</span>
-                </button>
-                {exportDropdown.open && (
-                  <div className="absolute right-0 top-10 z-50 w-52 rounded-lg border border-gray-200 bg-white py-1.5 shadow-lg">
-                    <div className="px-3 pb-1 pt-0.5 text-xs font-medium uppercase tracking-wider text-gray-400">Tasks</div>
-                    <a
-                      href="/api/tasks/export"
-                      onClick={() => exportDropdown.setOpen(false)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                    >
-                      <span className="text-xs">⬇</span> Export Tasks CSV
-                    </a>
-                    <a
-                      href="/dashboard/tasks/print"
-                      target="_blank"
-                      onClick={() => exportDropdown.setOpen(false)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                    >
-                      <span className="text-xs">🖨</span> Print Tasks
-                    </a>
-                    <div className="my-1 border-t border-gray-100" />
-                    <div className="px-3 pb-1 pt-0.5 text-xs font-medium uppercase tracking-wider text-gray-400">Projects</div>
-                    <a
-                      href="/api/projects/export"
-                      onClick={() => exportDropdown.setOpen(false)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                    >
-                      <span className="text-xs">⬇</span> Export Projects CSV
-                    </a>
-                    <a
-                      href="/dashboard/projects/print"
-                      target="_blank"
-                      onClick={() => exportDropdown.setOpen(false)}
-                      className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors"
-                    >
-                      <span className="text-xs">🖨</span> Print All Projects
-                    </a>
-                  </div>
-                )}
-              </div>
 
               {/* Notifications */}
               <NotificationBell initialNotifications={notifications} />

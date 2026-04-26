@@ -442,6 +442,19 @@ export function TaskManager({ tasks, projects, entities, members = [], currentUs
               className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${view === 'timeline' ? btnActive : btnInactive}`}
             >⋯ Timeline</button>
           </div>
+          <a href="/api/tasks/export"
+            title="Download tasks as CSV"
+            aria-label="Download tasks CSV"
+            className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
+            ⬇
+          </a>
+          <a href="/dashboard/tasks/print"
+            target="_blank"
+            title="Print tasks"
+            aria-label="Print tasks"
+            className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
+            🖨
+          </a>
           <button
             onClick={() => setAddingQuick(true)}
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
