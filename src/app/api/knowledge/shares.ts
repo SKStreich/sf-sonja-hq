@@ -447,12 +447,14 @@ export async function decideForwardRequest(
 
   // Send the email via Resend (non-fatal if it fails)
   const resendKey = process.env.RESEND_API_KEY
-  if (resendKey) {
+  if (!resendKey) {
+    console.warn('[share-forward] RESEND_API_KEY missing; email skipped for', req.new_recipient_email)
+  } else {
     try {
       const { Resend } = await import('resend')
       const resend = new Resend(resendKey)
       const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://hq.streichforce.com'
-      await resend.emails.send({
+      const result = await resend.emails.send({
         from: 'Streich Force HQ <info@streichforce.com>',
         to: req.new_recipient_email,
         subject: `A document has been shared with you`,
@@ -461,7 +463,14 @@ export async function decideForwardRequest(
 <p><a href="${appUrl}/share/${newToken}">${appUrl}/share/${newToken}</a></p>
 <p>— Sonja HQ</p>`,
       })
-    } catch {}
+      if ((result as any)?.error) {
+        console.error('[share-forward] Resend error:', (result as any).error)
+      } else {
+        console.log('[share-forward] Resend accepted; id=', (result as any)?.data?.id, 'to=', req.new_recipient_email)
+      }
+    } catch (e: any) {
+      console.error('[share-forward] Resend threw:', e)
+    }
   }
 
   revalidatePath(`/dashboard/knowledge/${req.knowledge_shares.entry_id}`)
