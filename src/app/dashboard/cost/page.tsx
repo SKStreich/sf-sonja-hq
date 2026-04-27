@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { CostDashboard } from '@/components/cost/CostDashboard'
-import { getServiceConfigs } from '@/app/api/usage/actions'
+import { getServiceConfigs, getLastSyncTimestamp } from '@/app/api/usage/actions'
 
 export default async function CostPage() {
   const supabase = createClient()
@@ -18,13 +18,14 @@ export default async function CostPage() {
   const ninetyDaysAgo = new Date()
   ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
-  const [{ data: usage }, serviceConfigs] = await Promise.all([
+  const [{ data: usage }, serviceConfigs, lastSync] = await Promise.all([
     (supabase as any)
       .from('resource_usage')
       .select('*')
       .gte('period_start', ninetyDaysAgo.toISOString().slice(0, 10))
       .order('period_start', { ascending: false }),
     getServiceConfigs(),
+    getLastSyncTimestamp(),
   ])
 
   const serviceConfig = {
@@ -41,6 +42,7 @@ export default async function CostPage() {
       usage={usage ?? []}
       serviceConfig={serviceConfig}
       serviceConfigs={serviceConfigs}
+      lastSync={lastSync}
     />
   )
 }
