@@ -126,6 +126,45 @@ export async function createShare(input: {
       created_by: user.id,
     }, { onConflict: 'org_id,email', ignoreDuplicates: false })
 
+  // Email the recipient directly with the share link. Non-fatal if it fails —
+  // the share row is already saved and the sender can copy the link manually.
+  const resendKey = process.env.RESEND_API_KEY
+  if (!resendKey) {
+    console.warn('[share-create] RESEND_API_KEY missing; email skipped for', recipient_email)
+  } else {
+    try {
+      // Fetch entry title + sender display name for the email body.
+      const [{ data: entry }, { data: profile }] = await Promise.all([
+        (supabase as any).from('knowledge_entries').select('title').eq('id', input.entryId).maybeSingle(),
+        (supabase as any).from('user_profiles').select('full_name, email').eq('id', user.id).maybeSingle(),
+      ])
+      const entryTitle = (entry?.title as string | null) ?? 'a document'
+      const senderName = (profile?.full_name as string | null) ?? (profile?.email as string | null) ?? 'Someone'
+
+      const { Resend } = await import('resend')
+      const resend = new Resend(resendKey)
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://hq.streichforce.com'
+      const expiresStr = new Date(expires_at).toLocaleDateString()
+      const result = await resend.emails.send({
+        from: 'Streich Force HQ <info@streichforce.com>',
+        to: recipient_email,
+        subject: `${senderName} shared "${entryTitle}" with you`,
+        html: `<p>Hi ${recipient_name},</p>
+<p><strong>${senderName}</strong> has shared a document with you via Sonja HQ. The link below is unique to you and expires on <strong>${expiresStr}</strong>.</p>
+<p><a href="${appUrl}/share/${token}" style="display:inline-block;padding:10px 16px;background:#4f46e5;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;">View "${entryTitle}"</a></p>
+<p style="color:#6b7280;font-size:12px;margin-top:24px;">Or copy and paste this link into your browser:<br><span style="font-family:ui-monospace,monospace;font-size:11px;color:#374151;">${appUrl}/share/${token}</span></p>
+<p style="color:#9ca3af;font-size:11px;">— Sonja HQ</p>`,
+      })
+      if ((result as any)?.error) {
+        console.error('[share-create] Resend error:', (result as any).error)
+      } else {
+        console.log('[share-create] Resend accepted; id=', (result as any)?.data?.id, 'to=', recipient_email)
+      }
+    } catch (e: any) {
+      console.error('[share-create] Resend threw:', e)
+    }
+  }
+
   revalidatePath(`/dashboard/knowledge/${input.entryId}`)
   return { token, id: data.id as string }
 }

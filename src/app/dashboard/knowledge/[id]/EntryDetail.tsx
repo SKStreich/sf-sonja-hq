@@ -577,7 +577,9 @@ function ShareDialog({ entryId, onClose }: { entryId: string; onClose: () => voi
 
         {createdToken && (
           <div className="mb-4 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm">
-            <div className="mb-1 font-medium text-green-900">Share link created</div>
+            <div className="mb-1 font-medium text-green-900">
+              Share link created &middot; emailed to recipient &middot; expires in {days} day{days === 1 ? '' : 's'}
+            </div>
             <code className="block break-all rounded bg-white px-2 py-1 text-xs text-gray-800">
               {origin}/share/{createdToken}
             </code>
@@ -637,8 +639,9 @@ function ShareDialog({ entryId, onClose }: { entryId: string; onClose: () => voi
                       </div>
                       <div className="flex shrink-0 gap-2">
                         <button onClick={() => extend(s.id)} disabled={busy}
+                          title="Extend this share's expiration by 7 more days"
                           className="rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40">
-                          +7d
+                          Extend +7
                         </button>
                         {!s.revoked_at && (
                           <button onClick={() => revoke(s.id)} disabled={busy}
@@ -861,8 +864,9 @@ function SharesTab({ entryId, onOpenNewShare }: { entryId: string; onOpenNewShar
                     </div>
                     <div className="flex shrink-0 gap-2">
                       <button onClick={() => extend(s.id)} disabled={busy}
+                        title="Extend this share's expiration by 7 more days"
                         className="rounded border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-40">
-                        +7d
+                        Extend +7
                       </button>
                       {!s.revoked_at && (
                         <button onClick={() => revoke(s.id)} disabled={busy}
