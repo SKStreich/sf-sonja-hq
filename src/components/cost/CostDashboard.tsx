@@ -181,7 +181,16 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
     setLocalConfigs(prev => {
       const existing = prev.find(c => c.service === svc)
       if (existing) return prev.map(c => c.service === svc ? { ...c, status: next } : c)
-      return [...prev, { service: svc, status: next, last_activity_at: null }]
+      return [...prev, {
+        service: svc,
+        status: next,
+        last_activity_at: null,
+        monthly_fee_usd: 0,
+        billing_anchor_day: null,
+        api_key_env_name: null,
+        display_name: null,
+        notes: null,
+      }]
     })
     startToggle(async () => { await setServiceStatus(svc, next) })
   }
