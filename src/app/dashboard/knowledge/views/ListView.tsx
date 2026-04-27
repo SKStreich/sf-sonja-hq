@@ -5,6 +5,7 @@ import type { KnowledgeEntry } from '@/app/api/knowledge/actions'
 interface Props {
   entries: KnowledgeEntry[]
   onDelete: (id: string) => void
+  pendingForwards?: Record<string, number>
 }
 
 const KIND_DOT: Record<string, string> = {
@@ -52,7 +53,7 @@ function buildRows(entries: KnowledgeEntry[]): Row[] {
   return out
 }
 
-export function ListView({ entries, onDelete }: Props) {
+export function ListView({ entries, onDelete, pendingForwards = {} }: Props) {
   if (entries.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center text-sm text-gray-500">
@@ -92,6 +93,12 @@ export function ListView({ entries, onDelete }: Props) {
                     {e.kind === 'workspace' && childCount.get(e.id) ? (
                       <span className="ml-1 rounded-full bg-teal-50 px-1.5 py-0.5 text-[10px] font-medium text-teal-700">
                         📄 {childCount.get(e.id)}
+                      </span>
+                    ) : null}
+                    {pendingForwards[e.id] ? (
+                      <span title={`${pendingForwards[e.id]} forward request${pendingForwards[e.id] === 1 ? '' : 's'} awaiting approval`}
+                        className="ml-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-amber-200">
+                        ⚠ {pendingForwards[e.id]}
                       </span>
                     ) : null}
                   </div>

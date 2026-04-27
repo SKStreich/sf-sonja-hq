@@ -181,7 +181,16 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
     setLocalConfigs(prev => {
       const existing = prev.find(c => c.service === svc)
       if (existing) return prev.map(c => c.service === svc ? { ...c, status: next } : c)
-      return [...prev, { service: svc, status: next, last_activity_at: null }]
+      return [...prev, {
+        service: svc,
+        status: next,
+        last_activity_at: null,
+        monthly_fee_usd: 0,
+        billing_anchor_day: null,
+        api_key_env_name: null,
+        display_name: null,
+        notes: null,
+      }]
     })
     startToggle(async () => { await setServiceStatus(svc, next) })
   }
@@ -211,6 +220,10 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
           <p className="mt-0.5 text-sm text-gray-500">{now.toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link href="/dashboard/cost/connections"
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors">
+            ⚙ Connections
+          </Link>
           <button onClick={handleSyncAll} disabled={syncing}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-400 disabled:opacity-40 transition-colors">
             {syncing ? 'Syncing…' : '↻ Sync All'}

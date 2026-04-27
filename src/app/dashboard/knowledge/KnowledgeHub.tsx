@@ -1,11 +1,12 @@
 'use client'
-import { useState, useTransition, useMemo } from 'react'
+import { useState, useTransition, useMemo, useEffect } from 'react'
 import {
   listEntries, createEntry, deleteEntry,
   type KnowledgeEntry, type Kind, type Entity,
 } from '@/app/api/knowledge/actions'
 import { uploadKnowledgeFile } from '@/app/api/knowledge/upload'
 import { listVaultEntries, uploadVaultFile, getVaultDownloadUrl, deleteVaultEntry, type VaultEntry } from '@/app/api/knowledge/vault'
+import { listPendingForwardCountsByEntry } from '@/app/api/knowledge/shares'
 import { CardView } from './views/CardView'
 import { ListView } from './views/ListView'
 import { InsightsView } from './views/InsightsView'
@@ -28,6 +29,7 @@ const ENTITIES: { value: Entity | null; label: string }[] = [
   { value: 'tm', label: 'TM' },
   { value: 'sf', label: 'SF' },
   { value: 'sfe', label: 'SFE' },
+  { value: 'sfc', label: 'SFC' },
   { value: 'personal', label: 'Personal' },
 ]
 
@@ -62,6 +64,15 @@ export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
   const [query, setQuery] = useState('')
   const [composerOpen, setComposerOpen] = useState(false)
   const [chatTarget, setChatTarget] = useState<{ id: string | null; title?: string } | null>(null)
+  const [pendingForwards, setPendingForwards] = useState<Record<string, number>>({})
+
+  useEffect(() => {
+    let cancelled = false
+    listPendingForwardCountsByEntry()
+      .then(c => { if (!cancelled) setPendingForwards(c) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
 
   const [loading, startLoad] = useTransition()
 
@@ -186,8 +197,8 @@ export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
 
       {/* Active view */}
       <div className={loading ? 'opacity-60 transition-opacity' : ''}>
-        {view === 'card' && <CardView entries={visibleEntries} onDelete={async id => { await deleteEntry(id); refresh() }} onChat={e => setChatTarget({ id: e.id, title: e.title ?? undefined })} />}
-        {view === 'list' && <ListView entries={visibleEntries} onDelete={async id => { await deleteEntry(id); refresh() }} />}
+        {view === 'card' && <CardView entries={visibleEntries} pendingForwards={pendingForwards} onDelete={async id => { await deleteEntry(id); refresh() }} onChat={e => setChatTarget({ id: e.id, title: e.title ?? undefined })} />}
+        {view === 'list' && <ListView entries={visibleEntries} pendingForwards={pendingForwards} onDelete={async id => { await deleteEntry(id); refresh() }} />}
         {view === 'insights' && <InsightsView entries={entries} />}
         {view === 'pages' && <WorkspaceView />}
         {view === 'vault' && (
