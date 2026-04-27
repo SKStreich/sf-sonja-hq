@@ -16,6 +16,7 @@ const ENTITY_STYLES: Record<string, string> = {
   tm: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   sf: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   sfe: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
+  sfc: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   personal: 'bg-gray-50 text-gray-700 border-gray-200',
 }
 
@@ -23,9 +24,10 @@ interface Props {
   entries: KnowledgeEntry[]
   onDelete: (id: string) => void
   onChat?: (entry: KnowledgeEntry) => void
+  pendingForwards?: Record<string, number>
 }
 
-export function CardView({ entries, onDelete, onChat }: Props) {
+export function CardView({ entries, onDelete, onChat, pendingForwards = {} }: Props) {
   // Hide workspace pages that have a parent — they're shown as a count pill on
   // the parent card and are accessible from the parent's detail page. Only
   // top-level workspace pages and non-workspace entries appear in the grid.
@@ -58,6 +60,12 @@ export function CardView({ entries, onDelete, onChat }: Props) {
               <span title={`${childCount.get(e.id)} child page${childCount.get(e.id) === 1 ? '' : 's'}`}
                 className="ml-auto inline-flex items-center gap-0.5 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-medium text-teal-700">
                 📄 {childCount.get(e.id)}
+              </span>
+            ) : null}
+            {pendingForwards[e.id] ? (
+              <span title={`${pendingForwards[e.id]} forward request${pendingForwards[e.id] === 1 ? '' : 's'} awaiting approval`}
+                className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 ring-1 ring-amber-200">
+                ⚠ {pendingForwards[e.id]} pending
               </span>
             ) : null}
           </div>

@@ -20,14 +20,23 @@ export interface ServiceConfig {
   service: string
   status: ServiceStatus
   last_activity_at: string | null
+  monthly_fee_usd: number
+  billing_anchor_day: number | null
+  api_key_env_name: string | null
+  display_name: string | null
+  notes: string | null
 }
 
 export async function getServiceConfigs(): Promise<ServiceConfig[]> {
   const { supabase } = await getOrgId()
   const { data } = await (supabase as any)
     .from('service_configs')
-    .select('service, status, last_activity_at')
-  return (data ?? []) as ServiceConfig[]
+    .select('service, status, last_activity_at, monthly_fee_usd, billing_anchor_day, api_key_env_name, display_name, notes')
+    .order('service', { ascending: true })
+  return (data ?? []).map((r: any) => ({
+    ...r,
+    monthly_fee_usd: Number(r.monthly_fee_usd ?? 0),
+  })) as ServiceConfig[]
 }
 
 export async function setServiceStatus(service: string, status: ServiceStatus) {
@@ -37,6 +46,62 @@ export async function setServiceStatus(service: string, status: ServiceStatus) {
     { onConflict: 'org_id,service' }
   )
   revalidatePath('/dashboard/cost')
+}
+
+/**
+ * Create or update the full service-config row used by the Connections
+ * settings page. Only owners/admins should reach this UI; we trust the
+ * RLS policy on service_configs to enforce.
+ */
+export async function upsertServiceConfig(input: {
+  service: string
+  display_name?: string | null
+  status?: ServiceStatus
+  monthly_fee_usd?: number
+  billing_anchor_day?: number | null
+  api_key_env_name?: string | null
+  notes?: string | null
+}): Promise<void> {
+  const { supabase, org_id } = await getOrgId()
+  const slug = input.service.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-').slice(0, 32)
+  if (!slug) throw new Error('Service slug is required')
+  const day = input.billing_anchor_day
+  if (day !== undefined && day !== null && (day < 1 || day > 28)) {
+    throw new Error('Billing anchor day must be 1-28')
+  }
+  const fee = Math.max(0, Number(input.monthly_fee_usd ?? 0))
+  const { error } = await (supabase as any).from('service_configs').upsert({
+    org_id,
+    service: slug,
+    display_name: input.display_name?.trim() || null,
+    status: input.status ?? 'active',
+    monthly_fee_usd: fee,
+    billing_anchor_day: day ?? null,
+    api_key_env_name: input.api_key_env_name?.trim() || null,
+    notes: input.notes?.trim() || null,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'org_id,service' })
+  if (error) throw new Error('Failed to save connection: ' + error.message)
+  revalidatePath('/dashboard/cost')
+  revalidatePath('/dashboard/cost/connections')
+}
+
+export async function deleteServiceConfig(service: string): Promise<void> {
+  const { supabase, org_id } = await getOrgId()
+  const { error } = await (supabase as any).from('service_configs')
+    .delete().eq('org_id', org_id).eq('service', service)
+  if (error) throw new Error('Failed to delete connection: ' + error.message)
+  revalidatePath('/dashboard/cost')
+  revalidatePath('/dashboard/cost/connections')
+}
+
+/**
+ * Lightweight presence check for the env-var name attached to a connection.
+ * Returns whether the env var is set in the running process, NOT its value.
+ */
+export async function checkServiceApiKeyPresence(envName: string): Promise<{ set: boolean }> {
+  if (!envName) return { set: false }
+  return { set: !!process.env[envName] }
 }
 
 // ── Manual entry ──────────────────────────────────────────────────────────────

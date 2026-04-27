@@ -12,7 +12,7 @@ import Anthropic from '@anthropic-ai/sdk'
 const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
 
-const ENTITIES_CONST = ['tm', 'sf', 'sfe', 'personal'] as const
+const ENTITIES_CONST = ['tm', 'sf', 'sfe', 'sfc', 'personal'] as const
 export type Entity = typeof ENTITIES_CONST[number]
 
 const TYPE_HINTS_CONST = ['decision', 'strategy', 'primer', 'brand', 'marketing', 'business', 'idea'] as const

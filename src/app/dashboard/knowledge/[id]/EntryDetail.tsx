@@ -54,6 +54,16 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
   const [working, startWork] = useTransition()
   const [err, setErr] = useState('')
   const [shareOpen, setShareOpen] = useState(false)
+  const [pendingForwards, setPendingForwards] = useState(0)
+  const [reloadKey, setReloadKey] = useState(0)
+
+  useEffect(() => {
+    let cancelled = false
+    listForwardRequests(entry.id)
+      .then(reqs => { if (!cancelled) setPendingForwards(reqs.filter(r => r.status === 'pending').length) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [entry.id, reloadKey])
 
   const hasOriginal =
     !!entry.storage_path ||
@@ -133,6 +143,17 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
         <ShareDialog entryId={entry.id} onClose={() => setShareOpen(false)} />
       )}
 
+      {pendingForwards > 0 && (
+        <button
+          onClick={() => setTab('shares')}
+          className="mb-4 flex w-full items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-sm text-amber-900 hover:bg-amber-100"
+        >
+          <span className="text-base leading-none">⚠</span>
+          <span><strong>{pendingForwards}</strong> forward request{pendingForwards === 1 ? '' : 's'} awaiting your approval.</span>
+          <span className="ml-auto text-xs font-medium text-amber-700">Review →</span>
+        </button>
+      )}
+
       {/* Tabs */}
       <div className="mb-5 flex items-center gap-1 border-b border-gray-200">
         {hasOriginal && (
@@ -141,7 +162,11 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
         <TabButton active={tab === 'content'} onClick={() => setTab('content')} label="Content" />
         <TabButton active={tab === 'critiques'} onClick={() => setTab('critiques')} label={`Critiques (${critiques.length})`} />
         <TabButton active={tab === 'notes'} onClick={() => setTab('notes')} label={`Follow-ups (${followUpNotes.length})`} />
-        <TabButton active={tab === 'shares'} onClick={() => setTab('shares')} label="Shares" />
+        <TabButton
+          active={tab === 'shares'}
+          onClick={() => setTab('shares')}
+          label={pendingForwards > 0 ? `Shares · ⚠ ${pendingForwards}` : 'Shares'}
+        />
         <TabButton active={tab === 'history'} onClick={() => setTab('history')} label={`History (${versions.length})`} />
       </div>
 

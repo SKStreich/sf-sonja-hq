@@ -369,8 +369,10 @@ export async function submitForwardRequest(input: {
     .single()
   if (error) throw new Error('Failed to submit request: ' + error.message)
 
-  // Notify the share owner
-  await (admin as any).from('notifications').insert({
+  // Notify the share owner. Failure here is non-fatal for the recipient flow
+  // (the request row is already saved), but we surface it in logs because
+  // an earlier silent failure left the bell empty after legitimate submissions.
+  const { error: notifError } = await (admin as any).from('notifications').insert({
     user_id: share.created_by,
     org_id: share.org_id,
     type: 'share_forward_request',
@@ -380,6 +382,9 @@ export async function submitForwardRequest(input: {
     message: `${share.recipient_email} wants to forward to ${newName} <${newEmail}>`,
     read: false,
   })
+  if (notifError) {
+    console.error('[forward-request] notification insert failed:', notifError)
+  }
 
   return { ok: true, requestId: req.id as string }
 }
@@ -397,6 +402,31 @@ export interface ForwardRequest {
   status: 'pending' | 'approved' | 'denied'
   created_at: string
   decided_at: string | null
+}
+
+/**
+ * Returns a map of entry_id → number of pending forward requests, scoped to
+ * the caller's org. Used by the Knowledge Hub to render alert pills on
+ * entries that have unresolved requests.
+ */
+export async function listPendingForwardCountsByEntry(): Promise<Record<string, number>> {
+  const { supabase, org_id } = await getContext()
+  const { data, error } = await (supabase as any)
+    .from('share_forwarding_requests')
+    .select('share_id, status, knowledge_shares!share_forwarding_requests_share_id_fkey!inner(entry_id)')
+    .eq('org_id', org_id)
+    .eq('status', 'pending')
+  if (error) {
+    console.error('[listPendingForwardCountsByEntry] error:', error)
+    return {}
+  }
+  const counts: Record<string, number> = {}
+  for (const row of data ?? []) {
+    const entryId = (row as any).knowledge_shares?.entry_id as string | undefined
+    if (!entryId) continue
+    counts[entryId] = (counts[entryId] ?? 0) + 1
+  }
+  return counts
 }
 
 export async function listForwardRequests(entryId?: string): Promise<ForwardRequest[]> {
