@@ -289,6 +289,52 @@ export async function markAllNotificationsRead() {
   revalidatePath('/dashboard')
 }
 
+/**
+ * Resolves a notification's destination URL based on its entity_type/entity_id.
+ * Returns null if no useful target exists. The bell uses this on click to
+ * route the user to the relevant page.
+ */
+export async function resolveNotificationTarget(notificationId: string): Promise<string | null> {
+  const { supabase } = await getOrgContext()
+  const { data: notif } = await (supabase as any)
+    .from('notifications')
+    .select('entity_type, entity_id')
+    .eq('id', notificationId)
+    .maybeSingle()
+  if (!notif) return null
+
+  switch (notif.entity_type as string) {
+    case 'project':
+      return notif.entity_id ? `/dashboard/projects/${notif.entity_id}` : '/dashboard/projects'
+    case 'task':
+      return '/dashboard/tasks'
+    case 'capture':
+      return '/dashboard/captures'
+    case 'knowledge_entry':
+      return notif.entity_id ? `/dashboard/knowledge/${notif.entity_id}` : '/dashboard/knowledge'
+    case 'knowledge_share':
+    case 'share_forwarding_request': {
+      // Look up the underlying entry id so we can deep-link to its detail page,
+      // where the Shares tab + alert banner will surface the request.
+      if (!notif.entity_id) return '/dashboard/knowledge'
+      if (notif.entity_type === 'share_forwarding_request') {
+        const { data: req } = await (supabase as any)
+          .from('share_forwarding_requests')
+          .select('share_id, knowledge_shares!share_forwarding_requests_share_id_fkey!inner(entry_id)')
+          .eq('id', notif.entity_id)
+          .maybeSingle()
+        const entryId = (req as any)?.knowledge_shares?.entry_id
+        return entryId ? `/dashboard/knowledge/${entryId}` : '/dashboard/knowledge'
+      }
+      const { data: share } = await (supabase as any)
+        .from('knowledge_shares').select('entry_id').eq('id', notif.entity_id).maybeSingle()
+      return share?.entry_id ? `/dashboard/knowledge/${share.entry_id}` : '/dashboard/knowledge'
+    }
+    default:
+      return null
+  }
+}
+
 // ── Email template ────────────────────────────────────────────────────────────
 
 function buildInviteEmail({ inviterName, orgName, role, inviteUrl, expiresInDays, customMessage }: {

@@ -1,6 +1,7 @@
 'use client'
-import { useState, useTransition } from 'react'
-import { markNotificationRead, markAllNotificationsRead } from '@/app/api/members/actions'
+import { useState, useEffect, useRef, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
+import { markNotificationRead, markAllNotificationsRead, resolveNotificationTarget } from '@/app/api/members/actions'
 
 interface Notification {
   id: string
@@ -14,15 +15,46 @@ interface Notification {
 }
 
 export function NotificationBell({ initialNotifications }: { initialNotifications: Notification[] }) {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
   const [notifications, setNotifications] = useState(initialNotifications)
   const [, startTransition] = useTransition()
+  const wrapperRef = useRef<HTMLDivElement>(null)
+
+  // Close on click outside the wrapper (the backdrop pattern was getting
+  // trapped inside the nav's z-40 stacking context).
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const escHandler = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    document.addEventListener('keydown', escHandler)
+    return () => {
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('keydown', escHandler)
+    }
+  }, [open])
 
   const unread = notifications.filter(n => !n.read).length
 
-  const handleRead = (id: string) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
-    startTransition(() => markNotificationRead(id))
+  const handleClickNotification = async (n: Notification) => {
+    if (!n.read) {
+      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))
+      startTransition(() => markNotificationRead(n.id))
+    }
+    try {
+      const target = await resolveNotificationTarget(n.id)
+      if (target) {
+        setOpen(false)
+        router.push(target)
+      }
+    } catch {
+      // Non-fatal — the notification is marked read either way.
+    }
   }
 
   const handleReadAll = () => {
@@ -32,6 +64,7 @@ export function NotificationBell({ initialNotifications }: { initialNotification
 
   const TYPE_ICON: Record<string, string> = {
     assignment: '👤', update: '📝', due_date: '📅', mention: '@', invite: '✉', comment: '💬',
+    share_forward_request: '⚠',
   }
 
   function relativeTime(iso: string) {
@@ -45,7 +78,7 @@ export function NotificationBell({ initialNotifications }: { initialNotification
   }
 
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       <button
         onClick={() => setOpen(o => !o)}
         className="relative flex items-center justify-center rounded-md px-2 py-1.5 text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
@@ -60,9 +93,7 @@ export function NotificationBell({ initialNotifications }: { initialNotification
       </button>
 
       {open && (
-        <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
+        <div className="absolute right-0 top-10 z-50 w-80 rounded-xl border border-gray-200 bg-white shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
               <span className="text-xs font-bold uppercase tracking-wider text-gray-500">Notifications</span>
               {unread > 0 && (
@@ -79,7 +110,7 @@ export function NotificationBell({ initialNotifications }: { initialNotification
                 {notifications.map(n => (
                   <li
                     key={n.id}
-                    onClick={() => handleRead(n.id)}
+                    onClick={() => handleClickNotification(n)}
                     className={`flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-gray-50 ${n.read ? 'opacity-50' : ''}`}
                   >
                     <span className="mt-0.5 text-base shrink-0">{TYPE_ICON[n.type] ?? '🔔'}</span>
@@ -93,8 +124,7 @@ export function NotificationBell({ initialNotifications }: { initialNotification
                 ))}
               </ul>
             )}
-          </div>
-        </>
+        </div>
       )}
     </div>
   )
