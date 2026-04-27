@@ -12,6 +12,29 @@ async function getOrgId() {
   return { supabase, org_id: profile.org_id }
 }
 
+/**
+ * Returns a usable supabase client + org_id either from the authenticated
+ * caller (dashboard button) or from an explicit orgId override (Vercel cron).
+ * The override path uses the admin client so it bypasses RLS, which is
+ * required for system-triggered syncs that have no user session.
+ */
+async function getOrgContextOrOverride(orgIdOverride?: string) {
+  if (orgIdOverride) {
+    return { supabase: createAdminClient(), org_id: orgIdOverride }
+  }
+  return getOrgId()
+}
+
+/**
+ * Lists every org id in the system so cron can fan out one sync per org.
+ * In single-tenant Sonja HQ this is a single row.
+ */
+export async function listAllOrgIds(): Promise<string[]> {
+  const admin = createAdminClient()
+  const { data } = await (admin as any).from('orgs').select('id')
+  return (data ?? []).map((r: any) => r.id as string)
+}
+
 // ── Service config ────────────────────────────────────────────────────────────
 
 export type ServiceStatus = 'active' | 'paused'
@@ -193,8 +216,8 @@ export async function logWhisperCall(orgId: string, durationSeconds?: number) {
 
 export type SyncResult = { service: string; synced: number; error: string | null }
 
-export async function syncOpenAIUsage(): Promise<SyncResult> {
-  const { supabase, org_id } = await getOrgId()
+export async function syncOpenAIUsage(orgIdOverride?: string): Promise<SyncResult> {
+  const { supabase, org_id } = await getOrgContextOrOverride(orgIdOverride)
   const admin = createAdminClient()
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey || apiKey === 'sk-placeholder') return { service: 'openai', synced: 0, error: 'OpenAI API key not configured' }
@@ -243,8 +266,8 @@ export async function syncOpenAIUsage(): Promise<SyncResult> {
   }
 }
 
-export async function syncResendUsage(): Promise<SyncResult> {
-  const { supabase, org_id } = await getOrgId()
+export async function syncResendUsage(orgIdOverride?: string): Promise<SyncResult> {
+  const { supabase, org_id } = await getOrgContextOrOverride(orgIdOverride)
   const admin = createAdminClient()
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) return { service: 'resend', synced: 0, error: 'RESEND_API_KEY not configured' }
@@ -292,8 +315,8 @@ export async function syncResendUsage(): Promise<SyncResult> {
   }
 }
 
-export async function syncVercelUsage(): Promise<SyncResult> {
-  const { supabase, org_id } = await getOrgId()
+export async function syncVercelUsage(orgIdOverride?: string): Promise<SyncResult> {
+  const { supabase, org_id } = await getOrgContextOrOverride(orgIdOverride)
   const admin = createAdminClient()
   const token = process.env.VERCEL_TOKEN
   if (!token) return { service: 'vercel', synced: 0, error: 'VERCEL_TOKEN not configured' }
@@ -344,8 +367,8 @@ export async function syncVercelUsage(): Promise<SyncResult> {
   }
 }
 
-export async function syncNetlifyUsage(): Promise<SyncResult> {
-  const { supabase, org_id } = await getOrgId()
+export async function syncNetlifyUsage(orgIdOverride?: string): Promise<SyncResult> {
+  const { supabase, org_id } = await getOrgContextOrOverride(orgIdOverride)
   const admin = createAdminClient()
   const token = process.env.NETLIFY_AUTH_TOKEN
   const accountSlug = process.env.NETLIFY_ACCOUNT_SLUG
@@ -397,8 +420,8 @@ export async function syncNetlifyUsage(): Promise<SyncResult> {
   }
 }
 
-export async function syncSupabaseUsage(): Promise<SyncResult> {
-  const { supabase, org_id } = await getOrgId()
+export async function syncSupabaseUsage(orgIdOverride?: string): Promise<SyncResult> {
+  const { supabase, org_id } = await getOrgContextOrOverride(orgIdOverride)
   const admin = createAdminClient()
   const monthKey = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
 
@@ -420,21 +443,66 @@ export async function syncSupabaseUsage(): Promise<SyncResult> {
   }
 }
 
-export async function syncAllUsage(): Promise<SyncResult[]> {
-  // Respect paused services — skip their sync
-  const configs = await getServiceConfigs()
-  const paused = new Set(configs.filter(c => c.status === 'paused').map(c => c.service))
+export async function syncAllUsage(orgIdOverride?: string): Promise<SyncResult[]> {
+  // Determine paused services. If running under a cron with no auth context,
+  // we read configs via the admin client scoped to this org.
+  const admin = createAdminClient()
+  let pausedSet = new Set<string>()
+  if (orgIdOverride) {
+    const { data } = await (admin as any)
+      .from('service_configs').select('service, status').eq('org_id', orgIdOverride)
+    pausedSet = new Set(((data ?? []) as any[]).filter(c => c.status === 'paused').map(c => c.service))
+  } else {
+    const configs = await getServiceConfigs()
+    pausedSet = new Set(configs.filter(c => c.status === 'paused').map(c => c.service))
+  }
 
   const skip = (svc: string): SyncResult => ({ service: svc, synced: 0, error: 'Paused' })
 
   const [openai, resend, vercel, netlify, supabase] = await Promise.all([
-    paused.has('openai')   ? skip('openai')   : syncOpenAIUsage(),
-    paused.has('resend')   ? skip('resend')   : syncResendUsage(),
-    paused.has('vercel')   ? skip('vercel')   : syncVercelUsage(),
-    paused.has('netlify')  ? skip('netlify')  : syncNetlifyUsage(),
-    paused.has('supabase') ? skip('supabase') : syncSupabaseUsage(),
+    pausedSet.has('openai')   ? skip('openai')   : syncOpenAIUsage(orgIdOverride),
+    pausedSet.has('resend')   ? skip('resend')   : syncResendUsage(orgIdOverride),
+    pausedSet.has('vercel')   ? skip('vercel')   : syncVercelUsage(orgIdOverride),
+    pausedSet.has('netlify')  ? skip('netlify')  : syncNetlifyUsage(orgIdOverride),
+    pausedSet.has('supabase') ? skip('supabase') : syncSupabaseUsage(orgIdOverride),
   ])
 
   revalidatePath('/dashboard/cost')
   return [openai, resend, vercel, netlify, supabase]
+}
+
+/**
+ * Cron entry point. Iterates every org and runs the full sync set per org.
+ * Auth-free: relies on the calling Vercel cron route to gate access via
+ * CRON_SECRET. Aggregates results across orgs into a flat list.
+ */
+export async function syncAllUsageForAllOrgs(): Promise<SyncResult[]> {
+  const orgIds = await listAllOrgIds()
+  const all: SyncResult[] = []
+  for (const orgId of orgIds) {
+    try {
+      const results = await syncAllUsage(orgId)
+      all.push(...results)
+    } catch (e: any) {
+      all.push({ service: 'syncAll', synced: 0, error: `org ${orgId}: ${e?.message ?? 'unknown'}` })
+    }
+  }
+  return all
+}
+
+/**
+ * Returns the most recent synced_at timestamp across all rows in the caller's
+ * org. Used by the dashboard to show "Last synced N min ago".
+ */
+export async function getLastSyncTimestamp(): Promise<string | null> {
+  const { supabase, org_id } = await getOrgId()
+  const { data } = await (supabase as any)
+    .from('resource_usage')
+    .select('synced_at')
+    .eq('org_id', org_id)
+    .not('synced_at', 'is', null)
+    .order('synced_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  return (data?.synced_at as string | null) ?? null
 }

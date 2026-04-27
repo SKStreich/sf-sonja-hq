@@ -29,6 +29,88 @@ function fmtDate(d: string) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
+function relativeAgo(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime()
+  const m = Math.floor(diff / 60_000)
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.floor(h / 24)}d ago`
+}
+
+/** 90-day stacked-by-service bar chart. Each day is a column; service costs
+ * stack within the column with consistent colors. Useful for spotting which
+ * service is climbing month-over-month. */
+function HistoryChart({ usage }: { usage: UsageRow[] }) {
+  const days: string[] = []
+  for (let i = 89; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i)
+    days.push(d.toISOString().slice(0, 10))
+  }
+  const services = Array.from(new Set(usage.map(r => r.service ?? 'other'))).sort()
+  const byDay: Record<string, Record<string, number>> = {}
+  for (const row of usage) {
+    const d = row.period_start?.slice(0, 10)
+    if (!d || !days.includes(d)) continue
+    const svc = row.service ?? 'other'
+    byDay[d] = byDay[d] ?? {}
+    byDay[d][svc] = (byDay[d][svc] ?? 0) + Number(row.cost_usd ?? 0)
+  }
+  const dailyTotals = days.map(d => Object.values(byDay[d] ?? {}).reduce((s, v) => s + v, 0))
+  const maxVal = Math.max(...dailyTotals, 0.01)
+  const width = 600
+  const height = 140
+  const barW = (width - 20) / 90
+  const colorFor: Record<string, string> = {
+    anthropic: '#a855f7', openai: '#10b981', supabase: '#059669', vercel: '#111827',
+    netlify: '#14b8a6', resend: '#3b82f6', other: '#9ca3af',
+  }
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${width} ${height + 22}`} className="w-full" style={{ height: 160 }}>
+        {days.map((d, i) => {
+          const layers = byDay[d] ?? {}
+          let acc = 0
+          const total = dailyTotals[i]
+          if (total === 0) return null
+          return (
+            <g key={d}>
+              {services.map(svc => {
+                const v = layers[svc] ?? 0
+                if (v === 0) return null
+                const h = (v / maxVal) * height
+                const y = height - acc - h
+                acc += h
+                return (
+                  <rect key={svc}
+                    x={10 + i * barW} y={y} width={Math.max(barW - 0.5, 1)} height={h}
+                    fill={colorFor[svc] ?? '#94a3b8'} />
+                )
+              })}
+            </g>
+          )
+        })}
+        {/* Light axis label */}
+        <text x={10} y={height + 16} fontSize={9} fill="#9ca3af">90 days ago</text>
+        <text x={width - 10} y={height + 16} textAnchor="end" fontSize={9} fill="#9ca3af">today</text>
+      </svg>
+      <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
+        {services.map(svc => (
+          <span key={svc} className="inline-flex items-center gap-1">
+            <span className="inline-block h-2 w-2 rounded-sm" style={{ backgroundColor: colorFor[svc] ?? '#94a3b8' }} />
+            <span className="text-gray-600">{(SERVICE_META as any)[svc]?.label ?? svc}</span>
+          </span>
+        ))}
+        {services.length === 0 && (
+          <span className="text-gray-400">No usage rows yet — Sync All or wait for the daily cron.</span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function SpendChart({ usage }: { usage: UsageRow[] }) {
   const width = 560; const height = 80; const barW = 14; const gap = 4
 
@@ -129,9 +211,10 @@ interface Props {
   usage: UsageRow[]
   serviceConfig: Record<string, boolean>
   serviceConfigs: ServiceConfig[]
+  lastSync?: string | null
 }
 
-export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
+export function CostDashboard({ usage, serviceConfig, serviceConfigs, lastSync }: Props) {
   const [addingEntry, setAddingEntry] = useState(false)
   const [syncing, startSync] = useTransition()
   const [syncResults, setSyncResults] = useState<SyncResult[] | null>(null)
@@ -146,9 +229,19 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
   const dayOfMonth = now.getDate()
 
   const mtd = usage.filter(r => r.period_start >= monthStart)
-  const mtdTotal = mtd.reduce((s, r) => s + Number(r.cost_usd), 0)
-  const dailyAvg = dayOfMonth > 0 ? mtdTotal / dayOfMonth : 0
-  const projected = dailyAvg * daysInMonth
+  const mtdUsage = mtd.reduce((s, r) => s + Number(r.cost_usd), 0)
+
+  // Subscription fees — full monthly fee counts immediately for active services.
+  // Each service's row in service_configs.monthly_fee_usd is treated as "the
+  // bill for this calendar month", so MTD includes the full fee from day 1.
+  const mtdSubscriptions = localConfigs
+    .filter(c => c.status === 'active')
+    .reduce((s, c) => s + Number(c.monthly_fee_usd ?? 0), 0)
+
+  const mtdTotal = mtdUsage + mtdSubscriptions
+  const dailyAvg = dayOfMonth > 0 ? mtdUsage / dayOfMonth : 0
+  // Projected end-of-month: prorate usage at current daily rate + add full subs.
+  const projected = (dailyAvg * daysInMonth) + mtdSubscriptions
 
   const byService: Record<string, { cost: number; units: number; rows: UsageRow[]; lastActivity: string | null }> = {}
   for (const row of mtd) {
@@ -219,19 +312,27 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
           <h1 className="mt-2 text-2xl font-bold text-gray-900">Cost & Usage</h1>
           <p className="mt-0.5 text-sm text-gray-500">{now.toLocaleString('default', { month: 'long', year: 'numeric' })}</p>
         </div>
-        <div className="flex items-center gap-2">
-          <Link href="/dashboard/cost/connections"
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors">
-            ⚙ Connections
-          </Link>
-          <button onClick={handleSyncAll} disabled={syncing}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-400 disabled:opacity-40 transition-colors">
-            {syncing ? 'Syncing…' : '↻ Sync All'}
-          </button>
-          <button onClick={() => setAddingEntry(true)} disabled={addingEntry}
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors">
-            + Add Entry
-          </button>
+        <div className="flex flex-col items-end gap-1">
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard/cost/connections"
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-400 transition-colors">
+              ⚙ Connections
+            </Link>
+            <button onClick={handleSyncAll} disabled={syncing}
+              title="Daily cron runs automatically at 08:00 UTC. Use this for an on-demand sync."
+              className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-400 disabled:opacity-40 transition-colors">
+              {syncing ? 'Syncing…' : '↻ Sync All'}
+            </button>
+            <button onClick={() => setAddingEntry(true)} disabled={addingEntry}
+              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors">
+              + Add Entry
+            </button>
+          </div>
+          <p className="text-[10px] text-gray-400">
+            {lastSync
+              ? <>Last synced <span title={new Date(lastSync).toLocaleString()}>{relativeAgo(lastSync)}</span> · daily cron 08:00 UTC</>
+              : <>No syncs yet · daily cron 08:00 UTC</>}
+          </p>
         </div>
       </div>
 
@@ -267,10 +368,11 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
       )}
 
       {/* Summary cards */}
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'MTD Spend', value: fmtCost(mtdTotal), sub: `${dayOfMonth} days` },
-          { label: 'Daily Average', value: fmtCost(dailyAvg), sub: 'per day' },
+          { label: 'MTD Spend', value: fmtCost(mtdTotal), sub: `${dayOfMonth} days · usage + subs` },
+          { label: 'Subscriptions', value: fmtCost(mtdSubscriptions), sub: 'monthly fees' },
+          { label: 'Daily Avg Usage', value: fmtCost(dailyAvg), sub: 'usage per day' },
           { label: 'Projected', value: fmtCost(projected), sub: 'end of month' },
         ].map(c => (
           <div key={c.label} className="rounded-xl border border-gray-200 bg-white px-5 py-4">
@@ -282,6 +384,14 @@ export function CostDashboard({ usage, serviceConfig, serviceConfigs }: Props) {
       </div>
 
       {/* Chart */}
+      <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 mb-6">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-500">History — Last 90 Days</p>
+          <p className="text-xs text-gray-400">stacked by service</p>
+        </div>
+        <HistoryChart usage={usage} />
+      </div>
+
       <div className="rounded-xl border border-gray-200 bg-white px-5 py-4 mb-6">
         <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-3">Daily Spend — Last 30 Days</p>
         <SpendChart usage={usage} />
