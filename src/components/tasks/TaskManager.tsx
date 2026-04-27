@@ -387,96 +387,111 @@ export function TaskManager({ tasks, projects, entities, members = [], currentUs
   const doneCount = tasks.filter(t => t.status === 'done').length
   const cancelledCount = tasks.filter(t => t.status === 'cancelled').length
 
-  const STATUS_FILTERS: { id: StatusFilter; label: string }[] = [
-    { id: 'all', label: 'All' },
-    { id: 'open', label: 'Open' },
-    { id: 'done', label: 'Done' },
-    { id: 'cancelled', label: 'Cancelled' },
-  ]
-
   const btnActive = 'bg-gray-200 text-gray-900'
   const btnInactive = 'text-gray-500 hover:text-gray-700'
 
+  const totalCount = openCount + doneCount + cancelledCount
+  const STATUS_TILES: { id: StatusFilter; label: string; count: number; tone: string }[] = [
+    { id: 'all',       label: 'All',       count: totalCount,     tone: 'border-gray-200 hover:border-gray-300' },
+    { id: 'open',      label: 'Open',      count: openCount,      tone: 'border-indigo-200 hover:border-indigo-300' },
+    { id: 'done',      label: 'Done',      count: doneCount,      tone: 'border-green-200 hover:border-green-300' },
+    { id: 'cancelled', label: 'Cancelled', count: cancelledCount, tone: 'border-red-200 hover:border-red-300' },
+  ]
+
   return (
-    <div className="mx-auto max-w-3xl px-6 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="mx-auto max-w-5xl px-6 py-8">
+      {/* Header row 1 — title + page-level actions */}
+      <div className="flex items-start justify-between mb-5">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Tasks</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {openCount} Open · {doneCount} Done · {cancelledCount} Cancelled
-          </p>
+          <p className="mt-0.5 text-sm text-gray-500">{totalCount} task{totalCount === 1 ? '' : 's'} across all entities</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center rounded-lg border border-gray-200 bg-white p-1 gap-1 flex-nowrap">
-            <button
-              onClick={() => setFilterEntity('all')}
-              className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === 'all' ? btnActive : btnInactive}`}
-            >All</button>
-            {entities.map(e => (
-              <button
-                key={e.id}
-                onClick={() => setFilterEntity(e.type)}
-                className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${filterEntity === e.type ? btnActive : btnInactive}`}
-              >
-                <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: e.color }} />
-                {ENTITY_LABELS[e.type] ?? e.name}
-              </button>
-            ))}
-            {currentUserId && members.length > 1 && (
-              <button
-                onClick={() => setMineOnly(o => !o)}
-                className={`whitespace-nowrap rounded px-2.5 py-1 text-xs font-medium transition-colors ${mineOnly ? 'bg-indigo-100 text-indigo-700' : btnInactive}`}
-              >
-                👤 Mine
-              </button>
-            )}
-          </div>
-          <div className="flex items-center rounded-lg border border-gray-200 bg-white p-1 gap-1">
-            <button
-              onClick={() => setView('buckets')}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${view === 'buckets' ? btnActive : btnInactive}`}
-            >≡ Buckets</button>
-            <button
-              onClick={() => setView('timeline')}
-              className={`rounded px-2.5 py-1 text-xs font-medium transition-colors ${view === 'timeline' ? btnActive : btnInactive}`}
-            >⋯ Timeline</button>
-          </div>
+        <div className="flex items-center gap-2">
           <a href="/api/tasks/export"
             title="Download tasks as CSV"
             aria-label="Download tasks CSV"
-            className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
+            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
             ⬇
           </a>
           <a href="/dashboard/tasks/print"
             target="_blank"
             title="Print tasks"
             aria-label="Print tasks"
-            className="rounded-lg border border-gray-200 bg-white p-1.5 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
+            className="rounded-lg border border-gray-200 bg-white p-2 text-gray-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
             🖨
           </a>
           <button
             onClick={() => setAddingQuick(true)}
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 transition-colors"
+            className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 transition-colors"
           >
-            <span className="text-sm leading-none">+</span> New Task
+            <span>+</span> New Task
           </button>
         </div>
       </div>
 
-      {/* Status filter pills */}
-      <div className="flex items-center gap-1 mb-5">
-        {STATUS_FILTERS.map(sf => (
+      {/* Status count tiles — also act as the status filter */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+        {STATUS_TILES.map(t => {
+          const active = statusFilter === t.id
+          return (
+            <button
+              key={t.id}
+              onClick={() => setStatusFilter(t.id)}
+              className={`rounded-xl border bg-white px-4 py-3 text-left transition-all ${
+                active
+                  ? 'border-indigo-500 ring-2 ring-indigo-100'
+                  : t.tone
+              }`}
+            >
+              <p className="text-xs font-medium uppercase tracking-wider text-gray-500">{t.label}</p>
+              <p className="mt-1 text-2xl font-bold text-gray-900">{t.count}</p>
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Header row 2 — entity filter (mirrors Projects) + view toggle */}
+      <div className="flex flex-wrap items-center gap-3 mb-5">
+        <div className="flex items-center rounded-lg border border-gray-200 bg-white p-1 gap-1 flex-wrap">
           <button
-            key={sf.id}
-            onClick={() => setStatusFilter(sf.id)}
-            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
-              statusFilter === sf.id ? 'bg-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-700'
+            onClick={() => setFilterEntity('all')}
+            className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${filterEntity === 'all' ? btnActive : btnInactive}`}
+          >All</button>
+          {entities.map(e => (
+            <button
+              key={e.id}
+              onClick={() => setFilterEntity(e.type)}
+              className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${filterEntity === e.type ? btnActive : btnInactive}`}
+            >
+              <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: e.color ?? undefined }} />
+              {ENTITY_LABELS[e.type] ?? e.name}
+            </button>
+          ))}
+        </div>
+
+        {currentUserId && members.length > 1 && (
+          <button
+            onClick={() => setMineOnly(o => !o)}
+            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+              mineOnly
+                ? 'border-indigo-300 bg-indigo-50 text-indigo-700'
+                : 'border-gray-200 bg-white text-gray-500 hover:text-gray-700'
             }`}
           >
-            {sf.label}
+            👤 Mine only
           </button>
-        ))}
+        )}
+
+        <div className="ml-auto flex items-center rounded-lg border border-gray-200 bg-white p-1 gap-1">
+          <button
+            onClick={() => setView('buckets')}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${view === 'buckets' ? btnActive : btnInactive}`}
+          >≡ Buckets</button>
+          <button
+            onClick={() => setView('timeline')}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${view === 'timeline' ? btnActive : btnInactive}`}
+          >⋯ Timeline</button>
+        </div>
       </div>
 
       {addingQuick && (
