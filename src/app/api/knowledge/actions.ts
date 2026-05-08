@@ -95,23 +95,25 @@ export async function getEntry(id: string): Promise<KnowledgeEntry | null> {
 async function classify(body: string, entityHint: Entity): Promise<{
   title: string; type_hint: TypeHint; tags: string[]; confidence: number; summary: string | null
 }> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) {
-    return {
-      title: body.split('\n')[0].slice(0, 120),
-      type_hint: 'strategy',
-      tags: [],
-      confidence: 0.3,
-      summary: null,
-    }
+  const fallback = {
+    title: body.split('\n')[0].slice(0, 120),
+    type_hint: 'strategy' as TypeHint,
+    tags: [] as string[],
+    confidence: 0.3,
+    summary: null as string | null,
   }
-  const client = new Anthropic({ apiKey })
-  const res = await client.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 400,
-    messages: [{
-      role: 'user',
-      content: `Classify this note into JSON with schema:
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return fallback
+
+  let text = '{}'
+  try {
+    const client = new Anthropic({ apiKey })
+    const res = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 400,
+      messages: [{
+        role: 'user',
+        content: `Classify this note into JSON with schema:
 {
   "title": "short title (max 80 chars)",
   "type_hint": one of ["decision","strategy","primer","brand","marketing","business","idea"],
@@ -123,22 +125,27 @@ async function classify(body: string, entityHint: Entity): Promise<{
 Entity context: ${entityHint}
 Content:
 ${body.slice(0, 4000)}`,
-    }],
-  })
-  const text = res.content[0].type === 'text' ? res.content[0].text : '{}'
+      }],
+    })
+    text = res.content[0].type === 'text' ? res.content[0].text : '{}'
+  } catch (err) {
+    console.error('[classify] Anthropic call failed; saving with fallback metadata:', err)
+    return fallback
+  }
+
   const jsonStr = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim()
   try {
     const p = JSON.parse(jsonStr)
     const type_hint: TypeHint = (TYPE_HINTS_CONST as readonly string[]).includes(p.type_hint) ? p.type_hint : 'strategy'
     return {
-      title: String(p.title ?? '').slice(0, 120) || body.split('\n')[0].slice(0, 120),
+      title: String(p.title ?? '').slice(0, 120) || fallback.title,
       type_hint,
       tags: Array.isArray(p.tags) ? p.tags.map((t: any) => String(t).toLowerCase()).slice(0, 8) : [],
       confidence: typeof p.confidence === 'number' ? Math.max(0, Math.min(1, p.confidence)) : 0.5,
       summary: typeof p.summary === 'string' ? p.summary.slice(0, 200) : null,
     }
   } catch {
-    return { title: body.split('\n')[0].slice(0, 120), type_hint: 'strategy', tags: [], confidence: 0.3, summary: null }
+    return fallback
   }
 }
 
