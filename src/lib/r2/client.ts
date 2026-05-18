@@ -85,9 +85,12 @@ export async function r2Put(
   for (const [k, v] of Object.entries(options.metadata ?? {})) {
     headers[`x-amz-meta-${k.toLowerCase()}`] = v
   }
+  // `body` is Buffer or Uint8Array; coerce to a plain Uint8Array view so it
+  // satisfies the fetch BodyInit type. No copy — same underlying buffer.
+  const bodyView = new Uint8Array(body.buffer, body.byteOffset, body.byteLength)
   const res = await cfg.client.fetch(endpoint(cfg, key), {
     method: 'PUT',
-    body,
+    body: bodyView,
     headers,
   })
   if (!res.ok) {
