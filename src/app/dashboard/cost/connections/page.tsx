@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { getServiceConfigs } from '@/app/api/usage/actions'
+import { listBackupState } from '@/app/api/backup/actions'
 import { ConnectionsClient } from './ConnectionsClient'
 
 export const dynamic = 'force-dynamic'
@@ -10,7 +11,10 @@ export default async function ConnectionsPage() {
   const supabase = createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  const configs = await getServiceConfigs()
+  const [configs, backupState] = await Promise.all([
+    getServiceConfigs(),
+    listBackupState().catch(() => []),
+  ])
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       <div className="mb-6 flex items-start justify-between">
@@ -23,7 +27,7 @@ export default async function ConnectionsPage() {
           </p>
         </div>
       </div>
-      <ConnectionsClient initial={configs} />
+      <ConnectionsClient initial={configs} backupState={backupState} />
     </div>
   )
 }
