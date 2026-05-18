@@ -85,12 +85,13 @@ export async function r2Put(
   for (const [k, v] of Object.entries(options.metadata ?? {})) {
     headers[`x-amz-meta-${k.toLowerCase()}`] = v
   }
-  // `body` is Buffer or Uint8Array; coerce to a plain Uint8Array view so it
-  // satisfies the fetch BodyInit type. No copy — same underlying buffer.
-  const bodyView = new Uint8Array(body.buffer, body.byteOffset, body.byteLength)
+  // `body` is Buffer or Uint8Array. We pass it via a fresh ArrayBuffer copy —
+  // Node's native fetch + aws4fetch RequestInit typings disagree on whether
+  // Uint8Array is a valid BodyInit member, but ArrayBuffer is unambiguous.
+  const bodyAb = body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength) as ArrayBuffer
   const res = await cfg.client.fetch(endpoint(cfg, key), {
     method: 'PUT',
-    body: bodyView,
+    body: bodyAb,
     headers,
   })
   if (!res.ok) {
