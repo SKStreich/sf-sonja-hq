@@ -1,5 +1,5 @@
 'use client'
-import { useState, useTransition, useRef } from 'react'
+import { useState, useTransition, useRef, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './ProjectStatusBadge'
@@ -8,6 +8,7 @@ import { createTask, updateTask, deleteTask } from '@/app/api/tasks/actions'
 import { archiveProject, addProjectUpdate, deleteProjectUpdate, saveProjectFile, deleteProjectFile } from '@/app/api/projects/actions'
 import { linkProjectToNotion } from '@/app/api/documents/actions'
 import { saveGitHubUrl, type GitHubCommit } from '@/app/api/integrations/actions'
+import { getProjectBacklinks, type Backlink } from '@/app/api/knowledge/links'
 import { createClient } from '@/lib/supabase/client'
 import type { Database, TaskStatus } from '@/types/supabase'
 
@@ -92,7 +93,16 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
   const [newTask, setNewTask] = useState('')
   const [newUpdate, setNewUpdate] = useState('')
   const [updateType, setUpdateType] = useState('note')
-  const [activeTab, setActiveTab] = useState<'tasks' | 'log' | 'files' | 'github'>('tasks')
+  const [activeTab, setActiveTab] = useState<'tasks' | 'log' | 'files' | 'github' | 'linked'>('tasks')
+  const [backlinks, setBacklinks] = useState<Backlink[] | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getProjectBacklinks(project.id)
+      .then(b => { if (!cancelled) setBacklinks(b) })
+      .catch(() => { if (!cancelled) setBacklinks([]) })
+    return () => { cancelled = true }
+  }, [project.id])
   const [isPending, startTransition] = useTransition()
   const [archiving, setArchiving] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -365,6 +375,9 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
           <button className={tabCls('github')} onClick={() => setActiveTab('github')}>
             GitHub {commits.length > 0 && <span className="ml-1 text-gray-400">{commits.length}</span>}
           </button>
+          <button className={tabCls('linked')} onClick={() => setActiveTab('linked')}>
+            Linked {backlinks && backlinks.length > 0 && <span className="ml-1 text-gray-400">{backlinks.length}</span>}
+          </button>
         </div>
 
         {/* ── TASKS TAB ── */}
@@ -612,6 +625,33 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
                   </div>
                 ))}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── LINKED TAB ── */}
+        {activeTab === 'linked' && (
+          <div>
+            {backlinks === null ? (
+              <p className="text-sm text-gray-400">Loading…</p>
+            ) : backlinks.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-12">
+                <p className="text-sm text-gray-500">No workspace pages mention this project yet</p>
+                <p className="mt-1 text-xs text-gray-400">Inside a workspace page, type <code className="rounded bg-gray-100 px-1">[[Project: {project.name}]]</code> to create a backlink.</p>
+              </div>
+            ) : (
+              <ul className="divide-y divide-gray-100">
+                {backlinks.map(b => (
+                  <li key={b.id} className="py-2">
+                    <Link href={`/dashboard/knowledge/${b.id}`}
+                      className="flex items-center gap-2 text-sm text-gray-900 hover:text-indigo-700">
+                      <span className="text-gray-400">{b.kind === 'workspace' ? '📄' : '🔗'}</span>
+                      <span className="flex-1 truncate">{b.title || 'Untitled'}</span>
+                      <span className="text-[10px] uppercase tracking-wider text-gray-400">{b.kind} · {b.entity}</span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
         )}

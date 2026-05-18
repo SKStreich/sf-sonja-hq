@@ -17,6 +17,10 @@ import {
   getWorkspaceSiblings,
   type WorkspaceNode,
 } from '@/app/api/knowledge/workspace'
+import {
+  searchLinkTargets, resolveMentionsForRender, getEntryBacklinks,
+  type LinkTarget, type Backlink,
+} from '@/app/api/knowledge/links'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -220,6 +224,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
                 onChange={v => { setBody(v); markDirty() }}
               />
               <WorkspaceChildren parentId={entry.id} />
+              <WorkspaceBacklinks entryId={entry.id} reloadKey={reloadKey} />
               <WorkspaceSiblings entryId={entry.id} />
             </>
           ) : (
@@ -962,12 +967,32 @@ function SharesTab({ entryId, onOpenNewShare }: { entryId: string; onOpenNewShar
   )
 }
 
+type MentionMap = Record<string, { kind: 'entry' | 'project'; id: string }>
+
 function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [view, setView] = useState<'split' | 'edit' | 'preview'>('split')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  // Insert text at the textarea cursor (or wrap selected text). For wraps,
-  // pass `wrap` true and `before`/`after` as the surrounding tokens.
+  // [[…]] autocomplete state. The popup opens when the user types `[[` and
+  // closes on Esc, blur, or once the token is closed with `]]`.
+  const [mentionOpen, setMentionOpen] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState('')
+  const [mentionResults, setMentionResults] = useState<LinkTarget[]>([])
+  const [mentionHover, setMentionHover] = useState(0)
+  const mentionStartRef = useRef<number>(-1)   // index of the `[[` that opened it
+
+  // Resolved mentions for the Preview pane. Refreshes (debounced) when `value`
+  // changes. We render unresolved tokens as broken-link pills.
+  const [mentionMap, setMentionMap] = useState<MentionMap>({})
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      resolveMentionsForRender(value).then(m => setMentionMap(m)).catch(() => {})
+    }, 400)
+    return () => clearTimeout(t)
+  }, [value])
+
+  // Insert text at the textarea cursor (or wrap selected text).
   const insertAtCursor = (opts: {
     before?: string
     after?: string
@@ -993,7 +1018,6 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     const insertion = `${prefix}${before}${selected}${after}${suffix}`
     const next = value.slice(0, start) + insertion + value.slice(end)
     onChange(next)
-    // Restore focus + put cursor inside the inserted token.
     setTimeout(() => {
       ta.focus()
       const cursorPos = start + prefix.length + before.length + selected.length
@@ -1001,8 +1025,7 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     }, 0)
   }
 
-  // Toggle the Nth GFM task-list checkbox in `value`. Matches `- [ ]` or `- [x]`
-  // (also `* [ ]`, `+ [ ]`, with leading whitespace) at start of line.
+  // Toggle the Nth GFM task-list checkbox in `value`.
   const toggleTask = (index: number) => {
     let i = 0
     let done = false
@@ -1018,6 +1041,64 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     if (next !== value) onChange(next)
   }
 
+  // After every change/selection, re-check whether the cursor sits inside an
+  // open `[[…` token. If so, fetch search results and show the popup.
+  const checkMentionPopup = () => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const caret = ta.selectionStart
+    const slice = value.slice(0, caret)
+    const open = slice.lastIndexOf('[[')
+    if (open === -1) { setMentionOpen(false); return }
+    // Bail if `]]` appears between `[[` and caret (token already closed) or
+    // if there's a newline (linkable label shouldn't span lines).
+    const between = slice.slice(open + 2)
+    if (between.includes(']]') || between.includes('\n')) { setMentionOpen(false); return }
+    mentionStartRef.current = open
+    // Strip leading "Entry:" / "Project:" prefix so the user can type either
+    // `[[foo` or `[[Entry: foo` and get matching results.
+    let q = between.replace(/^(Entry|Project)\s*:\s*/i, '')
+    setMentionQuery(q)
+    setMentionOpen(true)
+    setMentionHover(0)
+    searchLinkTargets(q).then(setMentionResults).catch(() => setMentionResults([]))
+  }
+
+  const insertMention = (target: LinkTarget) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const start = mentionStartRef.current
+    const caret = ta.selectionStart
+    if (start < 0) { setMentionOpen(false); return }
+    const kindLabel = target.kind === 'entry' ? 'Entry' : 'Project'
+    const token = `[[${kindLabel}: ${target.label}]]`
+    const next = value.slice(0, start) + token + value.slice(caret)
+    onChange(next)
+    setMentionOpen(false)
+    setTimeout(() => {
+      ta.focus()
+      const pos = start + token.length
+      ta.setSelectionRange(pos, pos)
+    }, 0)
+  }
+
+  const onTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (!mentionOpen || mentionResults.length === 0) return
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      setMentionHover(h => Math.min(h + 1, mentionResults.length - 1))
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      setMentionHover(h => Math.max(h - 1, 0))
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      const pick = mentionResults[mentionHover]
+      if (pick) { e.preventDefault(); insertMention(pick) }
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      setMentionOpen(false)
+    }
+  }
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="sticky top-16 z-20 rounded-t-lg border-b border-gray-200 bg-white">
@@ -1025,7 +1106,9 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
           <button onClick={() => setView('edit')} className={`rounded px-2 py-1 ${view === 'edit' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'}`}>Edit</button>
           <button onClick={() => setView('split')} className={`rounded px-2 py-1 ${view === 'split' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'}`}>Split</button>
           <button onClick={() => setView('preview')} className={`rounded px-2 py-1 ${view === 'preview' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'}`}>Preview</button>
-          <span className="ml-auto text-[11px] text-gray-400 hidden sm:inline">Tip: use the toolbar — no Markdown knowledge needed</span>
+          <span className="ml-auto text-[11px] text-gray-400 hidden sm:inline">
+            Tip: type <code className="rounded bg-gray-100 px-1">[[</code> to link an entry or project
+          </span>
         </div>
         {view !== 'preview' && (
           <FormatToolbar onInsert={insertAtCursor} />
@@ -1033,19 +1116,34 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
       </div>
       <div className={`grid gap-0 ${view === 'split' ? 'md:grid-cols-2' : 'grid-cols-1'}`}>
         {view !== 'preview' && (
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={e => onChange(e.target.value)}
-            rows={28}
-            placeholder={'Type here, or use the toolbar above to add headings, bullets, links, and more.'}
-            className="w-full resize-none border-0 bg-white p-4 font-sans text-sm text-gray-900 outline-none md:border-r md:border-gray-200"
-          />
+          <div className="relative">
+            <textarea
+              ref={textareaRef}
+              value={value}
+              onChange={e => { onChange(e.target.value); setTimeout(checkMentionPopup, 0) }}
+              onKeyDown={onTextareaKeyDown}
+              onKeyUp={checkMentionPopup}
+              onClick={checkMentionPopup}
+              onBlur={() => setTimeout(() => setMentionOpen(false), 150)}
+              rows={28}
+              placeholder={'Type here, or use the toolbar above to add headings, bullets, links, and more.'}
+              className="w-full resize-none border-0 bg-white p-4 font-sans text-sm text-gray-900 outline-none md:border-r md:border-gray-200"
+            />
+            {mentionOpen && (
+              <MentionPopup
+                query={mentionQuery}
+                results={mentionResults}
+                hover={mentionHover}
+                onPick={insertMention}
+                onHover={setMentionHover}
+              />
+            )}
+          </div>
         )}
         {view !== 'edit' && (
           <div className="prose prose-sm max-w-none p-4 text-gray-900 prose-headings:font-semibold prose-headings:text-gray-900 prose-a:text-indigo-600 prose-code:rounded prose-code:bg-gray-100 prose-code:px-1 prose-code:py-0.5 prose-code:text-[0.85em] prose-code:before:content-none prose-code:after:content-none prose-pre:bg-gray-900 prose-pre:text-gray-100">
             {value.trim() ? (
-              <MarkdownPreview value={value} onToggleTask={toggleTask} />
+              <MarkdownPreview value={value} onToggleTask={toggleTask} mentionMap={mentionMap} />
             ) : (
               <p className="italic text-gray-400">Preview will appear here.</p>
             )}
@@ -1056,14 +1154,96 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
   )
 }
 
-function MarkdownPreview({ value, onToggleTask }: { value: string; onToggleTask: (i: number) => void }) {
-  // Track which task-list checkbox we're rendering (in document order) so the
-  // onChange handler can edit the matching `[ ]`/`[x]` in the source.
+function MentionPopup({ query, results, hover, onPick, onHover }: {
+  query: string
+  results: LinkTarget[]
+  hover: number
+  onPick: (t: LinkTarget) => void
+  onHover: (i: number) => void
+}) {
+  return (
+    <div className="absolute left-4 right-4 top-[60%] z-30 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg md:right-auto md:w-96">
+      <div className="border-b border-gray-100 px-3 py-1.5 text-[11px] uppercase tracking-wider text-gray-400">
+        Link a page or project {query && <span className="ml-1 normal-case tracking-normal text-gray-600">— "{query}"</span>}
+      </div>
+      {results.length === 0 ? (
+        <p className="px-3 py-3 text-sm text-gray-500">No matches. Keep typing — full title is fine too.</p>
+      ) : (
+        <ul>
+          {results.map((r, i) => (
+            <li key={`${r.kind}:${r.id}`}>
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); onPick(r) }}
+                onMouseEnter={() => onHover(i)}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                  i === hover ? 'bg-indigo-50 text-indigo-900' : 'text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <span className="text-base">{r.kind === 'project' ? '📁' : '📄'}</span>
+                <span className="flex-1 truncate">{r.label}</span>
+                {r.hint && <span className="text-[10px] uppercase tracking-wider text-gray-400">{r.hint}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-400">↑↓ navigate · ⏎ insert · Esc close</div>
+    </div>
+  )
+}
+
+// Prefix used to encode resolved `[[…]]` mentions into Markdown link hrefs.
+// The Preview's `a` renderer detects this prefix and renders a pill instead.
+const MENTION_PREFIX = '/__mention/'
+
+function expandMentions(body: string, map: MentionMap): string {
+  return body.replace(/\[\[(Entry|Project):\s*([^\]\n]+?)\s*\]\]/g, (_full, rawKind, rawLabel) => {
+    const kind = (rawKind as string).toLowerCase() === 'project' ? 'project' : 'entry'
+    const label = (rawLabel as string).trim()
+    const key = `${kind}::${label.toLowerCase()}`
+    const hit = map[key]
+    // Escape `]` inside link text — would otherwise break Markdown parsing.
+    const safeLabel = label.replace(/]/g, '\\]')
+    if (hit) {
+      return `[${kind === 'project' ? '📁' : '📄'} ${safeLabel}](${MENTION_PREFIX}${kind}/${hit.id})`
+    }
+    return `[${kind === 'project' ? '📁' : '📄'} ${safeLabel}](${MENTION_PREFIX}${kind}/broken/${encodeURIComponent(label)})`
+  })
+}
+
+function MarkdownPreview({ value, onToggleTask, mentionMap }: {
+  value: string
+  onToggleTask: (i: number) => void
+  mentionMap: MentionMap
+}) {
+  const expanded = expandMentions(value, mentionMap)
   const counter = { i: 0 }
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
       components={{
+        a: ({ node, href, children, ...props }: any) => {
+          if (typeof href === 'string' && href.startsWith(MENTION_PREFIX)) {
+            const rest = href.slice(MENTION_PREFIX.length)
+            const [kind, ...tail] = rest.split('/')
+            const isBroken = tail[0] === 'broken'
+            const targetId = isBroken ? '' : tail[0]
+            const isProject = kind === 'project'
+            const dest = isBroken ? null
+              : isProject ? `/dashboard/projects/${targetId}` : `/dashboard/knowledge/${targetId}`
+            const pillClass = isBroken
+              ? 'inline-flex items-center gap-1 rounded-md border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[0.85em] font-medium text-amber-800 no-underline'
+              : isProject
+                ? 'inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[0.85em] font-medium text-emerald-800 no-underline hover:bg-emerald-100'
+                : 'inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[0.85em] font-medium text-indigo-800 no-underline hover:bg-indigo-100'
+            if (dest) {
+              return <Link href={dest} className={pillClass}>{children}</Link>
+            }
+            return <span className={pillClass} title="Unresolved link — no entry/project with that title">{children}</span>
+          }
+          return <a href={href} {...props}>{children}</a>
+        },
         input: ({ node, ...props }: any) => {
           if (props.type === 'checkbox') {
             const idx = counter.i++
@@ -1088,7 +1268,7 @@ function MarkdownPreview({ value, onToggleTask }: { value: string; onToggleTask:
         },
       }}
     >
-      {value}
+      {expanded}
     </ReactMarkdown>
   )
 }
@@ -1272,6 +1452,39 @@ function WorkspaceSiblings({ entryId }: { entryId: string }) {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+function WorkspaceBacklinks({ entryId, reloadKey }: { entryId: string; reloadKey: number }) {
+  const [backlinks, setBacklinks] = useState<Backlink[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getEntryBacklinks(entryId)
+      .then(b => { if (!cancelled) setBacklinks(b) })
+      .catch(() => { if (!cancelled) setBacklinks([]) })
+    return () => { cancelled = true }
+  }, [entryId, reloadKey])
+
+  if (!backlinks || backlinks.length === 0) return null
+
+  return (
+    <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">
+        Mentioned by <span className="text-gray-400">({backlinks.length})</span>
+      </h3>
+      <ul className="divide-y divide-gray-100">
+        {backlinks.map(b => (
+          <li key={b.id} className="py-2">
+            <Link href={`/dashboard/knowledge/${b.id}`}
+              className="flex items-center gap-2 text-sm text-gray-900 hover:text-indigo-700">
+              <span className="text-gray-400">{b.kind === 'workspace' ? '📄' : '🔗'}</span>
+              <span className="flex-1 truncate">{b.title || 'Untitled'}</span>
+              <span className="text-[10px] uppercase tracking-wider text-gray-400">{b.kind} · {b.entity}</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
