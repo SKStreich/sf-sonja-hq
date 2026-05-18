@@ -9,6 +9,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { Entity } from './actions'
+import { syncMentionsForEntry } from './links'
 
 export interface WorkspaceNode {
   id: string
@@ -209,6 +210,13 @@ export async function updateWorkspacePage(
   const { error } = await (supabase as any)
     .from('knowledge_entries').update(update).eq('id', id)
   if (error) throw new Error('Failed to update page: ' + error.message)
+
+  // Re-sync [[…]] mentions whenever body changes. Failures are non-fatal so a
+  // save never blocks on link parsing — the user still keeps their content.
+  if (patch.body !== undefined) {
+    try { await syncMentionsForEntry(id, patch.body) }
+    catch (e) { console.error('syncMentionsForEntry failed:', e) }
+  }
 
   revalidatePath('/dashboard/knowledge')
   revalidatePath(`/dashboard/knowledge/${id}`)
