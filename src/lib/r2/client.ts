@@ -148,7 +148,10 @@ export async function r2List(prefix: string): Promise<R2Object[]> {
       throw new Error(`R2 LIST ${prefix} → ${res.status} ${text.slice(0, 200)}`)
     }
     const xml = await res.text()
-    for (const match of xml.matchAll(/<Contents>([\s\S]*?)<\/Contents>/g)) {
+    // tsconfig target is es5; can't iterate a matchAll() result directly.
+    const re = /<Contents>([\s\S]*?)<\/Contents>/g
+    let match: RegExpExecArray | null
+    while ((match = re.exec(xml)) !== null) {
       const block = match[1]
       const key = /<Key>([^<]+)<\/Key>/.exec(block)?.[1]
       const size = Number(/<Size>([^<]+)<\/Size>/.exec(block)?.[1] ?? 0)
