@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Sonja HQ — Build Retrospective &amp; SF Ops Carry-Overs</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  :root {
+    color-scheme: light;
+    --indigo: #4f46e5;
+    --indigo-light: #eef2ff;
+    --green: #059669;
+    --green-light: #ecfdf5;
+    --amber: #d97706;
+    --amber-light: #fffbeb;
+    --red: #dc2626;
+    --red-light: #fef2f2;
+    --text: #111827;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --bg: #f9fafb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 96px; }
+  header.hero { padding: 48px 32px; border-radius: 18px; background: linear-gradient(135deg, #4338ca 0%, #6366f1 50%, #818cf8 100%); color: #fff; box-shadow: 0 12px 32px rgba(79,70,229,.25); margin-bottom: 32px; }
+  header.hero .eyebrow { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; opacity: .85; }
+  header.hero h1 { margin: 8px 0 8px; font-size: 32px; font-weight: 800; letter-spacing: -.02em; }
+  header.hero p.lead { font-size: 16px; max-width: 720px; line-height: 1.55; opacity: .92; margin: 0; }
+
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 28px; }
+  .kpi { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.25); border-radius: 12px; padding: 14px 16px; }
+  .kpi .v { font-size: 24px; font-weight: 700; }
+  .kpi .l { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; opacity: .85; margin-top: 2px; }
+
+  section { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 28px 28px 24px; margin-bottom: 20px; box-shadow: 0 1px 2px rgba(0,0,0,.04); }
+  section > h2 { margin: 0 0 4px; font-size: 20px; font-weight: 700; letter-spacing: -.01em; display: flex; align-items: center; gap: 10px; }
+  section > p.sublede { color: var(--muted); margin: 0 0 20px; font-size: 14px; line-height: 1.55; }
+  section h3 { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 24px 0 10px; }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid-2 { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } }
+
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: #fff; }
+  .card .title { font-weight: 600; font-size: 14px; margin: 0 0 4px; line-height: 1.3; }
+  .card .body { font-size: 13px; color: #374151; line-height: 1.55; margin: 0; }
+  .card.win { border-color: #d1fae5; background: var(--green-light); }
+  .card.win .title { color: #065f46; }
+  .card.miss { border-color: #fed7aa; background: var(--amber-light); }
+  .card.miss .title { color: #92400e; }
+  .card.fail { border-color: #fecaca; background: var(--red-light); }
+  .card.fail .title { color: #991b1b; }
+
+  .lesson { display: flex; gap: 14px; padding: 14px 0; border-top: 1px solid var(--line); }
+  .lesson:first-of-type { border-top: 0; padding-top: 0; }
+  .lesson .num { flex: 0 0 28px; height: 28px; border-radius: 8px; background: var(--indigo-light); color: var(--indigo); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+  .lesson .body h4 { margin: 2px 0 6px; font-size: 14px; font-weight: 700; }
+  .lesson .body p { margin: 0; font-size: 13px; color: #374151; line-height: 1.55; }
+  .lesson .body code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: #f3f4f6; border-radius: 4px; padding: 1px 5px; }
+  .lesson .body .takeaway { margin-top: 8px; padding: 8px 10px; background: #fff; border-left: 3px solid var(--indigo); border-radius: 4px; font-size: 12px; color: #1f2937; }
+  .lesson .body .takeaway b { color: var(--indigo); font-weight: 700; }
+
+  .pill { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; border-radius: 999px; padding: 3px 8px; vertical-align: middle; }
+  .pill.green { background: var(--green-light); color: #065f46; border: 1px solid #a7f3d0; }
+  .pill.amber { background: var(--amber-light); color: #92400e; border: 1px solid #fcd34d; }
+  .pill.red { background: var(--red-light); color: #991b1b; border: 1px solid #fca5a5; }
+  .pill.indigo { background: var(--indigo-light); color: var(--indigo); border: 1px solid #c7d2fe; }
+  .pill.gray { background: #f3f4f6; color: #374151; border: 1px solid var(--line); }
+
+  ul.timeline { list-style: none; padding: 0; margin: 0; }
+  ul.timeline li { display: grid; grid-template-columns: 100px 1fr; gap: 12px; padding: 10px 0; border-top: 1px dashed var(--line); }
+  ul.timeline li:first-child { border-top: 0; }
+  ul.timeline .when { font-size: 11px; color: var(--muted); padding-top: 2px; font-variant-numeric: tabular-nums; }
+  ul.timeline .what b { display: block; font-size: 14px; font-weight: 600; }
+  ul.timeline .what span { font-size: 13px; color: #374151; }
+
+  .recos { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .reco { display: grid; grid-template-columns: 60px 1fr 110px; gap: 12px; align-items: start; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+  .reco .priority { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .reco.p1 { border-left: 4px solid var(--red); }
+  .reco.p1 .priority { color: var(--red); }
+  .reco.p2 { border-left: 4px solid var(--amber); }
+  .reco.p2 .priority { color: var(--amber); }
+  .reco.p3 { border-left: 4px solid var(--indigo); }
+  .reco.p3 .priority { color: var(--indigo); }
+  .reco h4 { margin: 0 0 4px; font-size: 14px; font-weight: 700; }
+  .reco p { margin: 0; font-size: 13px; color: #374151; line-height: 1.55; }
+  .reco .when-tag { font-size: 10px; color: var(--muted); text-align: right; }
+
+  footer { text-align: center; color: var(--muted); font-size: 12px; padding-top: 16px; }
+  footer code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+  @media print {
+    body { background: #fff; }
+    section { box-shadow: none; break-inside: avoid; }
+    header.hero { background: #4338ca !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <div class="eyebrow">🏢 Sonja HQ — Build Retrospective</div>
+  <h1>What we learned, what to carry into Streich Force Ops</h1>
+  <p class="lead">A consolidated read of every decision, win, and gotcha from the Sonja HQ build — plus a prioritized list of patterns and policies to apply to the SF Ops platform you've already started. Designed to be skim-able in 5 minutes or read end-to-end in 20.</p>
+  <div class="kpis">
+    <div class="kpi"><div class="v">8</div><div class="l">Production PRs</div></div>
+    <div class="kpi"><div class="v">10+</div><div class="l">Migrations</div></div>
+    <div class="kpi"><div class="v">78 / 78</div><div class="l">Unit tests passing</div></div>
+    <div class="kpi"><div class="v">~4 weeks</div><div class="l">From sprint 1 to live</div></div>
+  </div>
+</header>
+
+<section>
+  <h2>📜 Timeline at a glance</h2>
+  <p class="sublede">A condensed view of what shipped and when. Each line corresponds to a merged PR or sprint deliverable.</p>
+  <ul class="timeline">
+    <li><span class="when">Sprints 1–5</span><span class="what"><b>Foundations</b><span>Auth, orgs &amp; entities, captures, projects, tasks, GTD buckets, multi-user invites, notifications, cost dashboard scaffold.</span></span></li>
+    <li><span class="when">Sprint 6</span><span class="what"><b>Knowledge Hub rewrite</b><span>Replaced 4 legacy tables (knowledge_items, chats, documents, digest) with a single <code>knowledge_entries</code> table + supporting versions/links/chats/vault. Single source of truth.</span></span></li>
+    <li><span class="when">Sprint 7</span><span class="what"><b>Platform dashboard + HQ Agent</b><span>Insight chips, entity cards, project timeline, HQ Agent drawer with 7 tools.</span></span></li>
+    <li><span class="when">Sprint 8–9 / PR #2</span><span class="what"><b>Knowledge Hub uploads, Original viewer, secure share links</b><span>PDF/DOCX/XLSX/HTML/TXT/MD upload pipeline with body extraction + sandboxed iframe rendering. Public <code>/share/[token]</code> route. Shipped to prod 2026-04-25.</span></span></li>
+    <li><span class="when">Sprint 10a / PR #2</span><span class="what"><b>Claude reads entry bodies</b><span>HQ Agent gained <code>search_knowledge</code> + <code>read_knowledge_entry</code> tools. Vault-protected. "Discuss with HQ Agent" button on EntryDetail.</span></span></li>
+    <li><span class="when">Sprint 10b / PR #2</span><span class="what"><b>Share lockdown + forwarding + Contacts</b><span>Public viewer disables copy/print/right-click, watermark overlay with recipient + timestamp, "Stay in touch" consent, forward-request approval flow, Contacts module (org-wide CRUD).</span></span></li>
+    <li><span class="when">PR #3</span><span class="what"><b>Workspace pages (10c Slice 1)</b><span>Notion-style hierarchy, Markdown editor with sticky toolbar, breadcrumbs, sibling/child quick-nav, indented children in list view.</span></span></li>
+    <li><span class="when">PR #4 / #5</span><span class="what"><b>Email reliability fixes</b><span>Resend send failures were silently swallowed; added explicit logging and made share-creation send an email (it had only sent on forward-approval).</span></span></li>
+    <li><span class="when">PR #6 (PR-A)</span><span class="what"><b>Cost foundations + notification fix + DR baseline</b><span>Per-entity cost attribution, monthly fees on service_configs, SF-Containers entity, Connections settings page, alert pills for pending forward requests, <code>docs/dr-2fa-checklist.md</code>.</span></span></li>
+    <li><span class="when">PR #7 (PR-B)</span><span class="what"><b>Daily cost sync cron + history chart</b><span>Vercel Cron → <code>/api/cron/sync-usage</code> at 08:00 UTC, <code>CRON_SECRET</code> auth, MTD includes monthly fees, 90-day stacked history chart, last-sync timestamp.</span></span></li>
+    <li><span class="when">PR #8</span><span class="what"><b>Notification clicks + Tasks restyle</b><span>Click-through routing, outside-click dismiss, four count-tile filters on Tasks page, two-row header matching Projects.</span></span></li>
+  </ul>
+</section>
+
+<section>
+  <h2>✅ What worked</h2>
+  <p class="sublede">Patterns that earned their keep. Carry these forward.</p>
+  <div class="grid-2">
+    <div class="card win"><p class="title">Single-table data models over many specialized ones</p><p class="body">Sprint 6 collapsed 4 tables into <code>knowledge_entries</code> + supporting tables. Filter by <code>kind</code> instead of multiplying schemas. Shipping new kinds (chat, critique, workspace) became a one-line constraint change.</p></div>
+    <div class="card win"><p class="title">Server actions for everything</p><p class="body">No REST routes, no API design discussions. Every mutation is a typed RPC. Easy to test, easy to reason about, plays well with React's <code>startTransition</code> for optimistic UI.</p></div>
+    <div class="card win"><p class="title">Sandboxed iframes for HTML rendering</p><p class="body">User uploads can include arbitrary HTML/CSS. <code>&lt;iframe srcDoc sandbox=""&gt;</code> isolates them and lets us style externally. Used for the Original viewer and share viewer.</p></div>
+    <div class="card win"><p class="title">Admin client for public flows</p><p class="body">Public <code>/share/[token]</code> route uses the admin client to bypass RLS. The auth-gated and public surfaces stay cleanly separated. Same pattern works for Cron.</p></div>
+    <div class="card win"><p class="title">PR-driven prod deploys via gh CLI</p><p class="body">Every change ships through <code>gh pr create</code> → wait for green → <code>gh pr merge</code>. Auto-deploys. Rollback is one click on Vercel. Velocity stayed high because the loop was fast.</p></div>
+    <div class="card win"><p class="title">Memory + roadmap files in <code>~/.claude</code></p><p class="body">Across 15+ sessions, the roadmap and tech docs stayed in sync because every session ended with a memory update. Future me always knew where to pick up.</p></div>
+    <div class="card win"><p class="title">Iterative slicing (10a → 10b → 10c)</p><p class="body">Big features got sliced into shippable chunks. Workspace pages went out as Slice 1 (hierarchy + Markdown) before backlinks/slash-commands were even designed. Avoided mega-PRs.</p></div>
+    <div class="card win"><p class="title">Browser preview testing alongside unit tests</p><p class="body">Unit tests caught logic bugs (78/78 stayed green). Browser preview caught the things tests miss: dark-mode CSS bugs, prose blocking checkboxes, race conditions in optimistic UI.</p></div>
+    <div class="card win"><p class="title">Additive migrations only</p><p class="body">Every schema change was <code>ADD COLUMN IF NOT EXISTS</code> or new table. No destructive ALTERs. Combined with Supabase PITR, rollback risk stayed low.</p></div>
+    <div class="card win"><p class="title">Two-track auth (user + admin client)</p><p class="body">User context drives RLS for normal flows; admin client bypasses RLS for cron, public viewers, and system inserts. Two clear paths instead of one fuzzy one.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>⚠️ What didn't work the first time</h2>
+  <p class="sublede">Patterns we landed on after a false start. Worth flagging because the false start is the natural default.</p>
+  <div class="grid-2">
+    <div class="card miss"><p class="title">Silent <code>try / catch</code> on external API calls</p><p class="body">Resend errors were swallowed for weeks. We had to ship PR #4 explicitly to surface them. <b>Default for any external call: log the error, don't return success.</b></p></div>
+    <div class="card miss"><p class="title">Relying on <code>router.refresh()</code> alone for list mutations</p><p class="body">Bit us 3 times — task add, project file upload, share creation. Server re-rendered but local <code>useState</code> didn't. <b>Always optimistically update local state before calling refresh.</b></p></div>
+    <div class="card miss"><p class="title">CHECK constraints rejecting silently</p><p class="body">Inserting <code>'share_forward_request'</code> into <code>notifications.type</code> failed because it wasn't in the CHECK enum. Bell stayed empty for weeks. <b>Always <code>await</code> + check <code>error</code> on every insert.</b></p></div>
+    <div class="card miss"><p class="title">MCP <code>apply_migration</code> ≠ committed migration</p><p class="body">Migrations applied via the Supabase MCP only exist in the dev DB. Almost shipped PR #2 with 4 missing local files. <b>Hand-write the .sql file every time.</b></p></div>
+    <div class="card miss"><p class="title">Z-index inside fixed nav stacking context</p><p class="body">Notification dropdown's "click outside to close" backdrop was trapped inside the nav's z-40 layer, so clicking the rest of the page didn't dismiss. <b>Use document-level mousedown listeners for outside-click, not z-index tricks.</b></p></div>
+    <div class="card miss"><p class="title">Ambiguous PostgREST embeds</p><p class="body">Two FKs from <code>share_forwarding_requests</code> to <code>knowledge_shares</code> made <code>!inner</code> embeds explode with "more than one relationship found". <b>Always specify the FK constraint name when a table has multiple FKs to the same target.</b></p></div>
+    <div class="card miss"><p class="title">Webpack cache breaks on new directories</p><p class="body">Added a new <code>views/</code> folder → CSS broke silently or webpack-runtime crashed. <b>Standard fix: <code>rm -rf .next &amp;&amp; restart dev</code>. Document this in the gotchas file.</b></p></div>
+    <div class="card miss"><p class="title">Tailwind <code>prose</code> styles conflict with form controls</p><p class="body">Native checkboxes inside a <code>prose</code>-styled preview didn't fire onChange — the styling killed pointer events. <b>For interactive elements inside prose, render a styled button, not a native input.</b></p></div>
+    <div class="card miss"><p class="title">Server actions can't accept plain objects with <code>File</code></p><p class="body">"Only plain objects can be passed" error. Had to convert to <code>FormData</code>. <b>Any action that takes a File needs a FormData signature.</b></p></div>
+    <div class="card miss"><p class="title">Chrome Auto Dark Mode inverted explicit colors</p><p class="body">Login screen looked dark even though every Tailwind class was light. Browser was guessing. <b>Always declare <code>:root { color-scheme: light }</code> in globals.css from day 1.</b></p></div>
+  </div>
+</section>
+
+<section>
+  <h2>🎯 Hard lessons (gotchas that cost us hours)</h2>
+  <p class="sublede">Specific land mines. Each one ate at least an hour of debug time. Each one has a one-line fix.</p>
+
+  <div class="lesson">
+    <div class="num">1</div>
+    <div class="body">
+      <h4>Resend domain verification + API key match are pre-requisites for ANY transactional email</h4>
+      <p>The Resend domain (<code>streichforce.com</code>) needed verified DNS records (SPF + DKIM) before any send would deliver. Plus the API key in Vercel must match the team that owns the domain — not just any key from the dashboard.</p>
+      <div class="takeaway"><b>Carry-over:</b> For SF Ops, set up Resend domain verification + production env var on the day you create the project. Don't wait until the first email feature ships.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">2</div>
+    <div class="body">
+      <h4>Supabase auth Redirect URL allow-list must include preview deployments</h4>
+      <p>Magic links from a Vercel preview URL bounced back to <code>hq.streichforce.com</code> because the preview URL wasn't whitelisted. Result: you could never test login on a preview build.</p>
+      <div class="takeaway"><b>Carry-over:</b> When provisioning the SF Ops Supabase project, add the wildcard <code>https://*-streich-force.vercel.app/auth/callback</code> to the allow-list immediately.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">3</div>
+    <div class="body">
+      <h4>Local <code>next build</code> catches type errors faster than Vercel does</h4>
+      <p>PR #6 first deploy failed because a refactor missed a default-fields object literal. The error was a clean TypeScript message, but we burned a Vercel cycle to see it.</p>
+      <div class="takeaway"><b>Carry-over:</b> Run <code>npx next build</code> locally before <code>git push</code> on any PR that touches types. Faster than waiting for Vercel.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">4</div>
+    <div class="body">
+      <h4>Vercel Cron requires <code>CRON_SECRET</code> + redeploy after env var add</h4>
+      <p>Adding the env var doesn't apply to existing deployments. The cron route stayed in the "503 cron not configured" state until we redeployed.</p>
+      <div class="takeaway"><b>Carry-over:</b> Build the env-var checklist before merging any PR that introduces a cron route. Document the redeploy step in the PR body.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">5</div>
+    <div class="body">
+      <h4>Adding new entity_type enum value requires two migrations</h4>
+      <p>Postgres requires <code>ALTER TYPE … ADD VALUE</code> to commit before the value can be used in the same transaction. Adding <code>'sfc'</code> + inserting the SF-Containers entity row had to be split.</p>
+      <div class="takeaway"><b>Carry-over:</b> Plan two migration files whenever you extend an enum and immediately reference the new value in a row insert.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">6</div>
+    <div class="body">
+      <h4>Optimistic UI is the default, not a nice-to-have</h4>
+      <p>"It saved but didn't appear" was reported three separate times for three different list mutations. Each time the fix was the same: have the server action return the inserted row, push it into local state, then call <code>router.refresh()</code> for the side effects.</p>
+      <div class="takeaway"><b>Carry-over:</b> Standard pattern for any list-mutating action: return the row, optimistically insert into client state, then refresh. Document it in the SF Ops dev guide.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">7</div>
+    <div class="body">
+      <h4>"Notification rang" ≠ "notification was created"</h4>
+      <p>The bell looked broken because submitForwardRequest's notification insert silently failed against a CHECK constraint. <code>await</code> without checking <code>error</code> meant the function returned success.</p>
+      <div class="takeaway"><b>Carry-over:</b> SF Ops will have many notification types (work-order assignments, status changes, comments). Bake the type allow-list policy into the migration template and treat every <code>insert/upsert</code> as <code>.then(({ error }) =&gt; if (error) log + handle)</code>.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">8</div>
+    <div class="body">
+      <h4>The default `prose` typography plugin disables interactive form elements</h4>
+      <p>GFM task list checkboxes wouldn't toggle inside a Markdown preview. The <code>@tailwindcss/typography</code> plugin's default styles set <code>pointer-events: none</code> on inputs.</p>
+      <div class="takeaway"><b>Carry-over:</b> If the work-orders module ever renders user-editable Markdown (likely — comments, descriptions), wrap interactive elements in custom components, not native inputs.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">9</div>
+    <div class="body">
+      <h4>Webpack/.next cache invalidation is silent and routine</h4>
+      <p>New folders, new exports, sometimes just a renamed component → dev server starts emitting "Cannot read properties of undefined (reading 'call')" or unstyled HTML. Nothing in the error logs hints at the cause.</p>
+      <div class="takeaway"><b>Carry-over:</b> Whenever a dev session "feels broken," <code>kill server &amp;&amp; rm -rf .next &amp;&amp; npm run dev</code> first, debug second. Add this to the team onboarding doc.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">10</div>
+    <div class="body">
+      <h4>Multi-FK PostgREST joins need explicit names</h4>
+      <p>When two FKs go from table A to table B, a PostgREST embed like <code>knowledge_shares!inner(...)</code> blows up with "more than one relationship found". You have to write <code>knowledge_shares!share_forwarding_requests_share_id_fkey!inner(...)</code>.</p>
+      <div class="takeaway"><b>Carry-over:</b> Work orders likely link to multiple tables (assignee, customer, asset, parent_order). Plan named FKs from the start: <code>fk_work_orders_assigned_to_user</code>, <code>fk_work_orders_customer</code>, etc.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">11</div>
+    <div class="body">
+      <h4>The 30-minute 2FA pass should happen before the first prod deploy, not after</h4>
+      <p>We documented and recommended the DR Minimum 2FA checklist after PR-A. Doing it first avoids a window where the system is live but the credentials defending it are single-factor.</p>
+      <div class="takeaway"><b>Carry-over:</b> Day 1 of SF Ops, before deploying anything: enable 2FA on Supabase, Vercel, GitHub, Cloudflare DNS, Resend, Anthropic, and your email. Save recovery codes to a password manager.</div>
+    </div>
+  </div>
+
+  <div class="lesson">
+    <div class="num">12</div>
+    <div class="body">
+      <h4>Storage backups are the unaddressed gap</h4>
+      <p>Free-tier Supabase has no off-platform storage replication. If the Supabase project gets locked or deleted, every uploaded file is gone. We documented this as the "DR Standard" upgrade path but didn't ship it.</p>
+      <div class="takeaway"><b>Carry-over:</b> SF Ops will store work-order attachments, photos, signed PDFs — content that's legally important to retain. Plan an R2 nightly sync from day 1, or accept the risk explicitly.</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>🚀 Recommendations for Streich Force Ops</h2>
+  <p class="sublede">Prioritized carry-overs. P1 = do before the next prod deploy. P2 = do this sprint. P3 = bake in over the next month.</p>
+
+  <div class="recos">
+    <div class="reco p1"><div class="priority">P1</div><div><h4>Enable 2FA + recovery codes on every cloud account today</h4><p>Supabase, Vercel, GitHub, Cloudflare, Resend, Anthropic, Stripe, your email. Store recovery codes in your password manager. Cost: 30 minutes. Reuses the checklist at <code>docs/dr-2fa-checklist.md</code>.</p></div><div class="when-tag">Today</div></div>
+
+    <div class="reco p1"><div class="priority">P1</div><div><h4>Verify Resend domain + provision <code>RESEND_API_KEY</code> in Vercel prod env</h4><p>Add SPF/DKIM DNS records on the SF Ops sender domain in Resend. Add the matching API key to Vercel. Without this, every transactional email fails silently. Hit this <em>before</em> the first email feature ships.</p></div><div class="when-tag">Day 1</div></div>
+
+    <div class="reco p1"><div class="priority">P1</div><div><h4>Add <code>:root { color-scheme: light }</code> to globals.css</h4><p>Three lines. Locks the app to light theme regardless of browser auto-dark-mode flags. We added this retroactively after a confused user screenshot.</p></div><div class="when-tag">First commit</div></div>
+
+    <div class="reco p1"><div class="priority">P1</div><div><h4>Whitelist preview URLs in Supabase auth Redirect URLs</h4><p>Add <code>https://*-streich-force.vercel.app/auth/callback</code> (or whatever the SF Ops project pattern is) to Authentication → URL Configuration. Otherwise preview deploys can never test login flows.</p></div><div class="when-tag">Day 1</div></div>
+
+    <div class="reco p2"><div class="priority">P2</div><div><h4>Standardize the optimistic-UI pattern in a dev guide</h4><p>For every list mutation: server action returns the row, client optimistically updates local state, then calls <code>router.refresh()</code> for cascading server effects. Document once. Reference from PR templates.</p></div><div class="when-tag">This sprint</div></div>
+
+    <div class="reco p2"><div class="priority">P2</div><div><h4>Establish "no silent failures" rule for inserts and external calls</h4><p>Every <code>.insert()</code> and <code>.upsert()</code> must check <code>error</code>. Every external API call (Resend, Stripe, Anthropic, payment gateways, etc.) must log the response. Treat silent success as a bug.</p></div><div class="when-tag">This sprint</div></div>
+
+    <div class="reco p2"><div class="priority">P2</div><div><h4>Hand-write every migration .sql file as you apply it</h4><p>Even when using the Supabase MCP <code>apply_migration</code> tool. The dev DB and the repo can drift, and prod replay will break if migration files don't exist locally.</p></div><div class="when-tag">Always</div></div>
+
+    <div class="reco p2"><div class="priority">P2</div><div><h4>Always run <code>npx next build</code> before <code>git push</code></h4><p>Type errors that Vercel catches on its build minute can be caught locally in 30 seconds. Add to your pre-commit habit or as a git hook.</p></div><div class="when-tag">Always</div></div>
+
+    <div class="reco p2"><div class="priority">P2</div><div><h4>Plan named foreign keys for tables with multiple FKs to the same target</h4><p>Work orders → users (assigned_to, created_by, completed_by). Work orders → customers (billing_customer, shipping_contact). Name them in the migration; PostgREST embeds will need them.</p></div><div class="when-tag">Schema design</div></div>
+
+    <div class="reco p2"><div class="priority">P2</div><div><h4>Build a CRON_SECRET-gated cron route as the standard scheduler pattern</h4><p>Already proven via PR-B's <code>/api/cron/sync-usage</code>. Reuse the shape: bearer-token auth, max-duration setting, structured JSON response, console logs that include duration_ms and counts.</p></div><div class="when-tag">First cron</div></div>
+
+    <div class="reco p3"><div class="priority">P3</div><div><h4>Set up an off-platform storage backup before storing irreplaceable content</h4><p>SF Ops will store work-order attachments, signed documents, customer files. Pick R2 or S3, write a nightly sync edge function, document the restore path. Address this before launch, not after the first incident.</p></div><div class="when-tag">Pre-launch</div></div>
+
+    <div class="reco p3"><div class="priority">P3</div><div><h4>Ship in incremental slices, never one big PR</h4><p>Workspace pages went out as a v0 (hierarchy + Markdown) before we built backlinks or slash commands. The user got value in week 1, we got feedback before over-investing in details that turned out to be wrong.</p></div><div class="when-tag">Process</div></div>
+
+    <div class="reco p3"><div class="priority">P3</div><div><h4>Keep a memory + roadmap file per major module</h4><p>For SF Ops, that means at minimum: <code>sf_ops_vision.md</code>, <code>sf_ops_tech.md</code>, <code>sf_ops_work_orders_roadmap.md</code>. Each session ends by updating the relevant file. Saved us countless hours when we returned to Sonja HQ work months later.</p></div><div class="when-tag">Ongoing</div></div>
+
+    <div class="reco p3"><div class="priority">P3</div><div><h4>Treat the auth allow-list, env-var checklist, and DNS records as code</h4><p>Each PR that adds an env var or DNS record should update a checklist file in the repo. The provider dashboards lie — only the repo can be trusted as the source of truth for "what configuration we depend on."</p></div><div class="when-tag">Ongoing</div></div>
+
+    <div class="reco p3"><div class="priority">P3</div><div><h4>Document each integration with a "what to do if compromised" section</h4><p>For SF Ops: each integration .md should include credential rotation steps, who has access, what breaks if it goes down. We deferred this to PR-C in Sonja HQ; do it inline as you add each integration in SF Ops.</p></div><div class="when-tag">Each integration</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>🛠 Specific notes for the work-orders module</h2>
+  <p class="sublede">You mentioned you're already building this. Here's what transferable from Sonja HQ would land cleanest in that domain.</p>
+
+  <h3>Schema patterns to reuse</h3>
+  <div class="grid-2">
+    <div class="card"><p class="title">Single status enum + filter pills</p><p class="body">Tasks landed on <code>open / done / cancelled</code>. Work orders likely have more (draft, scheduled, in_progress, on_hold, complete, billed, voided). Same UX pattern: count tiles double as filters with an active ring.</p></div>
+    <div class="card"><p class="title">parent_id for nesting</p><p class="body">Workspace pages got hierarchy via <code>parent_id</code>. Work orders may have parent/child for change orders or split jobs. Same column pattern, with a cycle check on move.</p></div>
+    <div class="card"><p class="title">attachments via Supabase Storage + metadata table</p><p class="body">Knowledge Hub uses <code>storage_path</code> + <code>mime_type</code> on the entry row plus signed-URL access. Work orders probably need the same: photos, signed PDFs, customer-supplied files.</p></div>
+    <div class="card"><p class="title">audit log via versions table</p><p class="body">We have <code>knowledge_versions</code> for every saved revision. Work orders need the equivalent for compliance — a <code>work_order_versions</code> table writing on every save.</p></div>
+    <div class="card"><p class="title">linked records via a generic links table</p><p class="body"><code>knowledge_links</code> joins entries to entries with a relation enum. Work orders link to customers, assets, invoices, parent orders — a single <code>work_order_links</code> table beats five FK columns.</p></div>
+    <div class="card"><p class="title">notifications with type allow-list + entity_type allow-list</p><p class="body">Both check constraints bit us. Plan the work-order notification types upfront: <code>wo_assigned</code>, <code>wo_status_changed</code>, <code>wo_comment</code>, <code>wo_due_soon</code>, <code>wo_completed</code>. Migration includes them all from day 1.</p></div>
+  </div>
+
+  <h3>Patterns to avoid</h3>
+  <div class="grid-2">
+    <div class="card fail"><p class="title">Don't model assignee, requestor, completed_by as the same FK column</p><p class="body">If you need three relationships to <code>users</code>, give them three named FKs. PostgREST will choke on embeds otherwise. Lesson #10 above.</p></div>
+    <div class="card fail"><p class="title">Don't store the work-order number in the URL</p><p class="body">Use the UUID id. Numbers are display-only. They will be re-numbered in audits and migrations.</p></div>
+    <div class="card fail"><p class="title">Don't trust <code>router.refresh()</code> alone after status change</p><p class="body">When a tech marks a WO complete in the field, the local list must update immediately. Same optimistic-UI pattern Sonja HQ landed on.</p></div>
+    <div class="card fail"><p class="title">Don't gate the public customer view (signature page, etc.) with the user's RLS</p><p class="body">Use the admin client + a token, like <code>/share/[token]</code> in Sonja HQ. Customers don't have user accounts — they have signed links.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>🧹 Outstanding items in Sonja HQ (for awareness)</h2>
+  <p class="sublede">Not blocking anything, but on the roadmap. Worth knowing if you triage carry-over items.</p>
+  <ul class="timeline">
+    <li><span class="when"><span class="pill amber">Open</span></span><span class="what"><b>DR Standard posture not shipped</b><span>R2 nightly storage sync + Supabase Pro PITR. Documented in <code>docs/dr-2fa-checklist.md</code>; deferred to coincide with SF Ops launch.</span></span></li>
+    <li><span class="when"><span class="pill amber">Open</span></span><span class="what"><b>PR-C integration docs deferred</b><span>One .md per integration explaining purpose, env vars, rebuild steps. User said to defer until SF Ops launch.</span></span></li>
+    <li><span class="when"><span class="pill indigo">Optional</span></span><span class="what"><b>Sprint 10c Slices 2–4 still queued</b><span>Backlinks (<code>[[Entry: Title]]</code>), slash commands, "save chat to workspace", "save code snippet". Workspace pages v1 is shipped and usable; the rest is polish.</span></span></li>
+    <li><span class="when"><span class="pill indigo">Optional</span></span><span class="what"><b>Re-extract Original button for old uploads</b><span>Pre-rendered_html migration entries don't have an Original tab. A button to re-run extraction on demand was scoped but not built (test data made it irrelevant).</span></span></li>
+    <li><span class="when"><span class="pill gray">Latent</span></span><span class="what"><b>Duplicate-chat root cause</b><span>Two empty Chat entries appeared from one click during early testing. React Strict Mode double-fire suspected; never confirmed. Low-priority cleanup.</span></span></li>
+  </ul>
+</section>
+
+<section>
+  <h2>🎓 Meta-lessons (for the way we work, not the code)</h2>
+  <p class="sublede">Things that made the collaboration faster the second time around.</p>
+  <div class="grid-2">
+    <div class="card"><p class="title">Resolve scope questions BEFORE coding</p><p class="body">Sprint 10b kicked off with four open questions answered explicitly (watermarking, editor framework, contact ownership, backfill). Saved a half-day of back-and-forth mid-build.</p></div>
+    <div class="card"><p class="title">Browser-verify after every UI change</p><p class="body">When a fix involved CSS or interactive elements, the user often spotted something the unit tests missed. Make the loop one-screenshot-and-iterate.</p></div>
+    <div class="card"><p class="title">Capture decisions in memory, not in chat</p><p class="body">The roadmap file's "open questions resolved" section was the cleanest way to make sure we agreed on direction before writing migrations.</p></div>
+    <div class="card"><p class="title">Phase your PRs (A → B → C)</p><p class="body">PR-A: foundations + DB + UI scaffolds. PR-B: live data + cron + integrations. PR-C: docs + DR. Each PR is verifiable on its own. No mega-PRs.</p></div>
+    <div class="card"><p class="title">Keep a scratch <code>docs/</code> folder for reasoning, not just final docs</p><p class="body">The 2FA checklist, retrospective, decision log — these earn their keep when you (or a future contributor) need to understand why something is the way it is.</p></div>
+    <div class="card"><p class="title">Don't hide the build process from yourself</p><p class="body">When the user said "I'm not a programmer," the editor toolbar got built. Doing the syntax for the user instead of asking them to learn Markdown was the right call. Same energy applies to SF Ops's field workers, customers, and admins.</p></div>
+  </div>
+</section>
+
+<footer>
+  Generated 2026-04-27 · Sonja HQ build retrospective ·
+  <code>docs/sonja-hq-retrospective.html</code>
+</footer>
+
+</div>
+</body>
+</html>
