@@ -3,6 +3,7 @@ import { useState, useTransition, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { sendAgentMessage } from '@/app/api/agent/actions'
 import type { AgentMessage } from '@/app/api/agent/actions'
+import { SaveChatModal } from './SaveChatModal'
 
 interface Props {
   open: boolean
@@ -23,6 +24,7 @@ export function AgentPanel({ open, onClose, starter, onConsumedStarter }: Props)
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [input, setInput] = useState('')
   const [pending, startSend] = useTransition()
+  const [saveOpen, setSaveOpen] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -93,12 +95,21 @@ export function AgentPanel({ open, onClose, starter, onConsumedStarter }: Props)
           </div>
           <div className="flex items-center gap-2">
             {messages.length > 0 && (
-              <button
-                onClick={() => setMessages([])}
-                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                Clear
-              </button>
+              <>
+                <button
+                  onClick={() => setSaveOpen(true)}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 transition-colors"
+                  title="Save this conversation as a workspace page"
+                >
+                  Save to workspace
+                </button>
+                <button
+                  onClick={() => setMessages([])}
+                  className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                >
+                  Clear
+                </button>
+              </>
             )}
             <button
               onClick={onClose}
@@ -178,6 +189,12 @@ export function AgentPanel({ open, onClose, starter, onConsumedStarter }: Props)
           </div>
         </div>
       </div>
+
+      <SaveChatModal
+        open={saveOpen}
+        onClose={() => setSaveOpen(false)}
+        messages={messages}
+      />
     </>
   )
 }

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { GlobalSearch } from '@/components/search/GlobalSearch'
 import { NotificationBell } from '@/components/notifications/NotificationBell'
+import { SnippetModal } from '@/components/capture/SnippetModal'
 import type { Database } from '@/types/supabase'
 import type { User } from '@supabase/supabase-js'
 
@@ -36,6 +37,7 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
   const router = useRouter()
   const supabase = createClient()
   const profileDropdown = useDropdown()
+  const [snippetOpen, setSnippetOpen] = useState(false)
 
   const handleSignOut = async () => {
     profileDropdown.setOpen(false)
@@ -88,6 +90,16 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
 
               {/* Notifications */}
               <NotificationBell initialNotifications={notifications} />
+
+              {/* Code snippet */}
+              <button
+                onClick={() => setSnippetOpen(true)}
+                title="Save a code snippet to the workspace"
+                className="flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-2.5 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <span className="text-base leading-none">{'</>'}</span>
+                <span className="hidden md:block">Snippet</span>
+              </button>
 
               {/* Add to Knowledge */}
               <Link
@@ -152,6 +164,8 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
           </div>
         </div>
       </nav>
+
+      <SnippetModal open={snippetOpen} onClose={() => setSnippetOpen(false)} />
     </>
   )
 }

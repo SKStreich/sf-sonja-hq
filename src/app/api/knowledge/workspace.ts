@@ -150,6 +150,14 @@ export async function createWorkspacePage(input: {
   parentId?: string | null
   title?: string
   entity?: Entity
+  /** Optional Markdown body — used by saveChatToWorkspace + saveCodeSnippet. */
+  body?: string
+  /** Provenance marker. Defaults to 'manual'. */
+  source?: string
+  /** External URL or reference attached to this page (e.g. GitHub commit URL). */
+  sourceRef?: string | null
+  /** Tags to attach on creation. */
+  tags?: string[]
 }): Promise<{ id: string }> {
   const { supabase, user, org_id } = await getCtx()
 
@@ -167,6 +175,7 @@ export async function createWorkspacePage(input: {
     if (!input.entity) entity = parent.entity as Entity
   }
 
+  const body = input.body ?? ''
   const { data, error } = await (supabase as any)
     .from('knowledge_entries')
     .insert({
@@ -175,13 +184,20 @@ export async function createWorkspacePage(input: {
       entity,
       parent_id: input.parentId ?? null,
       title: input.title?.trim() || 'Untitled page',
-      body: '',
-      source: 'manual',
-      tags: [],
+      body,
+      source: input.source ?? 'manual',
+      source_ref: input.sourceRef ?? null,
+      tags: input.tags ?? [],
     })
     .select('id')
     .single()
   if (error) throw new Error('Failed to create page: ' + error.message)
+
+  // Sync mentions for any [[…]] references in the initial body.
+  if (body.length > 0) {
+    try { await syncMentionsForEntry(data.id as string, body) }
+    catch (e) { console.error('syncMentionsForEntry on create failed:', e) }
+  }
 
   revalidatePath('/dashboard/knowledge')
   return { id: data.id as string }
