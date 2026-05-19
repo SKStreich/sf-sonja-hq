@@ -117,3 +117,63 @@ export async function r2Get(key: string): Promise<{ body: Buffer; contentType: s
     contentType: res.headers.get('content-type'),
   }
 }
+
+export interface R2Object {
+  key: string
+  size: number
+  lastModified: string | null
+}
+
+/**
+ * Lists every object under `prefix`, paging through ListObjectsV2 until
+ * `IsTruncated` is false. R2 caps each page at 1000.
+ *
+ * Used by the DB-dump retention pass; the bucket-mirror cron doesn't need
+ * this because it walks Supabase Storage, not R2.
+ */
+export async function r2List(prefix: string): Promise<R2Object[]> {
+  const cfg = getConfig()
+  const out: R2Object[] = []
+  let continuationToken: string | null = null
+  // Hard guard so a misconfigured prefix can't loop forever.
+  for (let page = 0; page < 50; page++) {
+    const url = new URL(`https://${cfg.accountId}.r2.cloudflarestorage.com/${cfg.bucket}`)
+    url.searchParams.set('list-type', '2')
+    url.searchParams.set('prefix', prefix)
+    url.searchParams.set('max-keys', '1000')
+    if (continuationToken) url.searchParams.set('continuation-token', continuationToken)
+    const res = await cfg.client.fetch(url.toString(), { method: 'GET' })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`R2 LIST ${prefix} → ${res.status} ${text.slice(0, 200)}`)
+    }
+    const xml = await res.text()
+    // tsconfig target is es5; can't iterate a matchAll() result directly.
+    const re = /<Contents>([\s\S]*?)<\/Contents>/g
+    let match: RegExpExecArray | null
+    while ((match = re.exec(xml)) !== null) {
+      const block = match[1]
+      const key = /<Key>([^<]+)<\/Key>/.exec(block)?.[1]
+      const size = Number(/<Size>([^<]+)<\/Size>/.exec(block)?.[1] ?? 0)
+      const lastModified = /<LastModified>([^<]+)<\/LastModified>/.exec(block)?.[1] ?? null
+      if (key) out.push({ key, size, lastModified })
+    }
+    const truncated = /<IsTruncated>true<\/IsTruncated>/.test(xml)
+    if (!truncated) return out
+    continuationToken = /<NextContinuationToken>([^<]+)<\/NextContinuationToken>/.exec(xml)?.[1] ?? null
+    if (!continuationToken) return out
+  }
+  throw new Error(`R2 LIST ${prefix} exceeded 50 pages — abort to prevent runaway`)
+}
+
+/**
+ * Deletes a single object. 204 on success, 404 is a no-op (we treat as ok
+ * because retention should be idempotent — running it twice doesn't fail).
+ */
+export async function r2Delete(key: string): Promise<void> {
+  const cfg = getConfig()
+  const res = await cfg.client.fetch(endpoint(cfg, key), { method: 'DELETE' })
+  if (res.status === 204 || res.status === 200 || res.status === 404) return
+  const text = await res.text().catch(() => '')
+  throw new Error(`R2 DELETE ${key} → ${res.status} ${text.slice(0, 200)}`)
+}
