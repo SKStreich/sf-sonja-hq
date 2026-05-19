@@ -5,7 +5,7 @@ import {
   upsertServiceConfig, deleteServiceConfig, checkServiceApiKeyPresence,
   type ServiceConfig,
 } from '@/app/api/usage/actions'
-import type { BackupStateRow } from '@/app/api/backup/actions'
+import type { BackupStateRow, DbDumpDetails } from '@/app/api/backup/actions'
 
 const KNOWN_SERVICES: Array<{ slug: string; label: string; envName: string; defaultFee?: number; notes?: string }> = [
   { slug: 'supabase',  label: 'Supabase',  envName: 'SUPABASE_MANAGEMENT_API_KEY', defaultFee: 0,    notes: 'Database + auth + storage. Free tier includes 500 MB DB + 1 GB storage. Pro tier ($25/mo) adds daily backups + cross-region storage.' },
@@ -301,21 +301,24 @@ function Field({ label, children, tooltip, span = 1 }: { label: string; children
 function BackupStatusSection({ state }: { state: BackupStateRow[] }) {
   if (state.length === 0) return null
   const anyRunYet = state.some(s => s.last_run_completed_at)
+  const buckets = state.filter(s => s.bucket_name !== 'db-dump')
+  const dbDump = state.find(s => s.bucket_name === 'db-dump') ?? null
   return (
     <section>
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-xs font-bold uppercase tracking-wider text-gray-500">Off-platform backups (R2)</h2>
-        <span className="text-[11px] text-gray-400">runs daily at 04:00 UTC</span>
+        <span className="text-[11px] text-gray-400">storage 04:00 UTC · DB dump 05:00 UTC</span>
       </div>
       <div className="rounded-lg border border-gray-200 bg-white">
         {!anyRunYet && (
           <div className="border-b border-amber-100 bg-amber-50 px-4 py-2 text-xs text-amber-800">
-            No successful runs yet. The first cron tick at 04:00 UTC will populate these rows.
+            No successful runs yet. The first cron tick will populate these rows.
             If env vars aren't set in Vercel, the route returns 503 and no row will update.
           </div>
         )}
         <ul className="divide-y divide-gray-100">
-          {state.map(row => <BackupStatusRow key={row.bucket_name} row={row} />)}
+          {buckets.map(row => <BackupStatusRow key={row.bucket_name} row={row} />)}
+          {dbDump && <DbDumpStatusRow row={dbDump} />}
         </ul>
       </div>
     </section>
@@ -349,6 +352,51 @@ function BackupStatusRow({ row }: { row: BackupStateRow }) {
           {row.objects_synced_last_run} new · {row.objects_skipped_last_run} already in R2
           {row.bytes_synced_last_run > 0 ? ` · ${mb < 1 ? `${Math.round(row.bytes_synced_last_run / 1024)} KB` : `${mb.toFixed(1)} MB`} uploaded` : ''}
           {row.objects_synced_total > 0 ? ` · ${row.objects_synced_total.toLocaleString()} total lifetime` : ''}
+        </p>
+      )}
+      {row.last_run_error && (
+        <p className="mt-1 rounded bg-red-50 px-2 py-1 text-xs text-red-700">
+          {row.last_run_error}
+        </p>
+      )}
+    </li>
+  )
+}
+
+function DbDumpStatusRow({ row }: { row: BackupStateRow }) {
+  const completed = row.last_run_completed_at
+  const status = row.last_run_status
+  const statusBadge = status === 'success'
+    ? <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-emerald-800">✓ Success</span>
+    : status === 'error'
+      ? <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-red-800">✗ Error</span>
+      : <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wider text-gray-500">— Never</span>
+  const details = row.last_run_details as DbDumpDetails | null
+  const mb = row.bytes_synced_last_run / (1024 * 1024)
+  return (
+    <li className="px-4 py-3">
+      <div className="flex items-center gap-3">
+        <span className="text-sm font-medium text-gray-900">Database dump</span>
+        {statusBadge}
+        <span className="ml-auto text-xs text-gray-500">
+          {completed
+            ? `Last run ${new Date(completed).toLocaleString()}`
+            : 'No completed run yet'}
+        </span>
+      </div>
+      {details && status === 'success' && (
+        <p className="mt-1 text-xs text-gray-500">
+          {details.tables} tables · {details.rows.toLocaleString()} rows ·{' '}
+          {mb < 1 ? `${Math.round(row.bytes_synced_last_run / 1024)} KB` : `${mb.toFixed(2)} MB`} gzipped
+          {' · '}retention {details.retention.kept} kept / {details.retention.pruned} pruned
+        </p>
+      )}
+      {details?.dump_key && (
+        <p className="mt-0.5 font-mono text-[11px] text-gray-400">{details.dump_key}</p>
+      )}
+      {row.objects_synced_total > 0 && (
+        <p className="mt-0.5 text-[11px] text-gray-400">
+          {row.objects_synced_total.toLocaleString()} successful runs lifetime
         </p>
       )}
       {row.last_run_error && (

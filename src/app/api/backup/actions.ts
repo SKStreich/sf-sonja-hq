@@ -17,6 +17,21 @@ export interface BackupStateRow {
   objects_skipped_last_run: number
   bytes_synced_last_run: number
   updated_at: string
+  /** Cron-specific bag — currently only used by the db-dump row. */
+  last_run_details: DbDumpDetails | null
+}
+
+export interface DbDumpDetails {
+  dump_key: string | null
+  tables: number
+  rows: number
+  per_table: Record<string, number>
+  retention: {
+    kept: number
+    pruned: number
+    pruned_keys: string[]
+    policy: { daily: number; weekly: number; monthly: number }
+  }
 }
 
 export async function listBackupState(): Promise<BackupStateRow[]> {
