@@ -308,7 +308,11 @@ export async function sendAgentMessage(
   userMessage: string,
 ): Promise<AgentResponse> {
   const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
+  if (!apiKey) {
+    return {
+      content: 'The HQ Agent is offline — ANTHROPIC_API_KEY is not set in production. Add it in Vercel → Settings → Environment Variables and redeploy.',
+    }
+  }
 
   const ctx = await getContext()
   const client = new Anthropic({ apiKey })
@@ -332,15 +336,25 @@ Entities: tm = Triplemeter, sf = SF Solutions, sfe = SF Enterprises, personal = 
   let totalInputTokens = 0
   let totalOutputTokens = 0
 
-  // Agentic loop — max 5 tool rounds
+  // Agentic loop — max 5 tool rounds.
+  // Anthropic SDK errors are surfaced to the user with a specific message
+  // instead of being re-thrown — a thrown error in a server action becomes
+  // an opaque 500 with the generic "Server Components render" message,
+  // which is useless for the user (and surfaced once in prod when a stale
+  // ANTHROPIC_API_KEY made the agent unusable).
   for (let round = 0; round < 5; round++) {
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1024,
-      system: systemPrompt,
-      tools: AGENT_TOOLS,
-      messages,
-    })
+    let response: Anthropic.Message
+    try {
+      response = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        system: systemPrompt,
+        tools: AGENT_TOOLS,
+        messages,
+      })
+    } catch (e: any) {
+      return { content: formatAnthropicError(e), navigateTo }
+    }
 
     totalInputTokens += response.usage?.input_tokens ?? 0
     totalOutputTokens += response.usage?.output_tokens ?? 0
@@ -381,4 +395,31 @@ Entities: tm = Triplemeter, sf = SF Solutions, sfe = SF Enterprises, personal = 
   } catch {}
 
   return { content: 'I ran into an issue processing that. Please try again.', navigateTo }
+}
+
+/**
+ * Turn an Anthropic SDK error into a sentence the user can act on. The SDK
+ * exposes `status` and a structured `error.error.type` on auth/rate/etc;
+ * fall back to the generic message for anything else.
+ *
+ * We also log the original error server-side so Vercel function logs still
+ * show the full stack — the user-facing string is just the executive summary.
+ */
+function formatAnthropicError(e: any): string {
+  console.error('[sendAgentMessage] Anthropic call failed:', e)
+  const status = e?.status as number | undefined
+  const apiType = e?.error?.error?.type as string | undefined
+  if (status === 401 || apiType === 'authentication_error') {
+    return 'The HQ Agent is offline — Anthropic rejected the API key (401). The ANTHROPIC_API_KEY in Vercel needs to be rotated to a valid value.'
+  }
+  if (status === 429 || apiType === 'rate_limit_error') {
+    return 'The HQ Agent is rate-limited right now. Try again in a minute.'
+  }
+  if (status === 400 && apiType === 'invalid_request_error') {
+    return `The HQ Agent rejected the request — ${e?.error?.error?.message ?? 'invalid request'}.`
+  }
+  if (status && status >= 500) {
+    return 'Anthropic returned a server error. Try again shortly; if it persists, check status.anthropic.com.'
+  }
+  return `The HQ Agent hit an unexpected error: ${e?.message ?? 'unknown'}. Check Vercel function logs for details.`
 }
