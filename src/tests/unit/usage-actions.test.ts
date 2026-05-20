@@ -79,13 +79,19 @@ describe('syncResendUsage()', () => {
 
   it('syncs email records grouped by day', async () => {
     process.env.RESEND_API_KEY = 're_test_key'
+    // Use dates relative to today so the implementation's 30-day window check
+    // doesn't filter them out as the test ages.
+    const today = new Date()
+    const yesterday = new Date(today.getTime() - 86400000)
+    const day1 = today.toISOString().slice(0, 10)
+    const day2 = yesterday.toISOString().slice(0, 10)
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => ({
         data: [
-          { id: '1', created_at: '2026-04-18T10:00:00Z' },
-          { id: '2', created_at: '2026-04-18T14:00:00Z' },
-          { id: '3', created_at: '2026-04-17T09:00:00Z' },
+          { id: '1', created_at: `${day1}T10:00:00Z` },
+          { id: '2', created_at: `${day1}T14:00:00Z` },
+          { id: '3', created_at: `${day2}T09:00:00Z` },
         ],
       }),
     })
