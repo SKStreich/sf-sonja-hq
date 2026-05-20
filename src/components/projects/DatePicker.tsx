@@ -41,24 +41,41 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', class
     ? selected.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
     : ''
 
-  const baseInputCls = className ?? 'w-full rounded-lg bg-gray-950 px-3 py-2 text-sm ring-1 ring-gray-700 focus:ring-indigo-500 outline-none transition-all'
+  const baseInputCls = className ?? 'w-full rounded-lg bg-white px-3 py-2 text-sm ring-1 ring-gray-200 focus:ring-indigo-400 outline-none transition-all'
 
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen(v => !v)}
         className={`${baseInputCls} flex items-center justify-between gap-2 text-left`}>
-        <span className={display ? 'text-white' : 'text-gray-600'}>{display || placeholder}</span>
-        <svg className="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <span className={display ? 'text-gray-900' : 'text-gray-400'}>{display || placeholder}</span>
+        <svg className="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
             d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
         </svg>
       </button>
       {open && (
-        <div className="absolute top-full left-0 z-50 mt-1 rounded-xl border border-gray-700 bg-gray-900 p-3 shadow-2xl">
-          <DayPicker mode="single" selected={selected} onSelect={handleSelect} />
+        <div className="absolute top-full left-0 z-50 mt-1 rounded-xl border border-gray-200 bg-white p-3 shadow-2xl text-gray-900">
+          <DayPicker
+            mode="single"
+            selected={selected}
+            onSelect={handleSelect}
+            classNames={{
+              month_caption: 'flex justify-center items-center h-9 mb-1 text-sm font-semibold text-gray-900',
+              caption_label: 'text-sm font-semibold text-gray-900',
+              nav: 'flex items-center justify-between absolute top-0 inset-x-0 px-1',
+              button_previous: 'h-7 w-7 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center',
+              button_next: 'h-7 w-7 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center',
+              weekday: 'text-[11px] uppercase tracking-wider text-gray-400 font-medium pb-1',
+              day: 'text-sm text-gray-700 rounded-md hover:bg-indigo-50 hover:text-indigo-700 h-9 w-9 flex items-center justify-center cursor-pointer transition-colors',
+              today: 'font-semibold text-indigo-600',
+              selected: 'bg-indigo-600 text-white hover:bg-indigo-600 hover:text-white',
+              outside: 'text-gray-300',
+              disabled: 'text-gray-300 cursor-not-allowed',
+            }}
+          />
           {value && (
             <button type="button" onClick={() => { onChange(''); setOpen(false) }}
-              className="mt-1 w-full text-center text-xs text-gray-600 hover:text-gray-400 transition-colors py-1">
+              className="mt-1 w-full text-center text-xs text-gray-500 hover:text-gray-700 transition-colors py-1">
               Clear date
             </button>
           )}
