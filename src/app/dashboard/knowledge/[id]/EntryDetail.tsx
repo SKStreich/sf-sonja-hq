@@ -21,6 +21,10 @@ import {
   searchLinkTargets, resolveMentionsForRender, getEntryBacklinks,
   type LinkTarget, type Backlink,
 } from '@/app/api/knowledge/links'
+import {
+  detectSlashToken, filterSlashCommands,
+  type SlashCommand,
+} from '@/lib/knowledge/slash-commands'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import {
@@ -981,6 +985,15 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
   const [mentionHover, setMentionHover] = useState(0)
   const mentionStartRef = useRef<number>(-1)   // index of the `[[` that opened it
 
+  // /command autocomplete state. Parallel to the mention popup but uses the
+  // pure detector in `lib/knowledge/slash-commands` and a static command list.
+  // Mentions take priority — if a `[[…` is also open, the slash popup hides.
+  const [slashOpen, setSlashOpen] = useState(false)
+  const [slashQuery, setSlashQuery] = useState('')
+  const [slashHover, setSlashHover] = useState(0)
+  const slashStartRef = useRef<number>(-1)
+  const slashResults = filterSlashCommands(slashQuery)
+
   // Resolved mentions for the Preview pane. Refreshes (debounced) when `value`
   // changes. We render unresolved tokens as broken-link pills.
   const [mentionMap, setMentionMap] = useState<MentionMap>({})
@@ -1082,20 +1095,67 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     }, 0)
   }
 
+  // Same pattern as `checkMentionPopup`, but for `/command` tokens. Skipped
+  // when the mention popup is already showing, so the two never overlap.
+  const checkSlashPopup = () => {
+    const ta = textareaRef.current
+    if (!ta) return
+    if (mentionOpen) { setSlashOpen(false); return }
+    const caret = ta.selectionStart
+    const match = detectSlashToken(value, caret)
+    if (!match.open) { setSlashOpen(false); return }
+    slashStartRef.current = match.start
+    setSlashQuery(match.query)
+    setSlashHover(0)
+    setSlashOpen(true)
+  }
+
+  const runSlashCommand = (cmd: SlashCommand) => {
+    const ta = textareaRef.current
+    if (!ta) return
+    const tokenStart = slashStartRef.current
+    const caret = ta.selectionStart
+    if (tokenStart < 0) { setSlashOpen(false); return }
+    const { next, cursor } = cmd.insert({ value, tokenStart, caret })
+    onChange(next)
+    setSlashOpen(false)
+    setTimeout(() => {
+      ta.focus()
+      ta.setSelectionRange(cursor, cursor)
+    }, 0)
+  }
+
   const onTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (!mentionOpen || mentionResults.length === 0) return
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      setMentionHover(h => Math.min(h + 1, mentionResults.length - 1))
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      setMentionHover(h => Math.max(h - 1, 0))
-    } else if (e.key === 'Enter' || e.key === 'Tab') {
-      const pick = mentionResults[mentionHover]
-      if (pick) { e.preventDefault(); insertMention(pick) }
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      setMentionOpen(false)
+    if (mentionOpen && mentionResults.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setMentionHover(h => Math.min(h + 1, mentionResults.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setMentionHover(h => Math.max(h - 1, 0))
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        const pick = mentionResults[mentionHover]
+        if (pick) { e.preventDefault(); insertMention(pick) }
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setMentionOpen(false)
+      }
+      return
+    }
+    if (slashOpen && slashResults.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault()
+        setSlashHover(h => Math.min(h + 1, slashResults.length - 1))
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault()
+        setSlashHover(h => Math.max(h - 1, 0))
+      } else if (e.key === 'Enter' || e.key === 'Tab') {
+        const pick = slashResults[slashHover]
+        if (pick) { e.preventDefault(); runSlashCommand(pick) }
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        setSlashOpen(false)
+      }
     }
   }
 
@@ -1107,7 +1167,7 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
           <button onClick={() => setView('split')} className={`rounded px-2 py-1 ${view === 'split' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'}`}>Split</button>
           <button onClick={() => setView('preview')} className={`rounded px-2 py-1 ${view === 'preview' ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-50'}`}>Preview</button>
           <span className="ml-auto text-[11px] text-gray-400 hidden sm:inline">
-            Tip: type <code className="rounded bg-gray-100 px-1">[[</code> to link an entry or project
+            Tip: <code className="rounded bg-gray-100 px-1">[[</code> to link · <code className="rounded bg-gray-100 px-1">/</code> for commands
           </span>
         </div>
         {view !== 'preview' && (
@@ -1120,11 +1180,14 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
             <textarea
               ref={textareaRef}
               value={value}
-              onChange={e => { onChange(e.target.value); setTimeout(checkMentionPopup, 0) }}
+              onChange={e => {
+                onChange(e.target.value)
+                setTimeout(() => { checkMentionPopup(); checkSlashPopup() }, 0)
+              }}
               onKeyDown={onTextareaKeyDown}
-              onKeyUp={checkMentionPopup}
-              onClick={checkMentionPopup}
-              onBlur={() => setTimeout(() => setMentionOpen(false), 150)}
+              onKeyUp={() => { checkMentionPopup(); checkSlashPopup() }}
+              onClick={() => { checkMentionPopup(); checkSlashPopup() }}
+              onBlur={() => setTimeout(() => { setMentionOpen(false); setSlashOpen(false) }, 150)}
               rows={28}
               placeholder={'Type here, or use the toolbar above to add headings, bullets, links, and more.'}
               className="w-full resize-none border-0 bg-white p-4 font-sans text-sm text-gray-900 outline-none md:border-r md:border-gray-200"
@@ -1136,6 +1199,15 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
                 hover={mentionHover}
                 onPick={insertMention}
                 onHover={setMentionHover}
+              />
+            )}
+            {slashOpen && !mentionOpen && (
+              <SlashPopup
+                query={slashQuery}
+                results={slashResults}
+                hover={slashHover}
+                onPick={runSlashCommand}
+                onHover={setSlashHover}
               />
             )}
           </div>
@@ -1183,6 +1255,48 @@ function MentionPopup({ query, results, hover, onPick, onHover }: {
                 <span className="text-base">{r.kind === 'project' ? '📁' : '📄'}</span>
                 <span className="flex-1 truncate">{r.label}</span>
                 {r.hint && <span className="text-[10px] uppercase tracking-wider text-gray-400">{r.hint}</span>}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-400">↑↓ navigate · ⏎ insert · Esc close</div>
+    </div>
+  )
+}
+
+function SlashPopup({ query, results, hover, onPick, onHover }: {
+  query: string
+  results: SlashCommand[]
+  hover: number
+  onPick: (c: SlashCommand) => void
+  onHover: (i: number) => void
+}) {
+  return (
+    <div className="absolute left-4 right-4 top-[60%] z-30 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg md:right-auto md:w-80">
+      <div className="border-b border-gray-100 px-3 py-1.5 text-[11px] uppercase tracking-wider text-gray-400">
+        Slash commands {query && <span className="ml-1 normal-case tracking-normal text-gray-600">— "/{query}"</span>}
+      </div>
+      {results.length === 0 ? (
+        <p className="px-3 py-3 text-sm text-gray-500">No matching commands. Esc to dismiss.</p>
+      ) : (
+        <ul>
+          {results.map((c, i) => (
+            <li key={c.name}>
+              <button
+                type="button"
+                onMouseDown={e => { e.preventDefault(); onPick(c) }}
+                onMouseEnter={() => onHover(i)}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                  i === hover ? 'bg-indigo-50 text-indigo-900' : 'text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                <span className="w-4 text-center text-base text-gray-500">{c.icon ?? '·'}</span>
+                <span className="flex-1">
+                  <span className="font-mono text-[12px] text-gray-700">{c.name}</span>
+                  <span className="ml-2 text-gray-500">{c.label}</span>
+                </span>
+                {c.hint && <span className="text-[10px] uppercase tracking-wider text-gray-400">{c.hint}</span>}
               </button>
             </li>
           ))}
