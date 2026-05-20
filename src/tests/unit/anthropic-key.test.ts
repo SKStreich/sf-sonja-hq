@@ -1,11 +1,9 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   getAnthropicApiKey,
   isAnthropicConfigured,
   anthropicKeyEnvName,
 } from '@/lib/anthropic-key'
-
-const ORIGINAL_NODE_ENV = process.env.NODE_ENV
 
 function clearAllKeys() {
   delete process.env.ANTHROPIC_API_KEY
@@ -17,7 +15,7 @@ describe('getAnthropicApiKey', () => {
   beforeEach(() => clearAllKeys())
   afterEach(() => {
     clearAllKeys()
-    Object.defineProperty(process.env, 'NODE_ENV', { value: ORIGINAL_NODE_ENV })
+    vi.unstubAllEnvs()
   })
 
   it('returns undefined when no key is set', () => {
@@ -26,7 +24,7 @@ describe('getAnthropicApiKey', () => {
   })
 
   it('reads ANTHROPIC_PROD_API_KEY in production', () => {
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production' })
+    vi.stubEnv('NODE_ENV', 'production')
     process.env.ANTHROPIC_PROD_API_KEY = 'prod-key'
     process.env.ANTHROPIC_DEV_API_KEY = 'dev-key'
     expect(getAnthropicApiKey()).toBe('prod-key')
@@ -34,7 +32,7 @@ describe('getAnthropicApiKey', () => {
   })
 
   it('reads ANTHROPIC_DEV_API_KEY outside production', () => {
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'development' })
+    vi.stubEnv('NODE_ENV', 'development')
     process.env.ANTHROPIC_PROD_API_KEY = 'prod-key'
     process.env.ANTHROPIC_DEV_API_KEY = 'dev-key'
     expect(getAnthropicApiKey()).toBe('dev-key')
@@ -42,30 +40,30 @@ describe('getAnthropicApiKey', () => {
   })
 
   it('falls back to legacy ANTHROPIC_API_KEY when env-specific is unset (prod)', () => {
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production' })
+    vi.stubEnv('NODE_ENV', 'production')
     process.env.ANTHROPIC_API_KEY = 'legacy-key'
     expect(getAnthropicApiKey()).toBe('legacy-key')
     expect(anthropicKeyEnvName()).toBe('ANTHROPIC_API_KEY')
   })
 
   it('falls back to legacy ANTHROPIC_API_KEY when env-specific is unset (dev)', () => {
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'development' })
+    vi.stubEnv('NODE_ENV', 'development')
     process.env.ANTHROPIC_API_KEY = 'legacy-key'
     expect(getAnthropicApiKey()).toBe('legacy-key')
     expect(anthropicKeyEnvName()).toBe('ANTHROPIC_API_KEY')
   })
 
   it('env-specific key wins over legacy', () => {
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production' })
+    vi.stubEnv('NODE_ENV', 'production')
     process.env.ANTHROPIC_PROD_API_KEY = 'prod-key'
     process.env.ANTHROPIC_API_KEY = 'legacy-key'
     expect(getAnthropicApiKey()).toBe('prod-key')
   })
 
   it('anthropicKeyEnvName names the current target when nothing is set', () => {
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'production' })
+    vi.stubEnv('NODE_ENV', 'production')
     expect(anthropicKeyEnvName()).toBe('ANTHROPIC_PROD_API_KEY')
-    Object.defineProperty(process.env, 'NODE_ENV', { value: 'development' })
+    vi.stubEnv('NODE_ENV', 'development')
     expect(anthropicKeyEnvName()).toBe('ANTHROPIC_DEV_API_KEY')
   })
 })
