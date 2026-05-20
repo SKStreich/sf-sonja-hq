@@ -1,7 +1,14 @@
 'use client'
 import { useState, useRef, useEffect } from 'react'
-import { DayPicker } from 'react-day-picker'
+import { DayPicker, getDefaultClassNames } from 'react-day-picker'
 import 'react-day-picker/style.css'
+
+// react-day-picker v9's `classNames` prop replaces defaults rather than
+// merging. The defaults include the grid layout (rdp-week, rdp-day) — if we
+// override `day` without keeping `rdp-day`, the day cells collapse into a
+// single column. Append our Tailwind classes to the defaults so the layout
+// rules from `react-day-picker/style.css` still apply.
+const rdpDefaults = getDefaultClassNames()
 
 interface Props {
   value: string   // YYYY-MM-DD or ''
@@ -60,17 +67,17 @@ export function DatePicker({ value, onChange, placeholder = 'Pick a date', class
             selected={selected}
             onSelect={handleSelect}
             classNames={{
-              month_caption: 'flex justify-center items-center h-9 mb-1 text-sm font-semibold text-gray-900',
-              caption_label: 'text-sm font-semibold text-gray-900',
-              nav: 'flex items-center justify-between absolute top-0 inset-x-0 px-1',
-              button_previous: 'h-7 w-7 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center',
-              button_next: 'h-7 w-7 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center',
-              weekday: 'text-[11px] uppercase tracking-wider text-gray-400 font-medium pb-1',
-              day: 'text-sm text-gray-700 rounded-md hover:bg-indigo-50 hover:text-indigo-700 h-9 w-9 flex items-center justify-center cursor-pointer transition-colors',
-              today: 'font-semibold text-indigo-600',
-              selected: 'bg-indigo-600 text-white hover:bg-indigo-600 hover:text-white',
-              outside: 'text-gray-300',
-              disabled: 'text-gray-300 cursor-not-allowed',
+              month_caption: `${rdpDefaults.month_caption} flex justify-center items-center h-9 mb-1 text-sm font-semibold text-gray-900`,
+              caption_label: `${rdpDefaults.caption_label} text-sm font-semibold text-gray-900`,
+              nav: `${rdpDefaults.nav} flex items-center justify-between absolute top-0 inset-x-0 px-1`,
+              button_previous: `${rdpDefaults.button_previous} h-7 w-7 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center`,
+              button_next: `${rdpDefaults.button_next} h-7 w-7 rounded-md text-gray-500 hover:text-gray-900 hover:bg-gray-100 flex items-center justify-center`,
+              weekday: `${rdpDefaults.weekday} text-[11px] uppercase tracking-wider text-gray-400 font-medium pb-1`,
+              day: `${rdpDefaults.day} text-sm text-gray-700 rounded-md hover:bg-indigo-50 hover:text-indigo-700 cursor-pointer transition-colors`,
+              today: `${rdpDefaults.today} font-semibold text-indigo-600`,
+              selected: `${rdpDefaults.selected} bg-indigo-600 text-white hover:bg-indigo-600 hover:text-white`,
+              outside: `${rdpDefaults.outside} text-gray-300`,
+              disabled: `${rdpDefaults.disabled} text-gray-300 cursor-not-allowed`,
             }}
           />
           {value && (
