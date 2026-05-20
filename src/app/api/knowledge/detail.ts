@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
 import { updateEntry, type Kind, type Entity, type KnowledgeEntry } from './actions'
+import { getAnthropicApiKey, anthropicKeyEnvName } from '@/lib/anthropic-key'
 
 async function getCtx() {
   const supabase = createClient()
@@ -121,8 +122,8 @@ export async function listRelated(entryId: string, relation?: string): Promise<R
  */
 export async function critiqueAndSave(entryId: string): Promise<{ id: string }> {
   const { supabase, user, org_id } = await getCtx()
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
+  const apiKey = getAnthropicApiKey()
+  if (!apiKey) throw new Error(`${anthropicKeyEnvName()} not configured`)
 
   const { data: entry } = await (supabase as any)
     .from('knowledge_entries')

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { CostDashboard } from '@/components/cost/CostDashboard'
 import { getServiceConfigs, getLastSyncTimestamp } from '@/app/api/usage/actions'
+import { isAnthropicConfigured } from '@/lib/anthropic-key'
 
 export default async function CostPage() {
   const supabase = createClient()
@@ -29,7 +30,7 @@ export default async function CostPage() {
   ])
 
   const serviceConfig = {
-    anthropic: !!process.env.ANTHROPIC_API_KEY,
+    anthropic: isAnthropicConfigured(),
     openai: !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'sk-placeholder',
     resend: !!process.env.RESEND_API_KEY,
     vercel: !!process.env.VERCEL_TOKEN,

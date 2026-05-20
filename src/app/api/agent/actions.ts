@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { revalidatePath } from 'next/cache'
+import { getAnthropicApiKey, anthropicKeyEnvName } from '@/lib/anthropic-key'
 
 async function getContext() {
   const supabase = createClient()
@@ -307,10 +308,11 @@ export async function sendAgentMessage(
   history: AgentMessage[],
   userMessage: string,
 ): Promise<AgentResponse> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = getAnthropicApiKey()
   if (!apiKey) {
+    const envName = anthropicKeyEnvName()
     return {
-      content: 'The HQ Agent is offline — ANTHROPIC_API_KEY is not set in production. Add it in Vercel → Settings → Environment Variables and redeploy.',
+      content: `The HQ Agent is offline — ${envName} is not set. Add it in Vercel → Settings → Environment Variables and redeploy.`,
     }
   }
 
@@ -410,7 +412,7 @@ function formatAnthropicError(e: any): string {
   const status = e?.status as number | undefined
   const apiType = e?.error?.error?.type as string | undefined
   if (status === 401 || apiType === 'authentication_error') {
-    return 'The HQ Agent is offline — Anthropic rejected the API key (401). The ANTHROPIC_API_KEY in Vercel needs to be rotated to a valid value.'
+    return `The HQ Agent is offline — Anthropic rejected the API key (401). The ${anthropicKeyEnvName()} in Vercel needs to be rotated to a valid value.`
   }
   if (status === 429 || apiType === 'rate_limit_error') {
     return 'The HQ Agent is rate-limited right now. Try again in a minute.'
