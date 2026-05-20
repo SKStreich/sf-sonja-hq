@@ -10,7 +10,7 @@ import type { BackupStateRow, DbDumpDetails } from '@/app/api/backup/actions'
 const KNOWN_SERVICES: Array<{ slug: string; label: string; envName: string; defaultFee?: number; notes?: string }> = [
   { slug: 'supabase',  label: 'Supabase',  envName: 'SUPABASE_MANAGEMENT_API_KEY', defaultFee: 0,    notes: 'Database + auth + storage. Free tier includes 500 MB DB + 1 GB storage. Pro tier ($25/mo) adds daily backups + cross-region storage.' },
   { slug: 'vercel',    label: 'Vercel',    envName: 'VERCEL_TOKEN',                defaultFee: 0,    notes: 'Hosting + edge functions + analytics. Hobby tier is free; Pro ($20/mo) adds advanced analytics.' },
-  { slug: 'anthropic', label: 'Anthropic / Claude API', envName: 'ANTHROPIC_API_KEY',       defaultFee: 0, notes: 'Pay-as-you-go. The HQ Agent + critique features both call this API.' },
+  { slug: 'anthropic', label: 'Anthropic / Claude API', envName: 'ANTHROPIC_PROD_API_KEY',  defaultFee: 0, notes: 'Pay-as-you-go. HQ Agent + critique + chat. As of 2026-05-20: prod reads ANTHROPIC_PROD_API_KEY, dev/test reads ANTHROPIC_DEV_API_KEY (legacy ANTHROPIC_API_KEY still works as fallback).' },
   { slug: 'openai',    label: 'OpenAI / Whisper', envName: 'OPENAI_API_KEY',       defaultFee: 0,    notes: 'Voice transcription (Whisper) + embeddings if/when added.' },
   { slug: 'resend',    label: 'Resend',    envName: 'RESEND_API_KEY',              defaultFee: 0,    notes: 'Transactional email. Free tier includes 3,000 emails/month.' },
   { slug: 'netlify',   label: 'Netlify',   envName: 'NETLIFY_API_TOKEN',           defaultFee: 0,    notes: 'Optional — only if you host any sites here.' },

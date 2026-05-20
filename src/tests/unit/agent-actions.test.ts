@@ -114,9 +114,14 @@ describe('sendAgentMessage', () => {
     expect(callArgs.messages.length).toBe(3) // 2 history + 1 new
   })
 
-  it('throws when ANTHROPIC_API_KEY is not set', async () => {
+  it('returns an offline message when no Anthropic key is set', async () => {
+    setupMocks({ user_profiles: { data: MOCK_PROFILE, error: null } })
     delete process.env.ANTHROPIC_API_KEY
-    await expect(sendAgentMessage([], 'hello')).rejects.toThrow('ANTHROPIC_API_KEY')
+    delete process.env.ANTHROPIC_PROD_API_KEY
+    delete process.env.ANTHROPIC_DEV_API_KEY
+    const result = await sendAgentMessage([], 'hello')
+    expect(result.content).toMatch(/offline/i)
+    expect(result.content).toMatch(/API_KEY/i)
   })
 
   it('throws when not authenticated', async () => {

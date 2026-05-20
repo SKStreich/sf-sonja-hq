@@ -8,6 +8,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropicApiKey } from '@/lib/anthropic-key'
 
 const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
@@ -102,7 +103,7 @@ async function classify(body: string, entityHint: Entity): Promise<{
     confidence: 0.3,
     summary: null as string | null,
   }
-  const apiKey = process.env.ANTHROPIC_API_KEY
+  const apiKey = getAnthropicApiKey()
   if (!apiKey) return fallback
 
   let text = '{}'

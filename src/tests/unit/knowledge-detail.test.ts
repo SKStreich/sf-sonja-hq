@@ -214,10 +214,12 @@ describe('critiqueAndSave', () => {
     await expect(critiqueAndSave('e1')).rejects.toThrow('Vault entries cannot be critiqued')
   })
 
-  it('throws when ANTHROPIC_API_KEY missing', async () => {
+  it('throws when no Anthropic key is configured', async () => {
     delete process.env.ANTHROPIC_API_KEY
+    delete process.env.ANTHROPIC_PROD_API_KEY
+    delete process.env.ANTHROPIC_DEV_API_KEY
     setupTables({ user_profiles: { single: { data: MOCK_PROFILE, error: null } } })
-    await expect(critiqueAndSave('e1')).rejects.toThrow('ANTHROPIC_API_KEY not configured')
+    await expect(critiqueAndSave('e1')).rejects.toThrow(/API_KEY not configured/)
   })
 
   it('passes the critique prompt to Anthropic and persists kind=critique + critique_of link', async () => {

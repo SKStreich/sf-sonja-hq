@@ -1,6 +1,7 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { isAnthropicConfigured } from '@/lib/anthropic-key'
 
 async function getContext() {
   const supabase = createClient()
@@ -32,7 +33,7 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatus[]> {
     }
   const byType = Object.fromEntries((records ?? []).map(r => [r.type, r]))
   const notionKey = !!process.env.NOTION_API_KEY
-  const anthropicKey = !!process.env.ANTHROPIC_API_KEY
+  const anthropicKey = isAnthropicConfigured()
   const githubToken = !!process.env.GITHUB_TOKEN
 
   const notionRec = byType['notion']

@@ -11,6 +11,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropicApiKey, anthropicKeyEnvName } from '@/lib/anthropic-key'
 
 export interface ChatMessage {
   id: string
@@ -165,8 +166,8 @@ ${src.body ?? src.summary ?? ''}`.slice(0, 6000)
     .map((n: any) => `- (${n.kind}/${n.entity}) ${n.title ?? ''} — ${n.summary ?? ''}`)
     .join('\n')
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  let replyText = 'ANTHROPIC_API_KEY not configured — cannot generate reply.'
+  const apiKey = getAnthropicApiKey()
+  let replyText = `${anthropicKeyEnvName()} not configured — cannot generate reply.`
   if (apiKey) {
     const client = new Anthropic({ apiKey })
     const systemPrompt = `You are Sonja's HQ assistant. Help her think through ideas, spot flaws, and connect them to existing work. Be concise, direct, and specific. Do not repeat her question back.

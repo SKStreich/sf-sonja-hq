@@ -8,6 +8,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
+import { getAnthropicApiKey, anthropicKeyEnvName } from '@/lib/anthropic-key'
 
 function canonicalPair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a]
@@ -175,8 +176,8 @@ export interface EntryCritique {
  */
 export async function critiqueEntry(id: string): Promise<EntryCritique> {
   const { supabase, org_id } = await getCtx()
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
+  const apiKey = getAnthropicApiKey()
+  if (!apiKey) throw new Error(`${anthropicKeyEnvName()} not configured`)
 
   const { data: entry, error } = await (supabase as any)
     .from('knowledge_entries')
