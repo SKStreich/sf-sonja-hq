@@ -65,6 +65,23 @@ describe('filterSlashCommands', () => {
     expect(r.some(c => c.name === '/task')).toBe(true)
   })
 
+  it('matches both embed commands by the shared "embed" prefix', () => {
+    const r = filterSlashCommands('embed')
+    const names = r.map(c => c.name)
+    expect(names).toContain('/embed-entry')
+    expect(names).toContain('/embed-project')
+  })
+
+  it('narrows to /embed-entry on the label substring "entry"', () => {
+    const r = filterSlashCommands('entry')
+    expect(r.map(c => c.name)).toEqual(['/embed-entry'])
+  })
+
+  it('narrows to /embed-project on the label substring "project"', () => {
+    const r = filterSlashCommands('project')
+    expect(r.map(c => c.name)).toEqual(['/embed-project'])
+  })
+
   it('returns empty for unknown queries', () => {
     expect(filterSlashCommands('zzz-no-such-command')).toEqual([])
   })
@@ -98,5 +115,60 @@ describe('/task insert', () => {
     const caret = tokenStart + '/task'.length
     const { next } = task.insert({ value, tokenStart, caret })
     expect(next).toBe('note \n- [ ] ')
+  })
+})
+
+describe('/embed-entry insert', () => {
+  const embed = SLASH_COMMANDS.find(c => c.name === '/embed-entry')!
+
+  it('replaces the slash token with `[[Entry: ` and parks the caret after the space', () => {
+    const value = '/embed-entry'
+    const { next, cursor, openMention } = embed.insert({
+      value, tokenStart: 0, caret: value.length,
+    })
+    expect(next).toBe('[[Entry: ')
+    expect(cursor).toBe('[[Entry: '.length)
+    expect(next.slice(0, cursor)).toBe('[[Entry: ')
+    expect(openMention).toBe('entry')
+  })
+
+  it('keeps surrounding content intact, inserting only the partial token', () => {
+    const value = 'see also: /embed-entry for context'
+    const tokenStart = value.indexOf('/embed-entry')
+    const caret = tokenStart + '/embed-entry'.length
+    const { next, cursor } = embed.insert({ value, tokenStart, caret })
+    expect(next).toBe('see also: [[Entry:  for context')
+    expect(next.slice(0, cursor)).toBe('see also: [[Entry: ')
+  })
+
+  it('works mid-paragraph after a newline', () => {
+    const value = 'intro\n/embed-entry'
+    const tokenStart = value.indexOf('/embed-entry')
+    const caret = value.length
+    const { next, cursor } = embed.insert({ value, tokenStart, caret })
+    expect(next).toBe('intro\n[[Entry: ')
+    expect(cursor).toBe(next.length)
+  })
+})
+
+describe('/embed-project insert', () => {
+  const embed = SLASH_COMMANDS.find(c => c.name === '/embed-project')!
+
+  it('replaces the slash token with `[[Project: ` and parks the caret after the space', () => {
+    const value = '/embed-project'
+    const { next, cursor, openMention } = embed.insert({
+      value, tokenStart: 0, caret: value.length,
+    })
+    expect(next).toBe('[[Project: ')
+    expect(cursor).toBe('[[Project: '.length)
+    expect(openMention).toBe('project')
+  })
+
+  it('keeps surrounding content intact', () => {
+    const value = 'tracking via /embed-project right now'
+    const tokenStart = value.indexOf('/embed-project')
+    const caret = tokenStart + '/embed-project'.length
+    const { next } = embed.insert({ value, tokenStart, caret })
+    expect(next).toBe('tracking via [[Project:  right now')
   })
 })

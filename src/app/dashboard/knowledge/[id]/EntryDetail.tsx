@@ -19,7 +19,7 @@ import {
 } from '@/app/api/knowledge/workspace'
 import {
   searchLinkTargets, resolveMentionsForRender, getEntryBacklinks,
-  type LinkTarget, type Backlink,
+  type LinkTarget, type LinkTargetKind, type Backlink,
 } from '@/app/api/knowledge/links'
 import {
   detectSlashToken, filterSlashCommands,
@@ -1068,13 +1068,19 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     const between = slice.slice(open + 2)
     if (between.includes(']]') || between.includes('\n')) { setMentionOpen(false); return }
     mentionStartRef.current = open
-    // Strip leading "Entry:" / "Project:" prefix so the user can type either
-    // `[[foo` or `[[Entry: foo` and get matching results.
-    let q = between.replace(/^(Entry|Project)\s*:\s*/i, '')
+    // Detect explicit kind prefix. If present, strip it from the query AND
+    // scope the search by kind so the user doesn't get cross-kind matches
+    // after they've already committed to one (also how /embed-entry and
+    // /embed-project's hand-off lands here filtered).
+    const kindMatch = between.match(/^(Entry|Project)\s*:\s*/i)
+    const kind: LinkTargetKind | undefined = kindMatch
+      ? (kindMatch[1].toLowerCase() === 'project' ? 'project' : 'entry')
+      : undefined
+    const q = kindMatch ? between.slice(kindMatch[0].length) : between
     setMentionQuery(q)
     setMentionOpen(true)
     setMentionHover(0)
-    searchLinkTargets(q).then(setMentionResults).catch(() => setMentionResults([]))
+    searchLinkTargets(q, kind).then(setMentionResults).catch(() => setMentionResults([]))
   }
 
   const insertMention = (target: LinkTarget) => {
@@ -1116,12 +1122,25 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     const tokenStart = slashStartRef.current
     const caret = ta.selectionStart
     if (tokenStart < 0) { setSlashOpen(false); return }
-    const { next, cursor } = cmd.insert({ value, tokenStart, caret })
+    const { next, cursor, openMention } = cmd.insert({ value, tokenStart, caret })
     onChange(next)
     setSlashOpen(false)
     setTimeout(() => {
       ta.focus()
       ta.setSelectionRange(cursor, cursor)
+      if (openMention) {
+        // Hand off to the mention popup. The freshly inserted token is
+        // `[[Kind: ` ending at `cursor`, so the `[[` sits openLen chars back.
+        const openLen = openMention === 'entry' ? '[[Entry: '.length : '[[Project: '.length
+        const start = cursor - openLen
+        mentionStartRef.current = start
+        setMentionQuery('')
+        setMentionHover(0)
+        setMentionOpen(true)
+        searchLinkTargets('', openMention)
+          .then(setMentionResults)
+          .catch(() => setMentionResults([]))
+      }
     }, 0)
   }
 

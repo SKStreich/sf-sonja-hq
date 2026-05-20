@@ -40,11 +40,14 @@ export function detectSlashToken(value: string, caret: number): SlashTokenMatch 
   return { open: true, start: i, query }
 }
 
+// `openMention` lets a command finish by opening the existing `[[…]]` mention
+// popup pre-filtered by kind — the embed commands rely on this to hand off to
+// the target-search picker without re-implementing it.
 export type SlashCommandInsert = (ctx: {
   value: string
   tokenStart: number
   caret: number
-}) => { next: string; cursor: number }
+}) => { next: string; cursor: number; openMention?: 'entry' | 'project' }
 
 export type SlashCommand = {
   name: string
@@ -78,7 +81,40 @@ const taskCommand: SlashCommand = {
   },
 }
 
-export const SLASH_COMMANDS: SlashCommand[] = [taskCommand]
+// /embed-entry — replace the `/embed-entry` token with `[[Entry: ` and park the
+// caret right after the space. The existing mention popup picks it up via its
+// `[[` detector, kind-filtered to entries; selecting a result closes the token
+// to `[[Entry: <label>]]`.
+const embedEntryCommand: SlashCommand = {
+  name: '/embed-entry',
+  label: 'Embed entry',
+  hint: 'Link a knowledge page',
+  icon: '📄',
+  insert: ({ value, tokenStart, caret }) => {
+    const open = '[[Entry: '
+    const next = value.slice(0, tokenStart) + open + value.slice(caret)
+    return { next, cursor: tokenStart + open.length, openMention: 'entry' }
+  },
+}
+
+// /embed-project — same shape as /embed-entry, kind-filtered to projects.
+const embedProjectCommand: SlashCommand = {
+  name: '/embed-project',
+  label: 'Embed project',
+  hint: 'Link a project',
+  icon: '📁',
+  insert: ({ value, tokenStart, caret }) => {
+    const open = '[[Project: '
+    const next = value.slice(0, tokenStart) + open + value.slice(caret)
+    return { next, cursor: tokenStart + open.length, openMention: 'project' }
+  },
+}
+
+export const SLASH_COMMANDS: SlashCommand[] = [
+  taskCommand,
+  embedEntryCommand,
+  embedProjectCommand,
+]
 
 export function filterSlashCommands(query: string): SlashCommand[] {
   const q = query.toLowerCase()
