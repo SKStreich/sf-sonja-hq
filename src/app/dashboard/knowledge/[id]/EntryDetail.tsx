@@ -1077,10 +1077,15 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
       ? (kindMatch[1].toLowerCase() === 'project' ? 'project' : 'entry')
       : undefined
     const q = kindMatch ? between.slice(kindMatch[0].length) : between
+    // Only refresh hover + results when the query actually changed. Without
+    // this guard, every keyup (including ArrowUp/Down releases) would reset
+    // hover to 0, yanking the highlight back to the top of the list.
+    if (q !== mentionQuery) {
+      setMentionHover(0)
+      searchLinkTargets(q, kind).then(setMentionResults).catch(() => setMentionResults([]))
+    }
     setMentionQuery(q)
     setMentionOpen(true)
-    setMentionHover(0)
-    searchLinkTargets(q, kind).then(setMentionResults).catch(() => setMentionResults([]))
   }
 
   const insertMention = (target: LinkTarget) => {
@@ -1111,8 +1116,11 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     const match = detectSlashToken(value, caret)
     if (!match.open) { setSlashOpen(false); return }
     slashStartRef.current = match.start
+    // Same guard as in checkMentionPopup: only reset hover when the query
+    // changes, otherwise ArrowDown's keyup re-runs us and snaps the highlight
+    // back to row 0.
+    if (match.query !== slashQuery) setSlashHover(0)
     setSlashQuery(match.query)
-    setSlashHover(0)
     setSlashOpen(true)
   }
 
@@ -1261,22 +1269,31 @@ function MentionPopup({ query, results, hover, onPick, onHover }: {
         <p className="px-3 py-3 text-sm text-gray-500">No matches. Keep typing — full title is fine too.</p>
       ) : (
         <ul>
-          {results.map((r, i) => (
-            <li key={`${r.kind}:${r.id}`}>
-              <button
-                type="button"
-                onMouseDown={e => { e.preventDefault(); onPick(r) }}
-                onMouseEnter={() => onHover(i)}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
-                  i === hover ? 'bg-indigo-50 text-indigo-900' : 'text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-base">{r.kind === 'project' ? '📁' : '📄'}</span>
-                <span className="flex-1 truncate">{r.label}</span>
-                {r.hint && <span className="text-[10px] uppercase tracking-wider text-gray-400">{r.hint}</span>}
-              </button>
-            </li>
-          ))}
+          {results.map((r, i) => {
+            // Tint the highlight to match the pill color the picked result
+            // will render as in Preview — emerald for projects, indigo for
+            // entries. Helps the user see at a glance what they're picking.
+            const isProject = r.kind === 'project'
+            const highlightCls = isProject
+              ? 'bg-emerald-50 text-emerald-900'
+              : 'bg-indigo-50 text-indigo-900'
+            return (
+              <li key={`${r.kind}:${r.id}`}>
+                <button
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); onPick(r) }}
+                  onMouseEnter={() => onHover(i)}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                    i === hover ? highlightCls : 'text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-base">{isProject ? '📁' : '📄'}</span>
+                  <span className="flex-1 truncate">{r.label}</span>
+                  {r.hint && <span className="text-[10px] uppercase tracking-wider text-gray-400">{r.hint}</span>}
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
       <div className="border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-400">↑↓ navigate · ⏎ insert · Esc close</div>
