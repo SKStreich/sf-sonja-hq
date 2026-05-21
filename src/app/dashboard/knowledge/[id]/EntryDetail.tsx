@@ -19,7 +19,7 @@ import {
 } from '@/app/api/knowledge/workspace'
 import {
   searchLinkTargets, resolveMentionsForRender, getEntryBacklinks,
-  type LinkTarget, type Backlink,
+  type LinkTarget, type LinkTargetKind, type Backlink,
 } from '@/app/api/knowledge/links'
 import {
   detectSlashToken, filterSlashCommands,
@@ -1068,13 +1068,24 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     const between = slice.slice(open + 2)
     if (between.includes(']]') || between.includes('\n')) { setMentionOpen(false); return }
     mentionStartRef.current = open
-    // Strip leading "Entry:" / "Project:" prefix so the user can type either
-    // `[[foo` or `[[Entry: foo` and get matching results.
-    let q = between.replace(/^(Entry|Project)\s*:\s*/i, '')
+    // Detect explicit kind prefix. If present, strip it from the query AND
+    // scope the search by kind so the user doesn't get cross-kind matches
+    // after they've already committed to one (also how /embed-entry and
+    // /embed-project's hand-off lands here filtered).
+    const kindMatch = between.match(/^(Entry|Project)\s*:\s*/i)
+    const kind: LinkTargetKind | undefined = kindMatch
+      ? (kindMatch[1].toLowerCase() === 'project' ? 'project' : 'entry')
+      : undefined
+    const q = kindMatch ? between.slice(kindMatch[0].length) : between
+    // Only refresh hover + results when the query actually changed. Without
+    // this guard, every keyup (including ArrowUp/Down releases) would reset
+    // hover to 0, yanking the highlight back to the top of the list.
+    if (q !== mentionQuery) {
+      setMentionHover(0)
+      searchLinkTargets(q, kind).then(setMentionResults).catch(() => setMentionResults([]))
+    }
     setMentionQuery(q)
     setMentionOpen(true)
-    setMentionHover(0)
-    searchLinkTargets(q).then(setMentionResults).catch(() => setMentionResults([]))
   }
 
   const insertMention = (target: LinkTarget) => {
@@ -1105,8 +1116,11 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     const match = detectSlashToken(value, caret)
     if (!match.open) { setSlashOpen(false); return }
     slashStartRef.current = match.start
+    // Same guard as in checkMentionPopup: only reset hover when the query
+    // changes, otherwise ArrowDown's keyup re-runs us and snaps the highlight
+    // back to row 0.
+    if (match.query !== slashQuery) setSlashHover(0)
     setSlashQuery(match.query)
-    setSlashHover(0)
     setSlashOpen(true)
   }
 
@@ -1116,12 +1130,25 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     const tokenStart = slashStartRef.current
     const caret = ta.selectionStart
     if (tokenStart < 0) { setSlashOpen(false); return }
-    const { next, cursor } = cmd.insert({ value, tokenStart, caret })
+    const { next, cursor, openMention } = cmd.insert({ value, tokenStart, caret })
     onChange(next)
     setSlashOpen(false)
     setTimeout(() => {
       ta.focus()
       ta.setSelectionRange(cursor, cursor)
+      if (openMention) {
+        // Hand off to the mention popup. The freshly inserted token is
+        // `[[Kind: ` ending at `cursor`, so the `[[` sits openLen chars back.
+        const openLen = openMention === 'entry' ? '[[Entry: '.length : '[[Project: '.length
+        const start = cursor - openLen
+        mentionStartRef.current = start
+        setMentionQuery('')
+        setMentionHover(0)
+        setMentionOpen(true)
+        searchLinkTargets('', openMention)
+          .then(setMentionResults)
+          .catch(() => setMentionResults([]))
+      }
     }, 0)
   }
 
@@ -1242,22 +1269,31 @@ function MentionPopup({ query, results, hover, onPick, onHover }: {
         <p className="px-3 py-3 text-sm text-gray-500">No matches. Keep typing — full title is fine too.</p>
       ) : (
         <ul>
-          {results.map((r, i) => (
-            <li key={`${r.kind}:${r.id}`}>
-              <button
-                type="button"
-                onMouseDown={e => { e.preventDefault(); onPick(r) }}
-                onMouseEnter={() => onHover(i)}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
-                  i === hover ? 'bg-indigo-50 text-indigo-900' : 'text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                <span className="text-base">{r.kind === 'project' ? '📁' : '📄'}</span>
-                <span className="flex-1 truncate">{r.label}</span>
-                {r.hint && <span className="text-[10px] uppercase tracking-wider text-gray-400">{r.hint}</span>}
-              </button>
-            </li>
-          ))}
+          {results.map((r, i) => {
+            // Tint the highlight to match the pill color the picked result
+            // will render as in Preview — emerald for projects, indigo for
+            // entries. Helps the user see at a glance what they're picking.
+            const isProject = r.kind === 'project'
+            const highlightCls = isProject
+              ? 'bg-emerald-50 text-emerald-900'
+              : 'bg-indigo-50 text-indigo-900'
+            return (
+              <li key={`${r.kind}:${r.id}`}>
+                <button
+                  type="button"
+                  onMouseDown={e => { e.preventDefault(); onPick(r) }}
+                  onMouseEnter={() => onHover(i)}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
+                    i === hover ? highlightCls : 'text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  <span className="text-base">{isProject ? '📁' : '📄'}</span>
+                  <span className="flex-1 truncate">{r.label}</span>
+                  {r.hint && <span className="text-[10px] uppercase tracking-wider text-gray-400">{r.hint}</span>}
+                </button>
+              </li>
+            )
+          })}
         </ul>
       )}
       <div className="border-t border-gray-100 px-3 py-1.5 text-[10px] text-gray-400">↑↓ navigate · ⏎ insert · Esc close</div>

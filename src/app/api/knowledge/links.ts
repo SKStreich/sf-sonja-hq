@@ -31,42 +31,58 @@ export interface LinkTarget {
 /**
  * Returns up to 8 entry/project candidates matching `query`, for the editor's
  * `[[…]]` autocomplete popup. Empty `query` returns recent entries + projects.
- * Vault entries and archived rows are excluded.
+ * Vault entries and archived rows are excluded. When `kind` is supplied, the
+ * other kind's query is skipped entirely — `/embed-entry` and `/embed-project`
+ * use this to scope the picker.
  */
-export async function searchLinkTargets(query: string): Promise<LinkTarget[]> {
+export async function searchLinkTargets(
+  query: string,
+  kind?: LinkTargetKind,
+): Promise<LinkTarget[]> {
   const { supabase, org_id } = await getCtx()
   const q = query.trim()
   const like = `%${q}%`
 
+  const wantEntries = kind !== 'project'
+  const wantProjects = kind !== 'entry'
+
   // Entries: standard-access, non-vault, non-archived, with a non-empty title.
-  let entriesQ = (supabase as any)
-    .from('knowledge_entries')
-    .select('id, title, entity, kind, updated_at')
-    .eq('org_id', org_id)
-    .neq('access', 'vault')
-    .eq('status', 'active')
-    .not('title', 'is', null)
-    .order('updated_at', { ascending: false })
-    .limit(8)
-  if (q) entriesQ = entriesQ.ilike('title', like)
-  const { data: entries } = await entriesQ
+  let entries: any[] = []
+  if (wantEntries) {
+    let entriesQ = (supabase as any)
+      .from('knowledge_entries')
+      .select('id, title, entity, kind, updated_at')
+      .eq('org_id', org_id)
+      .neq('access', 'vault')
+      .eq('status', 'active')
+      .not('title', 'is', null)
+      .order('updated_at', { ascending: false })
+      .limit(8)
+    if (q) entriesQ = entriesQ.ilike('title', like)
+    const { data } = await entriesQ
+    entries = data ?? []
+  }
 
   // Projects: org-scoped, not archived (archived is a boolean column, not a status value).
-  let projectsQ = (supabase as any)
-    .from('projects')
-    .select('id, name, status')
-    .eq('org_id', org_id)
-    .eq('archived', false)
-    .order('updated_at', { ascending: false })
-    .limit(8)
-  if (q) projectsQ = projectsQ.ilike('name', like)
-  const { data: projects } = await projectsQ
+  let projects: any[] = []
+  if (wantProjects) {
+    let projectsQ = (supabase as any)
+      .from('projects')
+      .select('id, name, status')
+      .eq('org_id', org_id)
+      .eq('archived', false)
+      .order('updated_at', { ascending: false })
+      .limit(8)
+    if (q) projectsQ = projectsQ.ilike('name', like)
+    const { data } = await projectsQ
+    projects = data ?? []
+  }
 
   const results: LinkTarget[] = []
-  ;(projects ?? []).forEach((p: any) => results.push({
+  projects.forEach((p: any) => results.push({
     kind: 'project', id: p.id, label: p.name, hint: null,
   }))
-  ;(entries ?? []).forEach((e: any) => results.push({
+  entries.forEach((e: any) => results.push({
     kind: 'entry', id: e.id, label: e.title, hint: `${e.kind} · ${e.entity}`,
   }))
   // Interleave: projects first (rarer), then entries. Cap at 8 total.
