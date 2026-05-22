@@ -43,11 +43,19 @@ export function detectSlashToken(value: string, caret: number): SlashTokenMatch 
 // `openMention` lets a command finish by opening the existing `[[…]]` mention
 // popup pre-filtered by kind — the embed commands rely on this to hand off to
 // the target-search picker without re-implementing it.
+// `openTaskCreate` signals that the command needs the dedicated TaskCreatePopup
+// to gather title + project before any pill is written. The insert callback
+// itself just removes the slash token; the popup writes the pill on confirm.
 export type SlashCommandInsert = (ctx: {
   value: string
   tokenStart: number
   caret: number
-}) => { next: string; cursor: number; openMention?: 'entry' | 'project' }
+}) => {
+  next: string
+  cursor: number
+  openMention?: 'entry' | 'project'
+  openTaskCreate?: boolean
+}
 
 export type SlashCommand = {
   name: string
@@ -110,10 +118,27 @@ const embedProjectCommand: SlashCommand = {
   },
 }
 
+// /task-create — distinct from Slice 3a's /task (local Markdown checkbox).
+// Creates a real GTD task row and embeds a [[Task: title|<uuid>]] pill that
+// links to the dedicated task detail page. The actual title + project come
+// from TaskCreatePopup; the insert here just strips the slash token from the
+// body and signals EntryDetail to open the popup. The popup writes the pill.
+const taskCreateCommand: SlashCommand = {
+  name: '/task-create',
+  label: 'Create task',
+  hint: 'Embed a new GTD task',
+  icon: '📋',
+  insert: ({ value, tokenStart, caret }) => {
+    const next = value.slice(0, tokenStart) + value.slice(caret)
+    return { next, cursor: tokenStart, openTaskCreate: true }
+  },
+}
+
 export const SLASH_COMMANDS: SlashCommand[] = [
   taskCommand,
   embedEntryCommand,
   embedProjectCommand,
+  taskCreateCommand,
 ]
 
 export function filterSlashCommands(query: string): SlashCommand[] {

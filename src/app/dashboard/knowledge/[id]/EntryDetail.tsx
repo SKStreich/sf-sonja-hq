@@ -32,6 +32,7 @@ import {
   listForwardRequests, decideForwardRequest,
   type Share, type ForwardRequest,
 } from '@/app/api/knowledge/shares'
+import { createTaskFromWorkspace } from '@/app/api/tasks/actions'
 
 const KINDS: Kind[] = ['idea', 'doc', 'chat', 'note', 'critique']
 const ENTITIES: Entity[] = ['tm', 'sf', 'sfe', 'personal']
@@ -226,6 +227,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
               <MarkdownSplitPane
                 value={body}
                 onChange={v => { setBody(v); markDirty() }}
+                pageEntity={entry.entity}
               />
               <WorkspaceChildren parentId={entry.id} />
               <WorkspaceBacklinks entryId={entry.id} reloadKey={reloadKey} />
@@ -971,11 +973,21 @@ function SharesTab({ entryId, onOpenNewShare }: { entryId: string; onOpenNewShar
   )
 }
 
-type MentionMap = Record<string, { kind: 'entry' | 'project'; id: string }>
+type MentionMap = Record<string, { kind: LinkTargetKind; id: string }>
 
-function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function MarkdownSplitPane({ value, onChange, pageEntity }: {
+  value: string
+  onChange: (v: string) => void
+  pageEntity: Entity
+}) {
   const [view, setView] = useState<'split' | 'edit' | 'preview'>('split')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+
+  // /task-create popup state. When the user picks /task-create the slash
+  // command's insert removes the slash token and we open this popup; on
+  // confirm we splice `[[Task: title|<id>]]` at `taskInsertPosRef`.
+  const [taskCreateOpen, setTaskCreateOpen] = useState(false)
+  const taskInsertPosRef = useRef<number>(-1)
 
   // [[…]] autocomplete state. The popup opens when the user types `[[` and
   // closes on Esc, blur, or once the token is closed with `]]`.
@@ -1130,7 +1142,7 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
     const tokenStart = slashStartRef.current
     const caret = ta.selectionStart
     if (tokenStart < 0) { setSlashOpen(false); return }
-    const { next, cursor, openMention } = cmd.insert({ value, tokenStart, caret })
+    const { next, cursor, openMention, openTaskCreate } = cmd.insert({ value, tokenStart, caret })
     onChange(next)
     setSlashOpen(false)
     setTimeout(() => {
@@ -1149,6 +1161,35 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
           .then(setMentionResults)
           .catch(() => setMentionResults([]))
       }
+      if (openTaskCreate) {
+        // The slash token has already been removed; remember the position so
+        // the popup can splice the pill there on confirm.
+        taskInsertPosRef.current = cursor
+        setTaskCreateOpen(true)
+      }
+    }, 0)
+  }
+
+  // Called by TaskCreatePopup after createManagerTask succeeds. Splices the
+  // [[Task: title|<id>]] pill at the position the slash token previously
+  // occupied. The dirty flag fires via the parent's onChange wrapper.
+  const onTaskCreated = (taskId: string, title: string) => {
+    const pos = taskInsertPosRef.current
+    if (pos < 0) { setTaskCreateOpen(false); return }
+    // Escape `|` and `]` from title to keep the token parseable. `|` is the
+    // label/id separator; doubled `]]` closes the token. Replace with safer
+    // alternatives so the user still sees the title roughly as they typed.
+    const safeTitle = title.replace(/\|/g, '/').replace(/\]/g, ')')
+    const token = `[[Task: ${safeTitle}|${taskId}]]`
+    const next = value.slice(0, pos) + token + value.slice(pos)
+    onChange(next)
+    setTaskCreateOpen(false)
+    setTimeout(() => {
+      const ta = textareaRef.current
+      if (!ta) return
+      ta.focus()
+      const cursor = pos + token.length
+      ta.setSelectionRange(cursor, cursor)
     }, 0)
   }
 
@@ -1235,6 +1276,13 @@ function MarkdownSplitPane({ value, onChange }: { value: string; onChange: (v: s
                 hover={slashHover}
                 onPick={runSlashCommand}
                 onHover={setSlashHover}
+              />
+            )}
+            {taskCreateOpen && (
+              <TaskCreatePopup
+                defaultEntity={pageEntity}
+                onCancel={() => setTaskCreateOpen(false)}
+                onCreated={onTaskCreated}
               />
             )}
           </div>
@@ -1343,23 +1391,194 @@ function SlashPopup({ query, results, hover, onPick, onHover }: {
   )
 }
 
+// TaskCreatePopup — collects title + optional project for /task-create, then
+// calls createTaskFromWorkspace and hands the new id back to the caller so the
+// editor can embed `[[Task: title|<id>]]` immediately. Entity defaults to the
+// hosting workspace page's entity (UX-wise: tasks from the SF Solutions page
+// belong to SF Solutions unless you change it).
+const TASK_ENTITIES: Entity[] = ['tm', 'sf', 'sfe', 'sfc', 'personal']
+
+function TaskCreatePopup({ defaultEntity, onCancel, onCreated }: {
+  defaultEntity: Entity
+  onCancel: () => void
+  onCreated: (taskId: string, title: string) => void
+}) {
+  const [title, setTitle] = useState('')
+  const [entity, setEntity] = useState<Entity>(defaultEntity)
+  const [projectQuery, setProjectQuery] = useState('')
+  const [projectResults, setProjectResults] = useState<LinkTarget[]>([])
+  const [projectId, setProjectId] = useState<string | null>(null)
+  const [projectLabel, setProjectLabel] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Search projects as the query changes (only while no project is picked).
+  useEffect(() => {
+    if (projectId) return
+    const t = setTimeout(() => {
+      searchLinkTargets(projectQuery, 'project')
+        .then(setProjectResults)
+        .catch(() => setProjectResults([]))
+    }, 150)
+    return () => clearTimeout(t)
+  }, [projectQuery, projectId])
+
+  const canCreate = title.trim().length > 0 && !submitting
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canCreate) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const created = await createTaskFromWorkspace({
+        title: title.trim(),
+        entity_slug: entity,
+        project_id: projectId,
+      })
+      onCreated(created.id, created.title)
+    } catch (err: any) {
+      setError(err?.message ?? 'Failed to create task')
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      className="absolute left-4 right-4 top-[60%] z-30 rounded-lg border border-gray-200 bg-white shadow-lg md:right-auto md:w-96"
+      onMouseDown={e => e.stopPropagation()}
+    >
+      <div className="flex items-center justify-between border-b border-gray-100 px-3 py-1.5 text-[11px] uppercase tracking-wider text-gray-400">
+        <span>📋 New task</span>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-gray-400 hover:text-gray-700"
+          aria-label="Cancel"
+        >
+          ✕
+        </button>
+      </div>
+      <form onSubmit={submit} className="space-y-2 px-3 py-3">
+        <input
+          autoFocus
+          type="text"
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); onCancel() } }}
+          placeholder="Task title"
+          className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-violet-400"
+        />
+        <div className="flex items-center gap-2">
+          <label className="text-[11px] uppercase tracking-wider text-gray-400">Entity</label>
+          <select
+            value={entity}
+            onChange={e => setEntity(e.target.value as Entity)}
+            className="flex-1 rounded-md border border-gray-200 px-2 py-1 text-sm text-gray-900 outline-none focus:border-violet-400"
+          >
+            {TASK_ENTITIES.map(en => (
+              <option key={en} value={en}>{en}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[11px] uppercase tracking-wider text-gray-400 mb-1">Project (optional)</label>
+          {projectId ? (
+            <button
+              type="button"
+              onClick={() => { setProjectId(null); setProjectLabel(null); setProjectQuery('') }}
+              className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1 text-xs text-emerald-800 hover:bg-emerald-100"
+            >
+              📁 {projectLabel} <span className="text-emerald-500">✕</span>
+            </button>
+          ) : (
+            <>
+              <input
+                type="text"
+                value={projectQuery}
+                onChange={e => setProjectQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); onCancel() } }}
+                placeholder="Search projects (or leave blank)"
+                className="w-full rounded-md border border-gray-200 px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-violet-400"
+              />
+              {projectResults.length > 0 && (
+                <ul className="mt-1 max-h-32 overflow-y-auto rounded-md border border-gray-100 bg-white">
+                  {projectResults.filter(r => r.kind === 'project').map(r => (
+                    <li key={r.id}>
+                      <button
+                        type="button"
+                        onMouseDown={e => { e.preventDefault(); setProjectId(r.id); setProjectLabel(r.label); setProjectQuery('') }}
+                        className="flex w-full items-center gap-2 px-2 py-1.5 text-left text-sm text-gray-900 hover:bg-emerald-50"
+                      >
+                        📁 <span className="flex-1 truncate">{r.label}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </>
+          )}
+        </div>
+        {error && <p className="text-xs text-red-600">{error}</p>}
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-md px-3 py-1 text-sm text-gray-600 hover:bg-gray-100"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!canCreate}
+            className="rounded-md bg-violet-600 px-3 py-1 text-sm font-medium text-white hover:bg-violet-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {submitting ? 'Creating…' : 'Create'}
+          </button>
+        </div>
+      </form>
+    </div>
+  )
+}
+
 // Prefix used to encode resolved `[[…]]` mentions into Markdown link hrefs.
 // The Preview's `a` renderer detects this prefix and renders a pill instead.
 const MENTION_PREFIX = '/__mention/'
 
+// Icon for each kind, exported here so MentionPopup + pill rendering stay in sync.
+const KIND_ICON: Record<'entry' | 'project' | 'task', string> = {
+  entry: '📄', project: '📁', task: '📋',
+}
+
 function expandMentions(body: string, map: MentionMap): string {
-  return body.replace(/\[\[(Entry|Project):\s*([^\]\n]+?)\s*\]\]/g, (_full, rawKind, rawLabel) => {
-    const kind = (rawKind as string).toLowerCase() === 'project' ? 'project' : 'entry'
-    const label = (rawLabel as string).trim()
-    const key = `${kind}::${label.toLowerCase()}`
-    const hit = map[key]
-    // Escape `]` inside link text — would otherwise break Markdown parsing.
-    const safeLabel = label.replace(/]/g, '\\]')
-    if (hit) {
-      return `[${kind === 'project' ? '📁' : '📄'} ${safeLabel}](${MENTION_PREFIX}${kind}/${hit.id})`
-    }
-    return `[${kind === 'project' ? '📁' : '📄'} ${safeLabel}](${MENTION_PREFIX}${kind}/broken/${encodeURIComponent(label)})`
-  })
+  return body.replace(
+    /\[\[(Entry|Project|Task):\s*([^\]\n|]+?)\s*(?:\|\s*([^\]\n\s]+?)\s*)?\]\]/g,
+    (_full, rawKind, rawLabel, explicitId) => {
+      const kind = ((rawKind as string).toLowerCase() as 'entry' | 'project' | 'task')
+      const label = (rawLabel as string).trim()
+      const icon = KIND_ICON[kind]
+      // Escape `]` inside link text — would otherwise break Markdown parsing.
+      const safeLabel = label.replace(/]/g, '\\]')
+
+      // Tasks resolve by explicit id (label alone is ambiguous). The map key is
+      // `task::<id>`; missing/invalid ids render as broken pills.
+      if (kind === 'task') {
+        const id = (explicitId ?? '').trim().toLowerCase()
+        const valid = id && map[`task::${id}`]
+        if (valid) {
+          return `[${icon} ${safeLabel}](${MENTION_PREFIX}task/${id})`
+        }
+        return `[${icon} ${safeLabel}](${MENTION_PREFIX}task/broken/${encodeURIComponent(label)})`
+      }
+
+      // Entry/project — resolve by label.
+      const hit = map[`${kind}::${label.toLowerCase()}`]
+      if (hit) {
+        return `[${icon} ${safeLabel}](${MENTION_PREFIX}${kind}/${hit.id})`
+      }
+      return `[${icon} ${safeLabel}](${MENTION_PREFIX}${kind}/broken/${encodeURIComponent(label)})`
+    },
+  )
 }
 
 function MarkdownPreview({ value, onToggleTask, mentionMap }: {
@@ -1380,17 +1599,23 @@ function MarkdownPreview({ value, onToggleTask, mentionMap }: {
             const isBroken = tail[0] === 'broken'
             const targetId = isBroken ? '' : tail[0]
             const isProject = kind === 'project'
+            const isTask = kind === 'task'
             const dest = isBroken ? null
-              : isProject ? `/dashboard/projects/${targetId}` : `/dashboard/knowledge/${targetId}`
+              : isTask ? `/dashboard/tasks/${targetId}`
+              : isProject ? `/dashboard/projects/${targetId}`
+              : `/dashboard/knowledge/${targetId}`
+            // Pill palette: amber=broken, emerald=project, violet=task, indigo=entry.
             const pillClass = isBroken
               ? 'inline-flex items-center gap-1 rounded-md border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[0.85em] font-medium text-amber-800 no-underline'
-              : isProject
-                ? 'inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[0.85em] font-medium text-emerald-800 no-underline hover:bg-emerald-100'
-                : 'inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[0.85em] font-medium text-indigo-800 no-underline hover:bg-indigo-100'
+              : isTask
+                ? 'inline-flex items-center gap-1 rounded-md border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[0.85em] font-medium text-violet-800 no-underline hover:bg-violet-100'
+                : isProject
+                  ? 'inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[0.85em] font-medium text-emerald-800 no-underline hover:bg-emerald-100'
+                  : 'inline-flex items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[0.85em] font-medium text-indigo-800 no-underline hover:bg-indigo-100'
             if (dest) {
               return <Link href={dest} className={pillClass}>{children}</Link>
             }
-            return <span className={pillClass} title="Unresolved link — no entry/project with that title">{children}</span>
+            return <span className={pillClass} title="Unresolved link — no entry/project/task with that reference">{children}</span>
           }
           return <a href={href} {...props}>{children}</a>
         },

@@ -19,10 +19,14 @@ async function getCtx() {
   return { supabase, user, org_id: profile.org_id as string }
 }
 
-export type LinkTargetKind = 'entry' | 'project'
+export type LinkTargetKind = 'entry' | 'project' | 'task'
+
+// `searchLinkTargets` only returns entry/project candidates — tasks aren't
+// searchable (they're embedded by creation, not by picking from a list).
+export type SearchableKind = 'entry' | 'project'
 
 export interface LinkTarget {
-  kind: LinkTargetKind
+  kind: SearchableKind
   id: string
   label: string           // title (entry) or name (project)
   hint?: string | null    // entity tag for disambiguation
@@ -37,7 +41,7 @@ export interface LinkTarget {
  */
 export async function searchLinkTargets(
   query: string,
-  kind?: LinkTargetKind,
+  kind?: SearchableKind,
 ): Promise<LinkTarget[]> {
   const { supabase, org_id } = await getCtx()
   const q = query.trim()
@@ -90,24 +94,52 @@ export async function searchLinkTargets(
 }
 
 /**
- * Parses [[Entry: Title]] and [[Project: Name]] tokens from raw markdown,
- * deduplicated by (kind, label). Case-insensitive label match.
+ * Parses [[Entry: Title]], [[Project: Name]] and [[Task: Title|<uuid>]] tokens
+ * from raw markdown. For entries/projects, dedup key is `(kind, label)`
+ * (case-insensitive). For tasks, dedup key is the explicit UUID — title is
+ * ambiguous across tasks, so the ID is required for a token to resolve.
+ *
+ * Token shapes accepted:
+ *   `[[Entry: Some Title]]`
+ *   `[[Project: SF Solutions]]`
+ *   `[[Task: Email John|11111111-1111-1111-1111-111111111111]]`
+ *   `[[Task: Email John]]`               ← parses but won't resolve
  *
  * Not exported: 'use server' files only permit async-function exports.
  */
-function parseMentionTokens(body: string): Array<{ kind: LinkTargetKind; label: string }> {
-  const re = /\[\[(Entry|Project):\s*([^\]\n]+?)\s*\]\]/g
+// UUID-ish: at least one hex/dash chunk after `|`. Loose to keep the regex
+// simple; resolveMentions verifies the FK at lookup time.
+const MENTION_RE =
+  /\[\[(Entry|Project|Task):\s*([^\]\n|]+?)\s*(?:\|\s*([^\]\n\s]+?)\s*)?\]\]/g
+
+export interface ParsedMentionToken {
+  kind: LinkTargetKind
+  label: string
+  explicitId?: string   // present iff the token had `|<id>` (Task tokens only)
+}
+
+function parseMentionTokens(body: string): ParsedMentionToken[] {
+  const re = new RegExp(MENTION_RE.source, MENTION_RE.flags)
   const seen = new Set<string>()
-  const out: Array<{ kind: LinkTargetKind; label: string }> = []
+  const out: ParsedMentionToken[] = []
   let m: RegExpExecArray | null
   while ((m = re.exec(body)) !== null) {
-    const kind = (m[1].toLowerCase() === 'project' ? 'project' : 'entry') as LinkTargetKind
+    const rawKind = m[1].toLowerCase()
+    const kind: LinkTargetKind =
+      rawKind === 'task' ? 'task' : rawKind === 'project' ? 'project' : 'entry'
     const label = m[2].trim()
     if (!label) continue
-    const key = `${kind}::${label.toLowerCase()}`
+    const explicitId = m[3]?.trim() || undefined
+    // For tasks, dedup by id (label is ambiguous); for entry/project, by label.
+    const key =
+      kind === 'task'
+        ? explicitId
+          ? `task::${explicitId.toLowerCase()}`
+          : `task::${label.toLowerCase()}::nil`  // unresolved task tokens still deduped
+        : `${kind}::${label.toLowerCase()}`
     if (seen.has(key)) continue
     seen.add(key)
-    out.push({ kind, label })
+    out.push({ kind, label, explicitId })
   }
   return out
 }
@@ -120,13 +152,16 @@ function parseMentionTokens(body: string): Array<{ kind: LinkTargetKind; label: 
 async function resolveMentions(
   supabase: any,
   org_id: string,
-  tokens: Array<{ kind: LinkTargetKind; label: string }>,
+  tokens: ParsedMentionToken[],
 ): Promise<Map<string, string>> {
   const resolved = new Map<string, string>()
   if (tokens.length === 0) return resolved
 
   const entryLabels = tokens.filter(t => t.kind === 'entry').map(t => t.label)
   const projectLabels = tokens.filter(t => t.kind === 'project').map(t => t.label)
+  const taskIds = tokens
+    .filter(t => t.kind === 'task' && t.explicitId)
+    .map(t => t.explicitId!) as string[]
 
   if (entryLabels.length > 0) {
     const { data } = await supabase
@@ -155,6 +190,20 @@ async function resolveMentions(
     ;(data ?? []).forEach((row: any) => {
       const key = `project::${(row.name as string).toLowerCase()}`
       if (!resolved.has(key)) resolved.set(key, row.id)
+    })
+  }
+
+  if (taskIds.length > 0) {
+    // Tasks are resolved by id (titles are not unique). Verify each id
+    // exists in the caller's org and isn't archived. Map key is `task::<id>`.
+    const { data } = await supabase
+      .from('tasks')
+      .select('id')
+      .eq('org_id', org_id)
+      .eq('archived', false)
+      .in('id', taskIds)
+    ;(data ?? []).forEach((row: any) => {
+      resolved.set(`task::${(row.id as string).toLowerCase()}`, row.id)
     })
   }
 
@@ -196,18 +245,26 @@ export async function syncMentionsForEntry(fromEntryId: string, body: string): P
 
   const rows: any[] = []
   for (const tok of tokens) {
-    const key = `${tok.kind}::${tok.label.toLowerCase()}`
+    const key =
+      tok.kind === 'task' && tok.explicitId
+        ? `task::${tok.explicitId.toLowerCase()}`
+        : `${tok.kind}::${tok.label.toLowerCase()}`
     const targetId = resolved.get(key)
     if (!targetId) continue
     if (tok.kind === 'entry') {
       if (targetId === fromEntryId) continue  // ignore self-mention
       rows.push({
-        from_entry: fromEntryId, to_entry: targetId, to_project: null,
+        from_entry: fromEntryId, to_entry: targetId, to_project: null, to_task: null,
+        relation: 'mentions', created_by: user.id,
+      })
+    } else if (tok.kind === 'project') {
+      rows.push({
+        from_entry: fromEntryId, to_entry: null, to_project: targetId, to_task: null,
         relation: 'mentions', created_by: user.id,
       })
     } else {
       rows.push({
-        from_entry: fromEntryId, to_entry: null, to_project: targetId,
+        from_entry: fromEntryId, to_entry: null, to_project: null, to_task: targetId,
         relation: 'mentions', created_by: user.id,
       })
     }
@@ -294,7 +351,11 @@ export async function resolveMentionsForRender(body: string): Promise<Record<str
   const resolved = await resolveMentions(supabase, org_id, tokens)
   const out: Record<string, { kind: LinkTargetKind; id: string }> = {}
   resolved.forEach((id, key) => {
-    const kind = key.startsWith('project::') ? 'project' : 'entry'
+    const kind: LinkTargetKind = key.startsWith('project::')
+      ? 'project'
+      : key.startsWith('task::')
+        ? 'task'
+        : 'entry'
     out[key] = { kind, id }
   })
   return out
