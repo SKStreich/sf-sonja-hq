@@ -172,3 +172,47 @@ describe('/embed-project insert', () => {
     expect(next).toBe('tracking via [[Project:  right now')
   })
 })
+
+describe('/task-create insert', () => {
+  const cmd = SLASH_COMMANDS.find(c => c.name === '/task-create')!
+
+  it('removes the slash token from the body and signals openTaskCreate', () => {
+    const value = '/task-create'
+    const { next, cursor, openTaskCreate } = cmd.insert({
+      value, tokenStart: 0, caret: value.length,
+    })
+    expect(next).toBe('')
+    expect(cursor).toBe(0)
+    expect(openTaskCreate).toBe(true)
+  })
+
+  it('preserves surrounding content and lands the caret where the slash was', () => {
+    const value = 'before /task-create after'
+    const tokenStart = value.indexOf('/task-create')
+    const caret = tokenStart + '/task-create'.length
+    const { next, cursor, openTaskCreate } = cmd.insert({ value, tokenStart, caret })
+    expect(next).toBe('before  after')
+    expect(cursor).toBe(tokenStart)
+    expect(openTaskCreate).toBe(true)
+  })
+
+  it('does NOT set openMention (popup is a different flow)', () => {
+    const value = '/task-create'
+    const { openMention } = cmd.insert({ value, tokenStart: 0, caret: value.length })
+    expect(openMention).toBeUndefined()
+  })
+})
+
+describe('filterSlashCommands — /task-create', () => {
+  it('shows /task-create on the "task" prefix alongside /task', () => {
+    const r = filterSlashCommands('task')
+    const names = r.map(c => c.name)
+    expect(names).toContain('/task')
+    expect(names).toContain('/task-create')
+  })
+
+  it('narrows to /task-create on the "create" label substring', () => {
+    const r = filterSlashCommands('create')
+    expect(r.map(c => c.name)).toEqual(['/task-create'])
+  })
+})

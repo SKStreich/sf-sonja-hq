@@ -122,6 +122,51 @@ export async function createManagerTask(payload: {
   revalidatePath('/dashboard/tasks')
 }
 
+/**
+ * Workspace-driven task creation. Used by the /task-create slash command —
+ * resolves the entity slug (e.g. `tm`) to its UUID inside the caller's org,
+ * inserts the task with sensible defaults (bucket=backlog, status=todo,
+ * priority=medium), and returns the new id so the editor can embed
+ * `[[Task: title|<id>]]` immediately. Project link is optional.
+ */
+export async function createTaskFromWorkspace(payload: {
+  title: string
+  entity_slug: 'tm' | 'sf' | 'sfe' | 'sfc' | 'personal'
+  project_id?: string | null
+}): Promise<{ id: string; title: string }> {
+  const { supabase, user, org_id } = await getContext()
+  const title = payload.title.trim()
+  if (!title) throw new Error('Task title is required')
+
+  // Resolve entity slug -> entity_id within this org. Mirrors the pattern in
+  // src/app/api/agent/actions.ts when creating tasks from chat tools.
+  const { data: ent } = await (supabase as any)
+    .from('entities')
+    .select('id')
+    .eq('org_id', org_id)
+    .eq('type', payload.entity_slug)
+    .eq('active', true)
+    .limit(1)
+    .single() as { data: { id: string } | null }
+  if (!ent) throw new Error(`No active "${payload.entity_slug}" entity in this org`)
+
+  const { data, error } = await (supabase as any).from('tasks').insert({
+    org_id,
+    user_id: user.id,
+    created_by: user.id,
+    entity_id: ent.id,
+    project_id: payload.project_id ?? null,
+    title,
+    status: 'todo',
+    priority: 'medium',
+    gtd_bucket: 'backlog',
+    archived: false,
+  }).select('id, title').single()
+  if (error) throw new Error('Failed to create task: ' + error.message)
+  revalidatePath('/dashboard/tasks')
+  return { id: data.id as string, title: data.title as string }
+}
+
 export async function cancelTask(id: string) {
   const { supabase } = await getContext()
   const { error } = await (supabase as any).from('tasks').update({ status: 'cancelled' }).eq('id', id)
