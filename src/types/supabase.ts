@@ -746,7 +746,7 @@ export type Database = {
       project_priority: "high" | "medium" | "low"
       project_status: "planning" | "active" | "on_hold" | "complete"
       task_status: "todo" | "in_progress" | "done" | "parked"
-      user_role: "owner" | "admin" | "member" | "read_only"
+      user_role: "platform_owner" | "org_admin" | "supervisor" | "member" | "read_only"
     }
     CompositeTypes: {
       [_ in never]: never

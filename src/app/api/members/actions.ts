@@ -18,14 +18,20 @@ async function getOrgContext() {
 }
 
 function requireAdmin(role: string) {
-  if (!['owner', 'admin'].includes(role)) throw new Error('Admin access required')
+  if (!['platform_owner', 'org_admin'].includes(role)) throw new Error('Admin access required')
 }
+
+function requireSupervisorOrAbove(role: string) {
+  if (!['platform_owner', 'org_admin', 'supervisor'].includes(role)) throw new Error('Supervisor access required')
+}
+
+type AssignableRole = 'org_admin' | 'supervisor' | 'member' | 'read_only'
 
 // ── Invitations ───────────────────────────────────────────────────────────────
 
-export async function inviteOrgMember(email: string, role: 'admin' | 'member' | 'read_only' = 'member', customMessage?: string) {
+export async function inviteOrgMember(email: string, role: AssignableRole = 'member', customMessage?: string) {
   const { supabase, profile, org_id } = await getOrgContext()
-  requireAdmin(profile.role)
+  requireSupervisorOrAbove(profile.role)
 
   const admin = createAdminClient()
   const normalizedEmail = email.trim().toLowerCase()
@@ -198,7 +204,7 @@ export async function acceptOrgInvite(token: string) {
 
 // ── Member management ─────────────────────────────────────────────────────────
 
-export async function updateMemberRole(memberId: string, role: 'admin' | 'member' | 'read_only'): Promise<{ success: boolean; error?: string }> {
+export async function updateMemberRole(memberId: string, role: AssignableRole): Promise<{ success: boolean; error?: string }> {
   try {
     const { profile, org_id } = await getOrgContext()
     requireAdmin(profile.role)
@@ -221,16 +227,16 @@ export async function removeMember(memberId: string): Promise<{ success: boolean
     requireAdmin(profile.role)
     if (memberId === user.id) return { success: false, error: 'You cannot remove yourself' }
     const admin = createAdminClient()
-    // Prevent removing the last owner
+    // Prevent removing the last platform_owner
     const { count } = await (admin as any)
       .from('user_profiles')
       .select('*', { count: 'exact', head: true })
       .eq('org_id', org_id)
-      .eq('role', 'owner')
+      .eq('role', 'platform_owner')
     if ((count ?? 0) <= 1) {
       const { data: target } = await (admin as any)
         .from('user_profiles').select('role').eq('id', memberId).single() as { data: { role: string } | null }
-      if (target?.role === 'owner') return { success: false, error: 'Cannot remove the last owner' }
+      if (target?.role === 'platform_owner') return { success: false, error: 'Cannot remove the last owner' }
     }
     const { error } = await (admin as any)
       .from('user_profiles')
@@ -340,7 +346,11 @@ export async function resolveNotificationTarget(notificationId: string): Promise
 function buildInviteEmail({ inviterName, orgName, role, inviteUrl, expiresInDays, customMessage }: {
   inviterName: string; orgName: string; role: string; inviteUrl: string; expiresInDays: number; customMessage?: string
 }) {
-  const roleLabel = role === 'admin' ? 'Admin' : role === 'read_only' ? 'Viewer' : 'Member'
+  const roleLabel =
+    role === 'org_admin' ? 'Admin'
+      : role === 'supervisor' ? 'Supervisor'
+      : role === 'read_only' ? 'Viewer'
+      : 'Member'
   return `<!DOCTYPE html>
 <html>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0a0a; color: #e5e7eb; margin: 0; padding: 40px 20px;">

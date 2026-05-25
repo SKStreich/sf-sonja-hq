@@ -55,7 +55,8 @@ import {
 } from '@/app/api/members/actions'
 
 const MOCK_USER = { id: 'user-1', email: 'owner@example.com' }
-const MOCK_PROFILE = { org_id: 'org-1', role: 'owner', full_name: 'Owner', email: 'owner@example.com' }
+const MOCK_PROFILE = { org_id: 'org-1', role: 'platform_owner', full_name: 'Owner', email: 'owner@example.com' }
+const SUPERVISOR_PROFILE = { ...MOCK_PROFILE, role: 'supervisor' }
 
 function setupMockFrom(tableResponses: Record<string, any>) {
   mockGetUser.mockResolvedValue({ data: { user: MOCK_USER } })
@@ -150,7 +151,7 @@ describe('updateMemberRole', () => {
       update: vi.fn().mockReturnThis(),
       single: vi.fn().mockResolvedValue({ data: memberProfile, error: null }),
     }))
-    await expect(updateMemberRole('other-user', 'admin')).resolves.toMatchObject({ success: false, error: expect.stringMatching(/admin/i) })
+    await expect(updateMemberRole('other-user', 'org_admin')).resolves.toMatchObject({ success: false, error: expect.stringMatching(/admin/i) })
   })
 
   it('updates role if caller is admin', async () => {
@@ -162,6 +163,28 @@ describe('updateMemberRole', () => {
       single: vi.fn().mockResolvedValue({ data: MOCK_PROFILE, error: null }),
     }))
     await expect(updateMemberRole('other-user', 'member')).resolves.not.toThrow()
+  })
+
+  it('rejects supervisor — role changes are admin-only per cutline', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: MOCK_USER } })
+    mockFrom.mockImplementation(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: SUPERVISOR_PROFILE, error: null }),
+    }))
+    await expect(updateMemberRole('other-user', 'member')).resolves.toMatchObject({ success: false, error: expect.stringMatching(/admin/i) })
+  })
+
+  it('accepts supervisor as the target role', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: MOCK_USER } })
+    mockFrom.mockImplementation(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: MOCK_PROFILE, error: null }),
+    }))
+    await expect(updateMemberRole('other-user', 'supervisor')).resolves.not.toThrow()
   })
 })
 
@@ -177,5 +200,32 @@ describe('removeMember', () => {
       single: vi.fn().mockResolvedValue({ data: MOCK_PROFILE, error: null }),
     }))
     await expect(removeMember(MOCK_USER.id)).resolves.toMatchObject({ success: false, error: expect.stringMatching(/yourself/i) })
+  })
+
+  it('rejects supervisor — remove is admin-only per cutline', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: MOCK_USER } })
+    mockFrom.mockImplementation(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      update: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: SUPERVISOR_PROFILE, error: null }),
+    }))
+    await expect(removeMember('other-user')).resolves.toMatchObject({ success: false, error: expect.stringMatching(/admin/i) })
+  })
+})
+
+describe('inviteOrgMember — cutline gating', () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it('rejects member — invite requires supervisor or above', async () => {
+    mockGetUser.mockResolvedValue({ data: { user: MOCK_USER } })
+    const memberProfile = { ...MOCK_PROFILE, role: 'member' }
+    mockFrom.mockImplementation(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: memberProfile, error: null }),
+    }))
+    const { inviteOrgMember } = await import('@/app/api/members/actions')
+    await expect(inviteOrgMember('new@example.com', 'member')).rejects.toThrow(/supervisor/i)
   })
 })

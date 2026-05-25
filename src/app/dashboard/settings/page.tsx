@@ -17,14 +17,14 @@ export default async function SettingsPage() {
       .select('id, full_name, capture_api_key, role, org_id')
       .eq('id', user.id)
       .single()
-    if (profile?.role === 'member' || profile?.role === 'read_only') redirect('/dashboard/profile')
+    if (profile?.role === 'supervisor' || profile?.role === 'member' || profile?.role === 'read_only') redirect('/dashboard/profile')
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'https://your-app.vercel.app'
-    const isAdmin = profile?.role === 'owner' || profile?.role === 'admin'
+    const isAdmin = profile?.role === 'platform_owner' || profile?.role === 'org_admin'
     const orgId = profile?.org_id ?? null
 
     // Use admin client for org data — bypasses RLS entirely on the server side.
-    // Safe here because we've already verified the caller is an owner/admin above.
+    // Safe here because we've already verified the caller is platform_owner/org_admin above.
     const admin = createAdminClient()
 
     const [membersResult, invitationsResult, notionResult] = await Promise.allSettled([

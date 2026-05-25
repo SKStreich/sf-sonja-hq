@@ -13,10 +13,11 @@ interface Props {
 }
 
 const ROLE_CONFIG: Record<string, { label: string; classes: string }> = {
-  owner:     { label: 'Owner',  classes: 'bg-indigo-900/40 text-indigo-300' },
-  admin:     { label: 'Admin',  classes: 'bg-purple-900/40 text-purple-300' },
-  member:    { label: 'Member', classes: 'bg-gray-600/40 text-gray-300' },
-  read_only: { label: 'Viewer', classes: 'bg-gray-700/40 text-gray-400' },
+  platform_owner: { label: 'Owner',      classes: 'bg-indigo-900/40 text-indigo-300' },
+  org_admin:      { label: 'Admin',      classes: 'bg-purple-900/40 text-purple-300' },
+  supervisor:     { label: 'Supervisor', classes: 'bg-blue-900/40 text-blue-300' },
+  member:         { label: 'Member',     classes: 'bg-gray-600/40 text-gray-300' },
+  read_only:      { label: 'Viewer',     classes: 'bg-gray-700/40 text-gray-400' },
 }
 
 function getInitials(name: string, email: string): string {

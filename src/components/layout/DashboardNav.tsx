@@ -47,7 +47,8 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
   }
 
   const displayName = profile?.full_name ?? user.email?.split('@')[0] ?? 'Account'
-  const isAdmin = profile?.role === 'owner' || profile?.role === 'admin'
+  const isAdmin = profile?.role === 'platform_owner' || profile?.role === 'org_admin'
+  const canSeeCost = isAdmin || profile?.role === 'supervisor'
 
   return (
     <>
@@ -134,12 +135,14 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
                       className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
                       <span className="text-xs">📋</span> Notes
                     </Link>
+                    {canSeeCost && (
+                      <Link href="/dashboard/cost" onClick={() => profileDropdown.setOpen(false)}
+                        className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                        <span className="text-xs">💰</span> Cost & Usage
+                      </Link>
+                    )}
                     {isAdmin && (
                       <>
-                        <Link href="/dashboard/cost" onClick={() => profileDropdown.setOpen(false)}
-                          className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
-                          <span className="text-xs">💰</span> Cost & Usage
-                        </Link>
                         <Link href="/dashboard/integrations" onClick={() => profileDropdown.setOpen(false)}
                           className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
                           <span className="text-xs">🔌</span> Integrations
