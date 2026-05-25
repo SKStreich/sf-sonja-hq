@@ -1,0 +1,726 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HQ · Auth + Roles Alignment — v1</title>
+<style>
+  :root {
+    --sf-red:    #C0392B;
+    --sf-red-hot:#A93226;
+    --sf-fg:     #1F2937;
+    --sf-muted:  #6B7280;
+    --sf-card:   #FFFFFF;
+    --sf-bg:     #FAFAFA;
+    --sf-border: #E5E7EB;
+    --sf-ok:     #16A34A;
+    --sf-warn:   #D97706;
+    --sf-cool:   #2563EB;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--sf-bg); color: var(--sf-fg); }
+  body {
+    font-family: Helvetica, Arial, sans-serif;
+    margin: 0; padding: 0;
+    line-height: 1.5;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  /* Eyebrows + headings */
+  .eyebrow {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--sf-muted);
+  }
+  h1 {
+    font-size: 28px; font-weight: 800;
+    margin: 4px 0 8px; letter-spacing: -0.01em;
+  }
+  h2 {
+    font-size: 20px; font-weight: 700; letter-spacing: -0.005em;
+    margin: 48px 0 12px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--sf-red);
+  }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 6px; }
+  h4 { font-size: 14px; font-weight: 700; margin: 14px 0 4px; }
+  p  { margin: 8px 0; }
+
+  /* Title-bar metadata */
+  .meta {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin: 16px 0 32px;
+    padding: 16px;
+    background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  .meta .item .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--sf-muted); margin-bottom: 2px;
+  }
+  .meta .item .value { font-size: 13px; font-weight: 600; }
+  .meta code {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    background: rgba(0,0,0,0.04); padding: 1px 4px;
+  }
+
+  /* Callouts */
+  .callout {
+    margin: 16px 0;
+    padding: 12px 16px;
+    border-left: 3px solid var(--sf-red);
+    background: var(--sf-card);
+    border-top: 1px solid var(--sf-border);
+    border-right: 1px solid var(--sf-border);
+    border-bottom: 1px solid var(--sf-border);
+  }
+  .callout.warn  { border-left-color: var(--sf-warn); }
+  .callout.ok    { border-left-color: var(--sf-ok); }
+  .callout.info  { border-left-color: var(--sf-cool); }
+  .callout-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--sf-muted); margin-bottom: 4px;
+  }
+
+  /* Side-by-side current vs target */
+  .dual {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin: 16px 0;
+  }
+  .pane {
+    background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+    padding: 16px;
+  }
+  .pane .pane-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--sf-muted); margin-bottom: 8px;
+  }
+  .pane.current { border-top: 3px solid var(--sf-muted); }
+  .pane.target  { border-top: 3px solid var(--sf-red); }
+
+  /* Flow diagrams */
+  .flow {
+    display: flex; align-items: stretch; gap: 6px;
+    flex-wrap: wrap;
+    margin: 12px 0;
+  }
+  .step {
+    background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+    padding: 8px 12px;
+    font-size: 12px;
+    min-width: 110px;
+    flex: 1;
+  }
+  .step .step-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--sf-muted); margin-bottom: 2px; display: block;
+  }
+  .step.bad   { border-left: 3px solid var(--sf-warn); }
+  .step.good  { border-left: 3px solid var(--sf-ok); }
+  .step.new   { border-left: 3px solid var(--sf-red); }
+  .arrow {
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--sf-muted);
+    width: 14px;
+  }
+
+  /* Tables */
+  table.data {
+    width: 100%; border-collapse: collapse;
+    margin: 12px 0;
+    background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  table.data th, table.data td {
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--sf-border);
+    font-size: 13px;
+    vertical-align: top;
+  }
+  table.data th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--sf-muted);
+    background: rgba(0,0,0,0.02);
+    font-weight: 600;
+  }
+  table.data td.mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  table.data tr:last-child td { border-bottom: none; }
+
+  /* Decision matrix */
+  table.decisions {
+    width: 100%; border-collapse: collapse;
+    margin: 12px 0;
+    background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  table.decisions th, table.decisions td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--sf-border);
+    font-size: 13px;
+    vertical-align: top;
+  }
+  table.decisions th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--sf-muted);
+    text-align: left;
+    background: rgba(0,0,0,0.02);
+  }
+  table.decisions td.id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--sf-red); font-weight: 600;
+    white-space: nowrap;
+  }
+  table.decisions tr.recommended td { background: rgba(192, 57, 43, 0.04); }
+  .pill {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 2px 8px;
+    background: var(--sf-red); color: white;
+    border-radius: 2px;
+    margin-left: 6px;
+  }
+  .pill.muted { background: var(--sf-muted); }
+  .pill.warn  { background: var(--sf-warn); }
+  .pill.ok    { background: var(--sf-ok); }
+
+  /* Code blocks */
+  pre.code {
+    background: #0F172A; color: #E2E8F0;
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 12px; line-height: 1.55;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 12px 0;
+  }
+  pre.code .kw { color: #F472B6; }
+  pre.code .id { color: #93C5FD; }
+  pre.code .str { color: #BEF264; }
+  pre.code .cmt { color: #94A3B8; font-style: italic; }
+  code.inline {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    background: rgba(0,0,0,0.05); padding: 1px 5px;
+  }
+
+  ul { padding-left: 22px; margin: 6px 0; }
+  ul li { margin: 3px 0; }
+  ul.compact li { font-size: 13px; }
+
+  footer.doc {
+    margin-top: 64px;
+    padding-top: 16px;
+    border-top: 1px solid var(--sf-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--sf-muted);
+  }
+  footer.doc p { margin: 4px 0; }
+
+  @media (max-width: 800px) {
+    .meta { grid-template-columns: 1fr 1fr; }
+    .dual { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">HQ Alignment Sprint · Decision Spec</div>
+  <h1>Auth + Roles Alignment <span style="color: var(--sf-red);">v1</span></h1>
+  <p style="color: var(--sf-muted); max-width: 720px;">
+    Combined scoping for cross-project audit actions <strong>1</strong>
+    (password login) and <strong>5</strong> (canonical 5-role spine).
+    Both have hidden decisions surfaced below. Sonja signs off on Section
+    7's open-decisions matrix before any code is written.
+  </p>
+
+  <div class="meta">
+    <div class="item"><div class="label">Repo</div><div class="value">sf-sonja-hq</div></div>
+    <div class="item"><div class="label">Branch</div><div class="value"><code>docs/auth-and-roles-spec-v1</code></div></div>
+    <div class="item"><div class="label">HEAD baseline</div><div class="value"><code>6716501</code> (PR #24)</div></div>
+    <div class="item"><div class="label">Scope</div><div class="value">HQ-only · SF Ops divergence accepted</div></div>
+  </div>
+
+  <div class="callout warn">
+    <div class="callout-label">Why this spec exists</div>
+    The audit's one-line summaries hide two real decisions: (a) existing
+    HQ users have <strong>no password set</strong>, so action 1 needs a
+    migration path; (b) the "canonical 5-role spine"
+    (<code class="inline">platform_owner · org_admin · supervisor · member · read_only</code>)
+    matches <em>neither</em> repo today, and adding <code class="inline">supervisor</code>
+    to HQ requires picking a semantic (or explicitly punting one).
+  </div>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>1 · Action 1 — Password login</h2>
+
+  <h3>Current state</h3>
+  <div class="dual">
+    <div class="pane current">
+      <div class="pane-label">HQ today · magic-link only</div>
+      <div class="flow">
+        <div class="step bad"><span class="step-label">step 1</span>User enters email</div>
+        <div class="arrow">→</div>
+        <div class="step bad"><span class="step-label">step 2</span><code>signInWithOtp</code></div>
+        <div class="arrow">→</div>
+        <div class="step bad"><span class="step-label">step 3</span>Email sent · 30-min cooldown</div>
+        <div class="arrow">→</div>
+        <div class="step bad"><span class="step-label">step 4</span>Click link · <code>exchangeCodeForSession</code></div>
+      </div>
+      <p style="margin-top:10px;font-size:12px;color:var(--sf-muted);">
+        <code class="inline">src/components/auth/LoginForm.tsx:16</code> ·
+        <code class="inline">src/app/auth/callback/route.ts</code>
+      </p>
+      <p style="font-size:12px;color:var(--sf-muted);">
+        <strong>Sonja's known pain:</strong> Supabase shared SMTP rate-limits
+        OTP at 2/hour per recipient. First link fails → no retry for 30 min.
+      </p>
+    </div>
+
+    <div class="pane target">
+      <div class="pane-label">SF Ops today · password primary</div>
+      <div class="flow">
+        <div class="step good"><span class="step-label">step 1</span>User enters email + password</div>
+        <div class="arrow">→</div>
+        <div class="step good"><span class="step-label">step 2</span>Server action <code>signIn</code></div>
+        <div class="arrow">→</div>
+        <div class="step good"><span class="step-label">step 3</span><code>signInWithPassword</code></div>
+        <div class="arrow">→</div>
+        <div class="step good"><span class="step-label">step 4</span>Redirect <code>/dashboard</code></div>
+      </div>
+      <p style="margin-top:10px;font-size:12px;color:var(--sf-muted);">
+        <code class="inline">src/app/auth/actions.ts:7</code> ·
+        <code class="inline">src/app/login/page.tsx</code>
+      </p>
+      <p style="font-size:12px;color:var(--sf-muted);">
+        Already does invite-set-password for new users via the password
+        recovery flow. Magic-link is not used.
+      </p>
+    </div>
+  </div>
+
+  <h3>Target state — HQ after this spec lands</h3>
+  <div class="pane target" style="margin: 12px 0;">
+    <div class="pane-label">Login form · password primary</div>
+    <div class="flow">
+      <div class="step good"><span class="step-label">primary</span>Email + password → <code>signInWithPassword</code> → <code>/dashboard</code></div>
+    </div>
+    <div class="pane-label" style="margin-top:14px;">Fallback flows</div>
+    <div class="flow">
+      <div class="step new"><span class="step-label">flow A</span>"Forgot password?" link → magic-link sent → <code>/auth/set-password</code> → choose new pwd → sign in</div>
+    </div>
+    <div class="flow">
+      <div class="step new"><span class="step-label">flow B</span>Invite accepted → magic-link → <code>/auth/set-password</code> → sign in</div>
+    </div>
+    <div class="flow">
+      <div class="step new"><span class="step-label">flow C</span>Existing user without password → first sign-in attempt fails → "Set your password" link → magic-link → <code>/auth/set-password</code></div>
+    </div>
+    <p style="margin-top:12px;font-size:12px;color:var(--sf-muted);">
+      Single new route: <code>/auth/set-password</code>. Single new server
+      action: <code>updatePassword</code>. Magic-link infra (OTP +
+      <code>exchangeCodeForSession</code>) stays — it's the recovery
+      mechanism for all three fallback flows.
+    </p>
+  </div>
+
+  <h3>Hidden decision — existing HQ users have no password</h3>
+  <p>
+    Sonja and any current collaborators authenticated only via magic link.
+    There are no <code class="inline">auth.users.encrypted_password</code>
+    rows for them. Four options to onboard them onto password auth:
+  </p>
+
+  <table class="decisions">
+    <thead><tr><th>Option</th><th>How it works</th><th>Pros</th><th>Cons</th></tr></thead>
+    <tbody>
+      <tr class="recommended">
+        <td class="id">1A-A <span class="pill">REC</span></td>
+        <td>First failed sign-in (no password) shows "Set your password" CTA → magic-link → set-password page</td>
+        <td>Self-serve · no admin work · familiar magic-link flow · zero deploy-day side effects</td>
+        <td>Confusing first-time error message ("invalid login") unless we detect "no password set" and reframe</td>
+      </tr>
+      <tr>
+        <td class="id">1A-B</td>
+        <td>Bulk email blast on deploy with "Set your password" magic links to all current users</td>
+        <td>Proactive · no error state · users prepared</td>
+        <td>Email blast feels heavy for ~handful of users · still need per-user link generation script · still need the set-password page</td>
+      </tr>
+      <tr>
+        <td class="id">1A-C</td>
+        <td>Sonja (as owner) sets passwords manually for each user via Supabase admin</td>
+        <td>Zero new code paths · simple</td>
+        <td>Doesn't scale past 5–10 users · Sonja has to communicate the password OOB · still need set-password page for in-app rotation</td>
+      </tr>
+      <tr>
+        <td class="id">1A-D</td>
+        <td>Add "Set Password" section in profile page; users sign in via magic link first, then set password there</td>
+        <td>No error state · explicit user action</td>
+        <td>Multi-step (sign in → navigate to profile → set) · users may not discover · password becomes optional indefinitely</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <div class="callout-label">Recommendation</div>
+    <strong>1A-A.</strong> Detect "user exists but no password" by querying
+    <code class="inline">auth.users</code> via service-role check after a
+    failed sign-in, and reframe the error as
+    <em>"This account uses magic-link login. Click here to set a password."</em>
+    Same set-password page is reusable for invite + forgot-password flows.
+    One code path, three entry points.
+  </div>
+
+  <h3>Other questions inside Action 1</h3>
+  <ul class="compact">
+    <li><strong>Invite flow:</strong> currently
+      <code class="inline">inviteOrgMember()</code> in
+      <code class="inline">src/app/api/members/actions.ts:26</code> — does it
+      use Supabase invite or just create the row? Need to confirm + decide
+      whether invitees set password during accept or after first login.
+      (Captured in 1A-B below.)</li>
+    <li><strong>Session/cookie handling:</strong> no change. Server action
+      sets the cookie via the same <code class="inline">createServerClient</code>
+      pattern HQ already uses.</li>
+    <li><strong>Error display:</strong> SF Ops uses a query param
+      (<code class="inline">?error=...</code>) read on the server-rendered
+      login page. HQ moves to the same pattern (server component login
+      page).</li>
+  </ul>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>2 · Action 5 — Canonical 5-role spine</h2>
+
+  <h3>Current state — HQ enum + usage</h3>
+  <table class="data">
+    <thead><tr><th>Role</th><th>Defined in</th><th>Default</th><th>Where it's checked</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="mono">owner</td>
+        <td class="mono">migrations/20260416…sprint1_schema.sql:14</td>
+        <td>—</td>
+        <td>5 code callsites · 3 RLS policies · "last owner" protection</td>
+      </tr>
+      <tr>
+        <td class="mono">admin</td>
+        <td class="mono">…sprint1_schema.sql:14</td>
+        <td>—</td>
+        <td>5 code callsites · 3 RLS policies · invite role option</td>
+      </tr>
+      <tr>
+        <td class="mono">member</td>
+        <td class="mono">…sprint1_schema.sql:14</td>
+        <td><strong>yes</strong></td>
+        <td>3 code callsites · invite default · settings access gate</td>
+      </tr>
+      <tr>
+        <td class="mono">read_only</td>
+        <td class="mono">…sprint1_schema.sql:14</td>
+        <td>—</td>
+        <td>3 code callsites · invite role option · settings redirect</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Target enum — canonical 5-role spine</h3>
+  <div class="dual">
+    <div class="pane current">
+      <div class="pane-label">Before</div>
+      <pre class="code"><span class="kw">CREATE TYPE</span> <span class="id">user_role</span> <span class="kw">AS ENUM</span> (
+  <span class="str">'owner'</span>,
+  <span class="str">'admin'</span>,
+  <span class="str">'member'</span>,
+  <span class="str">'read_only'</span>
+);</pre>
+    </div>
+    <div class="pane target">
+      <div class="pane-label">After</div>
+      <pre class="code"><span class="kw">CREATE TYPE</span> <span class="id">user_role</span> <span class="kw">AS ENUM</span> (
+  <span class="str">'platform_owner'</span>,  <span class="cmt">-- was 'owner'</span>
+  <span class="str">'org_admin'</span>,       <span class="cmt">-- was 'admin'</span>
+  <span class="str">'supervisor'</span>,      <span class="cmt">-- NEW</span>
+  <span class="str">'member'</span>,
+  <span class="str">'read_only'</span>
+);</pre>
+    </div>
+  </div>
+
+  <h3>Migration mapping</h3>
+  <table class="data">
+    <thead><tr><th>Old</th><th>New</th><th>Semantic change</th><th>Data migration</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="mono">owner</td>
+        <td class="mono">platform_owner</td>
+        <td>Same role · more explicit name (matches SF Ops)</td>
+        <td><code class="inline">ALTER TYPE … RENAME VALUE</code></td>
+      </tr>
+      <tr>
+        <td class="mono">admin</td>
+        <td class="mono">org_admin</td>
+        <td>Same role · scoped name to clarify org-level (vs platform-level)</td>
+        <td><code class="inline">ALTER TYPE … RENAME VALUE</code></td>
+      </tr>
+      <tr>
+        <td class="mono">—</td>
+        <td class="mono">supervisor</td>
+        <td><strong>NEW</strong> · see decision 5B below</td>
+        <td><code class="inline">ALTER TYPE … ADD VALUE</code></td>
+      </tr>
+      <tr>
+        <td class="mono">member</td>
+        <td class="mono">member</td>
+        <td>Unchanged</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td class="mono">read_only</td>
+        <td class="mono">read_only</td>
+        <td>Unchanged</td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>Migration shape</h3>
+  <pre class="code"><span class="cmt">-- migration: 20260524000001_canonical_role_spine.sql</span>
+<span class="kw">BEGIN</span>;
+
+<span class="cmt">-- Postgres 15+ supports RENAME VALUE inside a transaction since 13.</span>
+<span class="kw">ALTER TYPE</span> <span class="id">user_role</span> <span class="kw">RENAME VALUE</span> <span class="str">'owner'</span> <span class="kw">TO</span> <span class="str">'platform_owner'</span>;
+<span class="kw">ALTER TYPE</span> <span class="id">user_role</span> <span class="kw">RENAME VALUE</span> <span class="str">'admin'</span> <span class="kw">TO</span> <span class="str">'org_admin'</span>;
+
+<span class="cmt">-- ADD VALUE must be outside a transaction in older PG; PG 12+ relaxed this.</span>
+<span class="kw">ALTER TYPE</span> <span class="id">user_role</span> <span class="kw">ADD VALUE</span> <span class="str">'supervisor'</span> <span class="kw">AFTER</span> <span class="str">'org_admin'</span>;
+
+<span class="cmt">-- RLS policies that hard-coded old names</span>
+<span class="kw">DROP POLICY</span> <span class="str">"integrations_admin_only"</span> <span class="kw">ON</span> <span class="id">integrations</span>;
+<span class="kw">CREATE POLICY</span> <span class="str">"integrations_admin_only"</span> <span class="kw">ON</span> <span class="id">integrations</span> <span class="kw">FOR ALL</span>
+  <span class="kw">USING</span> (
+    org_id = (<span class="kw">SELECT</span> org_id <span class="kw">FROM</span> user_profiles <span class="kw">WHERE</span> id = auth.uid())
+    <span class="kw">AND EXISTS</span> (
+      <span class="kw">SELECT</span> 1 <span class="kw">FROM</span> user_profiles
+      <span class="kw">WHERE</span> id = auth.uid()
+        <span class="kw">AND</span> role <span class="kw">IN</span> (<span class="str">'platform_owner'</span>, <span class="str">'org_admin'</span>)
+    )
+  );
+
+<span class="cmt">-- Same shape for the 2 policies in 20260425…contacts_and_share_forwarding.sql</span>
+
+<span class="kw">COMMIT</span>;</pre>
+
+  <p style="font-size:12px;color:var(--sf-muted);">
+    Note: <code class="inline">ALTER TYPE … RENAME VALUE</code> updates the
+    enum in place — no data rewrite, all existing rows automatically
+    reflect the new label. RLS policies need explicit drop+recreate
+    because Postgres caches the policy text against the old enum string.
+  </p>
+
+  <h3>Code callsite changes</h3>
+  <table class="data">
+    <thead><tr><th>File</th><th>Lines</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">src/types/supabase.ts</td><td class="mono">749</td><td>Regenerate via <code class="inline">supabase gen types</code></td></tr>
+      <tr><td class="mono">src/app/dashboard/settings/page.tsx</td><td class="mono">20, 23</td><td><code class="inline">'owner' → 'platform_owner'</code>, <code class="inline">'admin' → 'org_admin'</code></td></tr>
+      <tr><td class="mono">src/app/dashboard/cost/page.tsx</td><td class="mono">17</td><td>Same redirect check, no rename needed (only checks <code class="inline">member</code> / <code class="inline">read_only</code>)</td></tr>
+      <tr><td class="mono">src/app/api/members/actions.ts</td><td class="mono">21, 26, 201, 229, 233, 343</td><td>Rename all 6 occurrences · expand invite type to include <code class="inline">'supervisor'</code> (see decision 5B)</td></tr>
+      <tr><td class="mono">src/components/settings/SettingsClient.tsx</td><td class="mono">35, 47, 116, 313, 329</td><td>Rename · add supervisor to dropdown</td></tr>
+      <tr><td class="mono">src/components/layout/DashboardNav.tsx</td><td class="mono">50</td><td><code class="inline">isAdmin</code> check rename</td></tr>
+      <tr><td class="mono">src/components/profile/ProfileClient.tsx</td><td class="mono">44 + <code class="inline">ROLE_CONFIG</code></td><td>Add new role keys to display config</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Open decisions for Action 5</h3>
+
+  <h4>5A · Semantic for the new <code class="inline">supervisor</code> role in HQ</h4>
+  <table class="decisions">
+    <thead><tr><th>Option</th><th>What it means in HQ</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr class="recommended">
+        <td class="id">5A-1 <span class="pill">REC</span></td>
+        <td>No HQ semantic — exists in the enum for cross-platform consistency only. Not surfaced in the invite dropdown. No callsite treats it specially.</td>
+        <td>Lowest risk · matches audit's "canonical spine for both projects" framing · easy to add semantic later</td>
+      </tr>
+      <tr>
+        <td class="id">5A-2</td>
+        <td>Between <code class="inline">org_admin</code> and <code class="inline">member</code> — can manage projects/tasks/knowledge but not org settings/billing</td>
+        <td>Adds a real permission tier · requires defining the cutline + updating RLS + UI gates · higher scope</td>
+      </tr>
+      <tr>
+        <td class="id">5A-3</td>
+        <td>Defer entirely — don't add <code class="inline">supervisor</code> to the HQ enum yet</td>
+        <td>HQ enum becomes 4 values (renamed but no add) · diverges from the "canonical spine" goal of action 5</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>5B · Should the invite dropdown expose <code class="inline">supervisor</code>?</h4>
+  <table class="decisions">
+    <thead><tr><th>Option</th><th>Effect</th></tr></thead>
+    <tbody>
+      <tr class="recommended">
+        <td class="id">5B-1 <span class="pill">REC</span></td>
+        <td>Yes — expose all assignable roles (<code class="inline">org_admin · supervisor · member · read_only</code>); even if 5A-1 wins, surfacing it costs nothing and lets Sonja test-drive the semantic later. <code class="inline">platform_owner</code> is never invitable.</td>
+      </tr>
+      <tr>
+        <td class="id">5B-2</td>
+        <td>No — only expose <code class="inline">org_admin · member · read_only</code> until 5A is decided</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h4>5C · Profile page role display labels</h4>
+  <p style="font-size:13px;">
+    <code class="inline">src/components/profile/ProfileClient.tsx</code> has a
+    <code class="inline">ROLE_CONFIG</code> map mapping role → display label
+    + color. New entries needed for <code class="inline">platform_owner</code>,
+    <code class="inline">org_admin</code>, <code class="inline">supervisor</code>.
+    Suggested labels:
+  </p>
+  <table class="data">
+    <thead><tr><th>Role</th><th>Display label</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">platform_owner</td><td>Owner</td><td>Full access · cannot be removed</td></tr>
+      <tr><td class="mono">org_admin</td><td>Admin</td><td>Manage org settings + members</td></tr>
+      <tr><td class="mono">supervisor</td><td>Supervisor</td><td>Manage projects + tasks (no org settings)</td></tr>
+      <tr><td class="mono">member</td><td>Member</td><td>Standard collaborator</td></tr>
+      <tr><td class="mono">read_only</td><td>Viewer</td><td>Read-only access</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>3 · Implementation sequencing</h2>
+  <p>Two PRs after this spec is signed off:</p>
+
+  <table class="data">
+    <thead><tr><th>PR</th><th>Scope</th><th>Touches</th><th>Est.</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>PR A</strong> — Action 5</td>
+        <td>Migration + RLS updates + code rename + regenerated types + tests for "no role accidentally dropped"</td>
+        <td>1 migration · 3 RLS policies · 8 files · 1 type regen</td>
+        <td>½ day</td>
+      </tr>
+      <tr>
+        <td><strong>PR B</strong> — Action 1</td>
+        <td>Password login server action + login form refactor (server component) + set-password page + magic-link "set/forgot password" fallback path + existing-user detection logic</td>
+        <td>3 new files · 2 file rewrites · 1 new route · ~4 callsite touches</td>
+        <td>1 day</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <div class="callout-label">Why Action 5 first</div>
+    Role rename touches <code class="inline">user_profiles</code> which is
+    queried in the auth callback path. Doing role rename first means
+    Action 1's auth code sees a stable schema. Reverse order would mean
+    Action 5 has to touch Action 1's new files too.
+  </div>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>4 · What's NOT in this spec</h2>
+  <ul class="compact">
+    <li><strong>SF Ops role changes.</strong> Sonja's call:
+      HQ-only migration · SF Ops keeps
+      <code class="inline">platform_owner · org_admin · supervisor · field_tech · contractor</code>
+      indefinitely.</li>
+    <li><strong>Brand-styling the login page.</strong> Lives in Action 2
+      (separate PR, runs in parallel with Sonja reviewing this spec).</li>
+    <li><strong>2FA / TOTP / passkeys.</strong> Out of scope for the
+      alignment sprint. Revisit in a future security-themed sprint.</li>
+    <li><strong>Re-defining what each role <em>can do</em>.</strong> This
+      spec preserves existing permission boundaries; it only renames
+      <code class="inline">owner→platform_owner</code> and
+      <code class="inline">admin→org_admin</code>. If 5A-2 wins,
+      a follow-up spec defines the supervisor cutline.</li>
+    <li><strong>Cross-org access (true platform-owner across multiple
+      orgs).</strong> HQ today is effectively single-org for Sonja.
+      <code class="inline">platform_owner</code> is a rename, not a new
+      capability.</li>
+  </ul>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>5 · Open decisions matrix — sign-off here</h2>
+  <p>One ✓ per row. Recommendations highlighted in red.</p>
+
+  <table class="decisions">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Decision</th>
+        <th>Recommended</th>
+        <th>Alternatives</th>
+        <th>Sonja's pick</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="recommended">
+        <td class="id">1A</td>
+        <td>How do existing users get an initial password?</td>
+        <td>1A-A — failed-login reframes to "Set your password"</td>
+        <td>1A-B (bulk email) · 1A-C (admin sets) · 1A-D (profile-page section)</td>
+        <td>☐</td>
+      </tr>
+      <tr class="recommended">
+        <td class="id">5A</td>
+        <td>HQ semantic for <code class="inline">supervisor</code></td>
+        <td>5A-1 — no semantic yet, enum-only</td>
+        <td>5A-2 (define cutline) · 5A-3 (don't add at all)</td>
+        <td>☐</td>
+      </tr>
+      <tr class="recommended">
+        <td class="id">5B</td>
+        <td>Expose <code class="inline">supervisor</code> in invite dropdown?</td>
+        <td>5B-1 — yes, surface it</td>
+        <td>5B-2 (hide until 5A decided)</td>
+        <td>☐</td>
+      </tr>
+      <tr>
+        <td class="id">5C</td>
+        <td>Profile-page display labels</td>
+        <td>Confirm the table in Section 2 → 5C</td>
+        <td>Tweak any label</td>
+        <td>☐</td>
+      </tr>
+      <tr>
+        <td class="id">SCOPE</td>
+        <td>Implementation order (Action 5 first, then Action 1)</td>
+        <td>Confirm Section 3 sequencing</td>
+        <td>Reverse order · split further · combine</td>
+        <td>☐</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout ok" style="margin-top:24px;">
+    <div class="callout-label">After sign-off</div>
+    1. Apply Sonja's decisions inline into Section 5 (mark each row's pick).
+    2. Save as <code class="inline">hq_auth-and-roles_v1-final.html</code>
+       (or bump to <code class="inline">_v2.html</code> if substantive
+       changes were made during review).
+    3. Upload to Sonja HQ as a knowledge doc under the Platform project.
+    4. Implementation begins in PR A (Action 5) per Section 3.
+  </div>
+
+  <footer class="doc">
+    <p>HQ Auth + Roles Alignment · v1 · <strong>DRAFT</strong></p>
+    <p>Branch <code>docs/auth-and-roles-spec-v1</code> · base <code>6716501</code></p>
+    <p>Cross-project audit · actions 1 + 5 · HQ Alignment Sprint (Option A)</p>
+  </footer>
+
+</div>
+</body>
+</html>
