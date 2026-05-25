@@ -42,7 +42,13 @@ export default async function AcceptInvitePage({ params }: { params: { token: st
 
   const orgName = invitation.orgs?.name ?? 'Sonja HQ'
   const inviterName = 'A teammate'
-  const roleLabel = { admin: 'Admin', member: 'Member', read_only: 'Viewer' }[invitation.role as string] ?? 'Member'
+  const roleLabel = {
+    platform_owner: 'Owner',
+    org_admin: 'Admin',
+    supervisor: 'Supervisor',
+    member: 'Member',
+    read_only: 'Viewer',
+  }[invitation.role as string] ?? 'Member'
 
   return (
     <InvitePage>
