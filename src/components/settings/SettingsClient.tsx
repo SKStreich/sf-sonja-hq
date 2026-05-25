@@ -19,7 +19,15 @@ interface Props {
   notionLastSync: string | null
 }
 
-const ROLE_LABELS: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Member', read_only: 'Viewer' }
+const ROLE_LABELS: Record<string, string> = {
+  platform_owner: 'Owner',
+  org_admin: 'Admin',
+  supervisor: 'Supervisor',
+  member: 'Member',
+  read_only: 'Viewer',
+}
+
+type AssignableRole = 'org_admin' | 'supervisor' | 'member' | 'read_only'
 
 export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, currentUserId, currentUserRole, members: initialMembers, pendingInvitations: initialInvitations, notionConfigured, notionLastSync }: Props) {
   const [apiKey, setApiKey] = useState(initialKey)
@@ -32,7 +40,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   const [members, setMembers] = useState(initialMembers)
   const [invitations, setInvitations] = useState(initialInvitations)
   const [inviteEmail, setInviteEmail] = useState('')
-  const [inviteRole, setInviteRole] = useState<'member' | 'admin' | 'read_only'>('member')
+  const [inviteRole, setInviteRole] = useState<AssignableRole>('member')
   const [inviting, startInvite] = useTransition()
   const [inviteError, setInviteError] = useState('')
   const [inviteSuccess, setInviteSuccess] = useState('')
@@ -44,7 +52,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   const [resendSuccess, setResendSuccess] = useState<string | null>(null)
   const [showCustomMsg, setShowCustomMsg] = useState(false)
   const [customMessage, setCustomMessage] = useState('')
-  const isAdmin = currentUserRole === 'owner' || currentUserRole === 'admin'
+  const isAdmin = currentUserRole === 'platform_owner' || currentUserRole === 'org_admin'
 
   const endpoint = `${appUrl}/api/siri`
 
@@ -113,7 +121,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
     })
   }
 
-  const handleRoleChange = (memberId: string, role: 'admin' | 'member' | 'read_only') => {
+  const handleRoleChange = (memberId: string, role: AssignableRole) => {
     // Optimistic role update
     setMembers(prev => prev.map(m => m.id === memberId ? { ...m, role } : m))
     startMember(async () => {
@@ -310,14 +318,15 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
                     <p className={`text-sm truncate ${isRemoved ? 'text-gray-600 line-through' : 'text-gray-900'}`}>{m.full_name ?? m.email}</p>
                     {m.full_name && <p className="text-xs text-gray-600 truncate">{m.email}</p>}
                   </div>
-                  {!isRemoved && isAdmin && m.id !== currentUserId && m.role !== 'owner' ? (
+                  {!isRemoved && isAdmin && m.id !== currentUserId && m.role !== 'platform_owner' ? (
                     <select
                       value={m.role}
                       onChange={e => handleRoleChange(m.id, e.target.value as any)}
                       disabled={memberPending}
                       className="rounded border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 outline-none"
                     >
-                      <option value="admin">Admin</option>
+                      <option value="org_admin">Admin</option>
+                      <option value="supervisor">Supervisor</option>
                       <option value="member">Member</option>
                       <option value="read_only">Viewer</option>
                     </select>
@@ -326,7 +335,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
                       {isRemoved ? 'Removed' : (ROLE_LABELS[m.role] ?? m.role)}
                     </span>
                   )}
-                  {!isRemoved && isAdmin && m.id !== currentUserId && m.role !== 'owner' && (
+                  {!isRemoved && isAdmin && m.id !== currentUserId && m.role !== 'platform_owner' && (
                     <button
                       onClick={() => handleRemoveMember(m.id)}
                       disabled={memberPending}
@@ -474,7 +483,8 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
                 className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-700 outline-none"
               >
                 <option value="member">Member</option>
-                <option value="admin">Admin</option>
+                <option value="supervisor">Supervisor</option>
+                <option value="org_admin">Admin</option>
                 <option value="read_only">Viewer</option>
               </select>
               <button
