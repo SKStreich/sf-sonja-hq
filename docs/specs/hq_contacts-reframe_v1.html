@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HQ · Contacts framing reframe — v1</title>
+<style>
+  :root {
+    --sf-red:    #C0392B;
+    --sf-red-hot:#A93226;
+    --sf-fg:     #1F2937;
+    --sf-muted:  #6B7280;
+    --sf-card:   #FFFFFF;
+    --sf-bg:     #FAFAFA;
+    --sf-border: #E5E7EB;
+    --sf-ok:     #16A34A;
+    --sf-warn:   #D97706;
+    --sf-cool:   #2563EB;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--sf-bg); color: var(--sf-fg); }
+  body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 1.5; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--sf-muted);
+  }
+  h1 { font-size: 28px; font-weight: 800; margin: 4px 0 8px; letter-spacing: -0.01em; }
+  h2 {
+    font-size: 20px; font-weight: 700; letter-spacing: -0.005em;
+    margin: 48px 0 12px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--sf-red);
+  }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 6px; }
+  p  { margin: 8px 0; }
+
+  .meta {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin: 16px 0 32px;
+    padding: 16px; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  .meta .item .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--sf-muted); margin-bottom: 2px;
+  }
+  .meta .item .value { font-size: 13px; font-weight: 600; }
+  .meta code { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: rgba(0,0,0,0.04); padding: 1px 4px; }
+
+  .callout {
+    margin: 16px 0; padding: 12px 16px;
+    border-left: 3px solid var(--sf-red);
+    background: var(--sf-card);
+    border-top: 1px solid var(--sf-border);
+    border-right: 1px solid var(--sf-border);
+    border-bottom: 1px solid var(--sf-border);
+  }
+  .callout.warn { border-left-color: var(--sf-warn); }
+  .callout.ok   { border-left-color: var(--sf-ok); }
+  .callout.info { border-left-color: var(--sf-cool); }
+  .callout-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--sf-muted); margin-bottom: 4px;
+  }
+
+  table.data, table.options {
+    width: 100%; border-collapse: collapse;
+    margin: 12px 0; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  table.data th, table.data td,
+  table.options th, table.options td {
+    padding: 10px 12px; text-align: left;
+    border-bottom: 1px solid var(--sf-border);
+    font-size: 13px; vertical-align: top;
+  }
+  table.data th, table.options th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--sf-muted); background: rgba(0,0,0,0.02); font-weight: 600;
+  }
+  table.options td.id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--sf-red); font-weight: 600;
+    white-space: nowrap;
+  }
+  table.options tr.recommended td { background: rgba(192, 57, 43, 0.04); }
+  td.mono, code.inline {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  code.inline { background: rgba(0,0,0,0.05); padding: 1px 5px; }
+
+  .pill {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 2px 8px; background: var(--sf-red); color: white;
+    border-radius: 2px; margin-left: 6px;
+  }
+  .pill.warn { background: var(--sf-warn); }
+  .pill.ok   { background: var(--sf-ok); }
+  .pill.muted{ background: var(--sf-muted); }
+
+  ul { padding-left: 22px; margin: 6px 0; }
+  ul li { margin: 3px 0; }
+  ul.compact li { font-size: 13px; }
+
+  footer.doc {
+    margin-top: 64px; padding-top: 16px;
+    border-top: 1px solid var(--sf-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--sf-muted);
+  }
+  footer.doc p { margin: 4px 0; }
+
+  @media (max-width: 800px) { .meta { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">HQ Alignment Sprint · Decision Spec</div>
+  <h1>Contacts framing reframe <span style="color: var(--sf-red);">v1</span></h1>
+  <p style="color: var(--sf-muted); max-width: 720px;">
+    Audit row 10 (Sprint 11). The original framing — "HQ Contacts will seed
+    the SF Ops CRM" — is dead (SF Ops shipped its own
+    aggregators/end-clients/bill-to model, schema diverged irreconcilably).
+    Sonja's v2 hold: <em>maybe still seed</em> <strong>SF Solutions</strong>.
+    This spec exists to surface the four viable framings + their
+    consequences so a v2 of this spec can lock the call.
+  </p>
+
+  <div class="meta">
+    <div class="item"><div class="label">Repo</div><div class="value">sf-sonja-hq</div></div>
+    <div class="item"><div class="label">Branch</div><div class="value"><code>docs/contacts-reframe-spec</code></div></div>
+    <div class="item"><div class="label">Audit row</div><div class="value">10 · v2 HOLD</div></div>
+    <div class="item"><div class="label">Decision owner</div><div class="value">Sonja</div></div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>1 · Current state — HQ Contacts</h2>
+
+  <h3>Code</h3>
+  <ul class="compact">
+    <li><code class="inline">src/app/dashboard/contacts/page.tsx</code> · <code class="inline">ContactsClient.tsx</code></li>
+    <li><code class="inline">src/app/api/contacts/actions.ts</code> · CRUD server actions</li>
+    <li>Migration: <code class="inline">supabase/migrations/20260425000004_contacts_and_share_forwarding.sql</code></li>
+    <li>RLS: org-scoped (read all in org, insert by self, update by org, delete by self-or-admin per the policy refreshed in PR #28)</li>
+  </ul>
+
+  <h3>Schema</h3>
+  <table class="data">
+    <thead><tr><th>Column</th><th>Type</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">id, org_id, created_by, created_at, updated_at</td><td class="mono">uuid · ts</td><td>Standard org-scoped row metadata</td></tr>
+      <tr><td class="mono">full_name, email, phone, company, role</td><td class="mono">text</td><td>The basics — single-row contact card</td></tr>
+      <tr><td class="mono">tags</td><td class="mono">text[]</td><td>Free-form tagging</td></tr>
+      <tr><td class="mono">notes</td><td class="mono">text</td><td>Long-form notes per contact</td></tr>
+      <tr><td class="mono">consent_to_contact, consent_at</td><td class="mono">bool · ts</td><td>Consent tracking for outreach</td></tr>
+      <tr><td class="mono">source</td><td class="mono">text</td><td>Where the contact came from (manual / share / etc)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Production usage</h3>
+  <p style="font-size: 13px;">
+    <strong>3 contacts</strong> in prod. <strong>1 consented.</strong> Manual entries — no live integration with the share-forwarding flow yet.
+  </p>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>2 · Why the original framing is dead</h2>
+  <div class="callout warn">
+    <div class="callout-label">From the v1 audit · Section 4 (Bridges)</div>
+    <p style="margin: 4px 0;">
+      "Bridges that were originally promised (HQ Contacts as SF Ops CRM seed)
+      are dead." SF Ops shipped its own customer/contact model with
+      aggregators (e.g. Property Management Inc), end-clients (the actual
+      property), and polymorphic <code class="inline">bill_to</code>
+      relationships. HQ's flat contact row can't represent any of that.
+    </p>
+    <p style="margin: 4px 0;">
+      SF Ops customers serve a domain need (who do I invoice for this WO?)
+      that doesn't translate to a generic HQ-level address book.
+      <strong>Sonja: confirm this characterization before locking.</strong>
+    </p>
+  </div>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>3 · The new question — is SF Solutions still in play?</h2>
+
+  <p style="font-size: 13px;">
+    SF Solutions exists at the platform <em>entity</em> level — the entity
+    enum <code class="inline">'sf'</code> in HQ tags projects/tasks/knowledge
+    as belonging to it. But there's no <strong>product</strong> for SF
+    Solutions yet (no app, no workflow, no DB schema). Sonja's hold on
+    audit row 10 was: <em>"Even though SF Ops diverged, HQ Contacts might
+    seed a future SF Solutions CRM."</em>
+  </p>
+
+  <p style="font-size: 13px;">
+    The question is whether that seed framing actually buys anything, or
+    whether keeping the framing alive creates the wrong kind of pressure
+    on the contacts feature now (build a real CRM!) and on a future SF
+    Solutions product (be compatible with the seed!).
+  </p>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>4 · Options matrix</h2>
+
+  <table class="options">
+    <thead>
+      <tr>
+        <th>Option</th>
+        <th>What it means in HQ today</th>
+        <th>Implication for a future SF Solutions product</th>
+        <th>Effort to land</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="id">10-A · Retire entirely</td>
+        <td>Drop the page, the actions, the migration's contacts table. 3 prod rows would be lost (export first or accept). Free up the <code class="inline">/dashboard/contacts</code> route + the nav link.</td>
+        <td>Future SF Solutions starts with a clean sheet — no schema assumptions inherited from a personal address book.</td>
+        <td>~½ day · 1 migration + ~3 file deletes + nav update</td>
+      </tr>
+      <tr>
+        <td class="id">10-B · Reframe as SF Solutions seed <span class="pill">EXPLICIT</span></td>
+        <td>Rename UI: "Contacts" → "SF Solutions · Contacts". Add a small marker that this is the seed for the future SF Solutions module. Schema unchanged.</td>
+        <td>Future SF Solutions inherits whatever HQ Contacts looks like. May be wrong shape; locks Sonja into the flat model.</td>
+        <td>~1 hour · nav label + page header copy + a callout banner</td>
+      </tr>
+      <tr>
+        <td class="id">10-C · Reframe as Personal CRM <span class="pill ok">REC</span></td>
+        <td>Position as Sonja's HQ-personal address book. "People I've shared docs with or added by hand." No platform-level seed promise. Schema unchanged. Keep the share-forwarding integration path open.</td>
+        <td>Future SF Solutions builds its own customer model from scratch when needed. Cleaner separation of concerns. HQ Contacts stays useful for what it actually does.</td>
+        <td>~1 hour · nav label + page header copy + this memo</td>
+      </tr>
+      <tr>
+        <td class="id">10-D · Keep narrow + decide later</td>
+        <td>No code change. Document that no framing was locked in this round; revisit if Sonja actually starts a SF Solutions product.</td>
+        <td>Same risk as today — bridge promise stays implicit, may zombie back into roadmap conversations.</td>
+        <td>0 · doc only</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    <div class="callout-label">My take · why 10-C</div>
+    <p style="margin: 4px 0;">
+      10-A loses Sonja's existing 3 contacts and the
+      <code class="inline">share_forwarding_requests</code> integration
+      point (the forwarding flow assumes a contact registry to write to).
+      10-B locks future SF Solutions to a schema designed for a personal
+      address book. 10-D defers the question, which is exactly how
+      the original SF Ops seed framing rotted.
+    </p>
+    <p style="margin: 4px 0;">
+      10-C is the smallest realignment that makes the feature honest about
+      what it is today (Sonja's personal address book for share targets)
+      without claiming territory it can't deliver on (be the CRM for an
+      unbuilt product). Future SF Solutions remains free to build the
+      right shape from scratch.
+    </p>
+  </div>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>5 · What's NOT in this spec</h2>
+  <ul class="compact">
+    <li><strong>The share-forwarding flow.</strong> Already exists per migration <code class="inline">20260425000004</code>; not in scope for the framing decision.</li>
+    <li><strong>Multi-org contact sharing.</strong> Org-scoped today; cross-org is a Sprint 12+ question if it ever comes up.</li>
+    <li><strong>A real SF Solutions product.</strong> Out of scope. Sonja: if you start one, do a fresh CRM spec then.</li>
+    <li><strong>Contact import/export tooling.</strong> If 10-A is picked, an export step is needed first (3 rows is trivial to copy by hand though).</li>
+  </ul>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>6 · Decision matrix — sign-off here</h2>
+
+  <table class="options">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Decision</th>
+        <th>Recommended</th>
+        <th>Sonja's pick</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="recommended">
+        <td class="id">10</td>
+        <td>HQ Contacts framing</td>
+        <td>10-C — Personal CRM (no SF Solutions seed claim)</td>
+        <td>☐</td>
+      </tr>
+      <tr>
+        <td class="id">10·export</td>
+        <td>If 10-A wins — export the 3 prod contacts first?</td>
+        <td>Yes (CSV via a one-off Supabase query)</td>
+        <td>☐</td>
+      </tr>
+      <tr>
+        <td class="id">10·share-forwarding</td>
+        <td>If 10-A wins — also retire <code class="inline">share_forwarding_requests</code>?</td>
+        <td>Separate decision · do not bundle</td>
+        <td>☐</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout ok" style="margin-top: 24px;">
+    <div class="callout-label">After sign-off</div>
+    1. Apply Sonja's pick inline → save as <code class="inline">hq_contacts-reframe_v2.html</code> with a "what changed" callout.<br>
+    2. If 10-B or 10-C: ~1-hour PR for nav rename + page header copy.<br>
+    3. If 10-A: scoped retirement PR (export → drop migration → file deletes).<br>
+    4. If 10-D: this spec stays as the trailhead; no code work.
+  </div>
+
+  <footer class="doc">
+    <p>HQ Contacts framing reframe · v1 · <strong>DRAFT FOR REVIEW</strong></p>
+    <p>Branch <code>docs/contacts-reframe-spec</code> · base <code>6ff712a</code></p>
+    <p>Cross-project audit · row 10 (v2 HOLD) · Sprint 11 close-out</p>
+  </footer>
+
+</div>
+</body>
+</html>
