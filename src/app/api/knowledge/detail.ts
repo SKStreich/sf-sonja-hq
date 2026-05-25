@@ -33,17 +33,22 @@ export interface EntryVersion {
   idea_status: string | null
   created_at: string
   created_by: string | null
+  created_by_name: string | null
 }
 
 export async function listVersions(entryId: string): Promise<EntryVersion[]> {
   const { supabase } = await getCtx()
   const { data, error } = await (supabase as any)
     .from('knowledge_versions')
-    .select('*')
+    .select('*, user_profiles:created_by(full_name, email)')
     .eq('entry_id', entryId)
     .order('version', { ascending: false })
   if (error) throw new Error('Failed to list versions: ' + error.message)
-  return (data ?? []) as EntryVersion[]
+  return (data ?? []).map((row: any) => ({
+    ...row,
+    created_by_name: row.user_profiles?.full_name ?? row.user_profiles?.email ?? null,
+    user_profiles: undefined,
+  })) as EntryVersion[]
 }
 
 /**
