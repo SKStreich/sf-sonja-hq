@@ -4,8 +4,29 @@
 
 /* Lock to light theme so Chrome's Auto Dark Mode (and equivalent
    browser-level color inversions) leave our explicit colors alone. */
-:root { color-scheme: light; }
+:root {
+  color-scheme: light;
+
+  /* SF brand accents — chrome-level tokens.
+     Indigo (#6366f1) remains the deep-product accent (editor, pills,
+     DatePicker) per the cross-project audit guidance. */
+  --sf-red:       #C0392B;
+  --sf-red-hot:   #E04535;
+  --sf-bone:      #F2EDE6;
+  --sf-font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+}
 html, body { background-color: #f9fafb; color: #111827; }
+
+/* Monospaced eyebrow label — SF design convention. */
+.sf-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #6b7280;
+  font-family: var(--sf-font-mono);
+  font-feature-settings: "zero";
+}
 
 /* react-day-picker light theme */
 .rdp-root {

@@ -36,11 +36,11 @@ export function LoginForm() {
       <div>
         <label className="block text-xs text-gray-500 mb-1">Email address</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-          className="w-full rounded-lg bg-white px-4 py-2 text-gray-900 ring-1 ring-gray-200 outline-none focus:ring-indigo-400 transition-colors" />
+          className="w-full rounded-lg bg-white px-4 py-2 text-gray-900 ring-1 ring-gray-200 outline-none focus:ring-[color:var(--sf-red)] transition-colors" />
       </div>
       {error && <p className="text-red-500 text-sm">{error}</p>}
       <button type="submit" disabled={loading}
-        className="w-full rounded-lg bg-indigo-600 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-50 transition-colors">
+        className="w-full rounded-lg bg-[color:var(--sf-red)] py-2 text-sm font-semibold text-white hover:bg-[color:var(--sf-red-hot)] disabled:opacity-50 transition-colors">
         {loading ? 'Sending…' : 'Send magic link'}
       </button>
       <p className="text-center text-xs text-gray-500">No password required — we'll email you a secure link.</p>
