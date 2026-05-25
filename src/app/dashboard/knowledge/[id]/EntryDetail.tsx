@@ -272,7 +272,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
       )}
 
       {tab === 'history' && (
-        <HistoryTab versions={versions} />
+        <HistoryTab versions={versions} currentVersion={entry.version} />
       )}
     </div>
   )
@@ -417,7 +417,7 @@ function NotesTab({ entryId, notes }: { entryId: string; notes: RelatedEntry[] }
   )
 }
 
-function HistoryTab({ versions }: { versions: EntryVersion[] }) {
+function HistoryTab({ versions, currentVersion }: { versions: EntryVersion[]; currentVersion: number }) {
   const router = useRouter()
   const [busy, startBusy] = useTransition()
 
@@ -434,29 +434,42 @@ function HistoryTab({ versions }: { versions: EntryVersion[] }) {
   }
   return (
     <div className="space-y-3">
-      {versions.map(v => (
-        <article key={v.id} className="rounded-lg border border-gray-200 bg-white p-4">
-          <header className="mb-2 flex items-center gap-3">
-            <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-700">
-              v{v.version}
-            </span>
-            <span className="text-xs font-medium text-gray-700">{v.title ?? '(untitled)'}</span>
-            <span className="text-[11px] text-gray-400">{new Date(v.created_at).toLocaleString()}</span>
-            <button onClick={() => restore(v.id)} disabled={busy}
-              className="ml-auto text-xs font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-40">
-              Restore
-            </button>
-          </header>
-          <div className="flex gap-3 text-[11px] text-gray-500">
-            {v.kind && <span>kind: {v.kind}</span>}
-            {v.entity && <span>entity: {v.entity}</span>}
-            {v.tags && v.tags.length > 0 && <span>tags: {v.tags.join(', ')}</span>}
-          </div>
-          {v.body && (
-            <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-gray-600">{v.body}</p>
-          )}
-        </article>
-      ))}
+      {versions.map(v => {
+        const isLive = v.version === currentVersion
+        return (
+          <article key={v.id} className={`rounded-lg border bg-white p-4 ${isLive ? 'border-indigo-300 ring-1 ring-indigo-100' : 'border-gray-200'}`}>
+            <header className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-700">
+                v{v.version}
+              </span>
+              {isLive && (
+                <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-indigo-700">
+                  Current
+                </span>
+              )}
+              <span className="text-xs font-medium text-gray-700">{v.title ?? '(untitled)'}</span>
+              <span className="text-[11px] text-gray-400">{new Date(v.created_at).toLocaleString()}</span>
+              {v.created_by_name && (
+                <span className="text-[11px] text-gray-500">by {v.created_by_name}</span>
+              )}
+              {!isLive && (
+                <button onClick={() => restore(v.id)} disabled={busy}
+                  className="ml-auto text-xs font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-40">
+                  Restore
+                </button>
+              )}
+            </header>
+            <div className="flex gap-3 text-[11px] text-gray-500">
+              {v.kind && <span>kind: {v.kind}</span>}
+              {v.entity && <span>entity: {v.entity}</span>}
+              {v.tags && v.tags.length > 0 && <span>tags: {v.tags.join(', ')}</span>}
+            </div>
+            {v.body && (
+              <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs text-gray-600">{v.body}</p>
+            )}
+          </article>
+        )
+      })}
     </div>
   )
 }
