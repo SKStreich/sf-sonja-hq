@@ -2,6 +2,8 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { TimelineView } from '@/components/shared/TimelineView'
+import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
+import type { ActivityRow } from '@/lib/activity-feed'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,14 +45,6 @@ const PRIORITY_DOT: Record<string, string> = {
   low: 'bg-gray-400',
 }
 
-const UPDATE_TYPE_BORDER: Record<string, string> = {
-  progress: 'border-blue-400',
-  blocker: 'border-red-500',
-  decision: 'border-purple-500',
-  note: 'border-gray-300',
-  milestone: 'border-green-500',
-}
-
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface EntityBreakdown {
@@ -83,7 +77,8 @@ interface Props {
   todayTasks: any[]
   overdueTasks: any[]
   activeProjects: any[]
-  recentLog: any[]
+  activityRows: ActivityRow[]
+  activityNextCursor: string | null
   recentKnowledge: KnowledgeItem[]
   openTaskCount: number
   activeProjectCount: number
@@ -114,7 +109,8 @@ export function DashboardHome({
   todayTasks,
   overdueTasks,
   activeProjects,
-  recentLog,
+  activityRows,
+  activityNextCursor,
   recentKnowledge,
   openTaskCount,
   activeProjectCount,
@@ -477,50 +473,15 @@ export function DashboardHome({
             </section>
           )}
 
-          {/* Recent Log */}
-          <section className="rounded-xl border border-gray-200 bg-white p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Recent Activity</h2>
-            </div>
-
-            {recentLog.length === 0 ? (
-              <p className="py-4 text-center text-sm text-gray-500">No recent activity</p>
-            ) : (
-              <ul className="space-y-3">
-                {recentLog.map((entry: any) => {
-                  const borderColor = UPDATE_TYPE_BORDER[entry.update_type] ?? UPDATE_TYPE_BORDER.note
-                  const truncated = entry.content?.length > 80
-                    ? entry.content.slice(0, 80) + '…'
-                    : entry.content
-                  return (
-                    <li
-                      key={entry.id}
-                      className={`border-l-2 pl-3 ${borderColor}`}
-                    >
-                      <p className="text-sm text-gray-700">{truncated}</p>
-                      <div className="mt-0.5 flex items-center gap-2">
-                        {entry.projects?.name && (
-                          <Link
-                            href={`/dashboard/projects/${entry.project_id}`}
-                            className="text-xs text-gray-400 hover:text-gray-600"
-                          >
-                            {entry.projects.name}
-                          </Link>
-                        )}
-                        <span className="text-xs text-gray-400">{relativeTime(entry.created_at)}</span>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-
-            <div className="mt-4 border-t border-gray-100 pt-3">
-              <Link href="/dashboard/all-logs" className="text-xs text-gray-400 hover:text-gray-600">
-                View all log →
-              </Link>
-            </div>
-          </section>
+          <ActivityFeed
+            initialRows={activityRows}
+            initialNextCursor={activityNextCursor}
+          />
+          <div className="mt-2 text-right">
+            <Link href="/dashboard/all-logs" className="text-xs text-gray-400 hover:text-gray-600">
+              View all log →
+            </Link>
+          </div>
         </div>
       </div>
 

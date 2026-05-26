@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardHome } from '@/components/dashboard/DashboardHome'
+import { loadInitialActivity } from '@/lib/activity-feed.server'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -16,7 +17,7 @@ export default async function DashboardPage() {
     { data: todayTasks },
     { data: overdueTasks },
     { data: activeProjects },
-    { data: recentLog },
+    activityFeed,
     { data: recentKnowledge },
     { count: openTaskCount },
     { count: activeProjectCount },
@@ -39,8 +40,7 @@ export default async function DashboardPage() {
       .eq('status', 'active')
       .order('next_action_due', { ascending: true, nullsFirst: false })
       .order('name').limit(8),
-    (supabase as any).from('project_updates').select('id,content,update_type,created_at,project_id,projects(id,name)')
-      .order('created_at', { ascending: false }).limit(6),
+    loadInitialActivity(),
     (supabase as any).from('knowledge_entries')
       .select('id,kind,title,summary,body,entity,idea_status,created_at')
       .eq('access', 'standard').eq('status', 'active')
@@ -86,7 +86,8 @@ export default async function DashboardPage() {
       todayTasks={todayTasks ?? []}
       overdueTasks={overdueTasks ?? []}
       activeProjects={activeProjects ?? []}
-      recentLog={recentLog ?? []}
+      activityRows={activityFeed.rows}
+      activityNextCursor={activityFeed.nextCursor}
       recentKnowledge={recentKnowledge ?? []}
       openTaskCount={openTaskCount ?? 0}
       activeProjectCount={activeProjectCount ?? 0}
