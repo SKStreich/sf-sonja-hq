@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HQ · Contacts framing reframe — v2 (10-C locked)</title>
+<style>
+  :root {
+    --sf-red:    #C0392B;
+    --sf-red-hot:#A93226;
+    --sf-fg:     #1F2937;
+    --sf-muted:  #6B7280;
+    --sf-card:   #FFFFFF;
+    --sf-bg:     #FAFAFA;
+    --sf-border: #E5E7EB;
+    --sf-ok:     #16A34A;
+    --sf-warn:   #D97706;
+    --sf-cool:   #2563EB;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--sf-bg); color: var(--sf-fg); }
+  body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 1.5; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--sf-muted);
+  }
+  h1 { font-size: 28px; font-weight: 800; margin: 4px 0 8px; letter-spacing: -0.01em; }
+  h2 {
+    font-size: 20px; font-weight: 700; letter-spacing: -0.005em;
+    margin: 48px 0 12px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--sf-red);
+  }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 6px; }
+  p  { margin: 8px 0; }
+
+  .meta {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin: 16px 0 32px;
+    padding: 16px; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  .meta .item .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--sf-muted); margin-bottom: 2px;
+  }
+  .meta .item .value { font-size: 13px; font-weight: 600; }
+  .meta code { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: rgba(0,0,0,0.04); padding: 1px 4px; }
+
+  .callout {
+    margin: 16px 0; padding: 12px 16px;
+    border-left: 3px solid var(--sf-red);
+    background: var(--sf-card);
+    border-top: 1px solid var(--sf-border);
+    border-right: 1px solid var(--sf-border);
+    border-bottom: 1px solid var(--sf-border);
+  }
+  .callout.warn { border-left-color: var(--sf-warn); }
+  .callout.ok   { border-left-color: var(--sf-ok); }
+  .callout.info { border-left-color: var(--sf-cool); }
+  .callout-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--sf-muted); margin-bottom: 4px;
+  }
+
+  table.data, table.options {
+    width: 100%; border-collapse: collapse;
+    margin: 12px 0; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  table.data th, table.data td,
+  table.options th, table.options td {
+    padding: 10px 12px; text-align: left;
+    border-bottom: 1px solid var(--sf-border);
+    font-size: 13px; vertical-align: top;
+  }
+  table.data th, table.options th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase;
+    color: var(--sf-muted); background: rgba(0,0,0,0.02); font-weight: 600;
+  }
+  table.options td.id {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--sf-red); font-weight: 600;
+    white-space: nowrap;
+  }
+  table.options tr.locked td { background: rgba(22, 163, 74, 0.06); }
+  td.mono, code.inline {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+  }
+  code.inline { background: rgba(0,0,0,0.05); padding: 1px 5px; }
+
+  .pill {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    padding: 2px 8px; background: var(--sf-red); color: white;
+    border-radius: 2px; margin-left: 6px;
+  }
+  .pill.warn { background: var(--sf-warn); }
+  .pill.ok   { background: var(--sf-ok); }
+  .pill.muted{ background: var(--sf-muted); }
+
+  ul { padding-left: 22px; margin: 6px 0; }
+  ul li { margin: 3px 0; }
+  ul.compact li { font-size: 13px; }
+
+  footer.doc {
+    margin-top: 64px; padding-top: 16px;
+    border-top: 1px solid var(--sf-border);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; color: var(--sf-muted);
+  }
+  footer.doc p { margin: 4px 0; }
+
+  @media (max-width: 800px) { .meta { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">HQ Alignment Sprint · Decision Spec</div>
+  <h1>Contacts framing reframe <span style="color: var(--sf-red);">v2</span> <span class="pill ok">LOCKED</span></h1>
+  <p style="color: var(--sf-muted); max-width: 720px;">
+    Audit row 10 (Sprint 11). v2 records Sonja's decision from the
+    2026-05-26 walkthrough: <strong>10-C — Personal CRM</strong>. v1 stays
+    intact for the four-option narrative; this v2 captures only what
+    changed and what's being implemented.
+  </p>
+
+  <div class="meta">
+    <div class="item"><div class="label">Repo</div><div class="value">sf-sonja-hq</div></div>
+    <div class="item"><div class="label">Branch</div><div class="value"><code>feat/contacts-personal-crm</code></div></div>
+    <div class="item"><div class="label">Audit row</div><div class="value">10 · v2 LOCKED</div></div>
+    <div class="item"><div class="label">Decision owner</div><div class="value">Sonja · 2026-05-26</div></div>
+  </div>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <div class="callout ok">
+    <div class="callout-label">What changed from v1</div>
+    <ul class="compact" style="margin: 6px 0 6px 18px;">
+      <li><strong>Decision locked: 10-C</strong> — Personal CRM framing. 10-A / 10-B / 10-D rejected; reasoning per v1 §4 + callout.</li>
+      <li><strong>Nav label stays "Contacts."</strong> No literal "Personal CRM" rename — that phrasing is jargon. The framing shift lives in the page subtitle, not the nav.</li>
+      <li><strong>Page subtitle reworded</strong> to reflect personal-address-book framing; drops the "Org-wide visibility" phrasing that carried multi-user assumptions HQ doesn't actually exercise today.</li>
+      <li><strong>Export sub-decision</strong> (v1 row 10·export): N/A — only relevant under 10-A.</li>
+      <li><strong>Share-forwarding retirement</strong> (v1 row 10·share-forwarding): N/A — only relevant under 10-A. <code class="inline">share_forwarding_requests</code> stays.</li>
+      <li><strong>Schema unchanged.</strong> No migration. <code class="inline">contacts</code> table + RLS as-is.</li>
+    </ul>
+  </div>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>1 · Locked decision</h2>
+
+  <table class="options">
+    <thead>
+      <tr>
+        <th>ID</th>
+        <th>Decision</th>
+        <th>Pick</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="locked">
+        <td class="id">10</td>
+        <td>HQ Contacts framing</td>
+        <td><strong>10-C — Personal CRM</strong> (no SF Solutions seed claim)</td>
+        <td><span class="pill ok">LOCKED</span></td>
+      </tr>
+      <tr>
+        <td class="id">10·label</td>
+        <td>Literal nav + page label</td>
+        <td>Keep "Contacts." Subtitle carries the framing.</td>
+        <td><span class="pill ok">LOCKED</span></td>
+      </tr>
+      <tr>
+        <td class="id">10·export</td>
+        <td>Export 3 prod contacts to CSV first</td>
+        <td>N/A — only under 10-A</td>
+        <td><span class="pill muted">N/A</span></td>
+      </tr>
+      <tr>
+        <td class="id">10·share-forwarding</td>
+        <td>Retire <code class="inline">share_forwarding_requests</code></td>
+        <td>N/A — only under 10-A</td>
+        <td><span class="pill muted">N/A</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>2 · Implementation</h2>
+
+  <h3>Scope</h3>
+  <ul class="compact">
+    <li><strong>One file changed</strong> — <code class="inline">src/app/dashboard/contacts/page.tsx</code>: subtitle copy only.</li>
+    <li><strong>No schema change.</strong> No migration. No RLS change. No new tests required (no behavior change).</li>
+    <li><strong>No nav change.</strong> <code class="inline">DashboardNav.tsx:78–79</code> stays as "Contacts."</li>
+  </ul>
+
+  <h3>Copy diff (page subtitle)</h3>
+  <table class="data">
+    <thead><tr><th>Before</th><th>After</th></tr></thead>
+    <tbody>
+      <tr>
+        <td class="mono">People who've received shared documents or been added manually. Org-wide visibility.</td>
+        <td class="mono">Your personal address book for share targets and follow-ups. Add by hand or capture from the share flow.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="callout info">
+    <div class="callout-label">Why drop "Org-wide visibility"</div>
+    <p style="margin: 4px 0;">
+      The phrase is technically accurate — RLS is org-scoped per
+      <code class="inline">20260425000004</code> — but HQ is effectively
+      single-org today and the framing it conjures (a shared org address
+      book) is exactly what 10-C is moving away from. If multi-user HQ
+      becomes real, the right re-add is a sharing/visibility surface,
+      not a subtitle phrase.
+    </p>
+  </div>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>3 · What's still NOT in scope</h2>
+  <ul class="compact">
+    <li><strong>The share-forwarding flow.</strong> Out of scope per v1 §5.</li>
+    <li><strong>A real SF Solutions product.</strong> Out of scope; fresh CRM spec when (if) it starts.</li>
+    <li><strong>Cross-org sharing.</strong> Sprint 12+ if it ever comes up.</li>
+    <li><strong>Contact-form UX rework.</strong> Schema unchanged; UX deferred to a separate session if it warrants one.</li>
+  </ul>
+
+  <!-- ────────────────────────────────────────────────── -->
+  <h2>4 · After this PR ships</h2>
+  <ul class="compact">
+    <li><strong>Audit row 10 closes.</strong> Sprint 11 fully done (rows 1, 2, 3, 5, 7, 8, 10 all shipped).</li>
+    <li><strong>HQ Contacts memory updated</strong> — <code class="inline">project-sonja-hq-tech.md</code> gets the personal-CRM framing recorded as the canonical understanding (replacing any latent SF-Ops-seed claim).</li>
+    <li><strong>v2 spec uploaded to HQ knowledge</strong> via the upload endpoint (PR #26).</li>
+    <li><strong>Sprint 12 unblocked.</strong> Candidate rows: 4 (History Phase 2), 6 (Notion cutover), 12 (DR-Standard to SF Ops), 16 (Restore-rehearsal cron), 11-followup (auto-ingest GH Action).</li>
+  </ul>
+
+  <footer class="doc">
+    <p>HQ Contacts framing reframe · v2 · <strong>LOCKED 2026-05-26</strong></p>
+    <p>Supersedes v1 decisions only; v1 stays as the four-option narrative</p>
+    <p>Cross-project audit · row 10 · Sprint 11 close-out</p>
+  </footer>
+
+</div>
+</body>
+</html>
