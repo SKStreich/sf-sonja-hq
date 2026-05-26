@@ -17,7 +17,7 @@ export default async function ContactsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
           <p className="mt-1 text-sm text-gray-500">
-            People who've received shared documents or been added manually. Org-wide visibility.
+            Your personal address book for share targets and follow-ups. Add by hand or capture from the share flow.
             <Link href="/dashboard" className="ml-2 text-indigo-600 hover:text-indigo-500">← Dashboard</Link>
           </p>
         </div>
