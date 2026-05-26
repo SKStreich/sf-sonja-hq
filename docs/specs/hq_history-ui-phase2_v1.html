@@ -1,0 +1,435 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HQ · History UI Phase 2 — v1</title>
+<style>
+  :root {
+    --sf-red:    #C0392B;
+    --sf-red-hot:#A93226;
+    --sf-fg:     #1F2937;
+    --sf-muted:  #6B7280;
+    --sf-card:   #FFFFFF;
+    --sf-bg:     #FAFAFA;
+    --sf-border: #E5E7EB;
+    --sf-ok:     #16A34A;
+    --sf-warn:   #D97706;
+    --sf-cool:   #2563EB;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--sf-bg); color: var(--sf-fg); }
+  body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 1.5; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--sf-muted);
+  }
+  h1 { font-size: 28px; font-weight: 800; margin: 4px 0 8px; letter-spacing: -0.01em; }
+  h2 {
+    font-size: 20px; font-weight: 700; letter-spacing: -0.005em;
+    margin: 48px 0 12px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--sf-red);
+  }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 6px; }
+  p  { margin: 8px 0; }
+
+  .meta {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin: 16px 0 32px;
+    padding: 16px; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  .meta .item .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--sf-muted); margin-bottom: 2px;
+  }
+  .meta .item .value { font-size: 13px; font-weight: 600; }
+  code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: rgba(0,0,0,0.04); padding: 1px 4px; }
+
+  .callout {
+    margin: 16px 0; padding: 12px 16px;
+    border-left: 3px solid var(--sf-red);
+    background: var(--sf-card);
+    border-top: 1px solid var(--sf-border);
+    border-right: 1px solid var(--sf-border);
+    border-bottom: 1px solid var(--sf-border);
+  }
+  .callout.warn { border-left-color: var(--sf-warn); }
+  .callout.ok   { border-left-color: var(--sf-ok); }
+  .callout.info { border-left-color: var(--sf-cool); }
+  .callout-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--sf-muted); margin-bottom: 4px;
+  }
+
+  table.data {
+    width: 100%; border-collapse: collapse;
+    margin: 12px 0; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  table.data th, table.data td {
+    padding: 10px 12px; text-align: left;
+    border-bottom: 1px solid var(--sf-border);
+    font-size: 13px; vertical-align: top;
+  }
+  table.data th {
+    background: rgba(0,0,0,0.02);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--sf-muted); font-weight: 700;
+  }
+
+  pre.sql, pre.code {
+    background: #1F2937; color: #F9FAFB;
+    padding: 16px; overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    line-height: 1.55; margin: 12px 0;
+    border-left: 3px solid var(--sf-red);
+  }
+  pre.sql .kw { color: #F87171; font-weight: 700; }
+  pre.sql .ty { color: #60A5FA; }
+  pre.sql .st { color: #FBBF24; }
+  pre.sql .cm { color: #9CA3AF; font-style: italic; }
+
+  .feed-mock {
+    background: var(--sf-card); border: 1px solid var(--sf-border);
+    padding: 20px; margin: 12px 0;
+    font-size: 14px;
+  }
+  .feed-mock .feed-header {
+    font-weight: 700; font-size: 15px; margin-bottom: 12px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--sf-border);
+  }
+  .feed-mock .feed-row {
+    display: grid; grid-template-columns: 24px 1fr auto;
+    gap: 10px; padding: 10px 0;
+    border-bottom: 1px solid var(--sf-border);
+    align-items: start;
+  }
+  .feed-mock .feed-row:last-child { border-bottom: none; }
+  .feed-mock .feed-icon {
+    font-size: 14px; color: var(--sf-muted); padding-top: 2px;
+  }
+  .feed-mock .feed-text { font-size: 13px; line-height: 1.5; }
+  .feed-mock .feed-text strong { font-weight: 600; }
+  .feed-mock .feed-text .chip {
+    display: inline-block; padding: 1px 6px; font-size: 11px;
+    background: rgba(0,0,0,0.05); border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .feed-mock .feed-time { font-size: 11px; color: var(--sf-muted); white-space: nowrap; }
+
+  ul li { margin: 4px 0; }
+  hr.section { border: none; border-top: 1px dashed var(--sf-border); margin: 24px 0; }
+
+  .q-list { counter-reset: q; padding-left: 0; list-style: none; }
+  .q-list li { counter-increment: q; margin: 12px 0; padding-left: 32px; position: relative; }
+  .q-list li::before {
+    content: counter(q); position: absolute; left: 0; top: 0;
+    width: 22px; height: 22px; border-radius: 50%;
+    background: var(--sf-red); color: white;
+    font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">HQ · Sprint 12 · audit row 4</div>
+  <h1>History UI · Phase 2 — v1</h1>
+  <p style="color: var(--sf-muted); font-size: 14px;">
+    Task + project field-change history, captured via Postgres triggers, surfaced as a cross-entity activity feed on the dashboard.
+  </p>
+
+  <div class="meta">
+    <div class="item"><div class="label">Status</div><div class="value">DRAFT · awaiting Sonja review</div></div>
+    <div class="item"><div class="label">Version</div><div class="value">v1</div></div>
+    <div class="item"><div class="label">Date</div><div class="value">2026-05-26</div></div>
+    <div class="item"><div class="label">Audit row</div><div class="value">4 (locked 2026-05-25)</div></div>
+  </div>
+
+  <h2>Why this slice</h2>
+  <p>
+    Audit v2 row 4 locked Phase 2 of the History UI work. Phase 1 (PR <a href="https://github.com/SKStreich/sf-sonja-hq/pull/30">#30</a>) shipped author byline + "Current" pill on the knowledge HistoryTab — the data was already in <code>knowledge_versions</code>. Phase 2 extends the same idea to <code>tasks</code> + <code>projects</code>, which today have <strong>no</strong> persisted history of field changes. The only thing close is the per-row <code>updated_at</code> timestamp, which loses every prior value.
+  </p>
+  <p>
+    Without history, "who moved this task to Done last week, and from what?" is unanswerable. With history, the dashboard gets a recent-activity feed and (later, out of scope here) detail pages get a timeline.
+  </p>
+
+  <h2>Locked picks (from intake Q&amp;A)</h2>
+  <table class="data">
+    <thead>
+      <tr><th>Question</th><th>Pick</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Fields tracked</td>
+        <td><strong>Status + key fields</strong> — generic <code>entity_history</code> shape with <code>field_name + previous_value + new_value</code></td>
+      </tr>
+      <tr>
+        <td>UI surface</td>
+        <td><strong>Cross-entity activity feed on dashboard only</strong> — no task/project detail-page surfaces this slice</td>
+      </tr>
+      <tr>
+        <td>Process</td>
+        <td><strong>Spec-first</strong> (this doc) → review → implementation PR</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Schema</h2>
+  <h3>New table: <code>entity_history</code></h3>
+  <pre class="sql">
+<span class="kw">CREATE TYPE</span> entity_history_entity_type <span class="kw">AS ENUM</span> (<span class="st">'task'</span>, <span class="st">'project'</span>);
+
+<span class="kw">CREATE TABLE</span> entity_history (
+  id              <span class="ty">UUID</span> <span class="kw">PRIMARY KEY DEFAULT</span> uuid_generate_v4(),
+  org_id          <span class="ty">UUID</span> <span class="kw">NOT NULL REFERENCES</span> orgs(id) <span class="kw">ON DELETE CASCADE</span>,
+  entity_type     entity_history_entity_type <span class="kw">NOT NULL</span>,
+  entity_id       <span class="ty">UUID</span> <span class="kw">NOT NULL</span>,           <span class="cm">-- tasks.id or projects.id (no FK; polymorphic)</span>
+  field_name      <span class="ty">TEXT</span> <span class="kw">NOT NULL</span>,
+  previous_value  <span class="ty">TEXT</span>,                    <span class="cm">-- nullable; values cast to TEXT on write</span>
+  new_value       <span class="ty">TEXT</span>,                    <span class="cm">-- nullable; values cast to TEXT on write</span>
+  changed_by      <span class="ty">UUID</span> <span class="kw">REFERENCES</span> auth.users(id),  <span class="cm">-- nullable; null = system/migration</span>
+  changed_at      <span class="ty">TIMESTAMPTZ</span> <span class="kw">NOT NULL DEFAULT</span> NOW()
+);
+
+<span class="kw">CREATE INDEX</span> idx_entity_history_lookup
+  <span class="kw">ON</span> entity_history (entity_type, entity_id, changed_at <span class="kw">DESC</span>);
+<span class="kw">CREATE INDEX</span> idx_entity_history_feed
+  <span class="kw">ON</span> entity_history (org_id, changed_at <span class="kw">DESC</span>);
+</pre>
+
+  <div class="callout info">
+    <div class="callout-label">design note · polymorphic FK</div>
+    <p style="margin: 0;">
+      <code>entity_id</code> is intentionally <strong>not</strong> a foreign key. Tasks and projects live in separate tables; a polymorphic FK isn't supported in Postgres. On parent delete, history rows become orphan rows — that's fine (history is append-only and survives deletes). UI joins are filtered by <code>entity_type</code> + a left join to the live table; deleted entities just render as "(deleted task)".
+    </p>
+  </div>
+
+  <h3>Tracked fields</h3>
+  <table class="data">
+    <thead>
+      <tr><th>Entity</th><th>Field</th><th>Source column</th><th>Notes</th></tr>
+    </thead>
+    <tbody>
+      <tr><td rowspan="5"><strong>task</strong></td><td>status</td><td><code>tasks.status</code></td><td>enum <code>task_status</code></td></tr>
+      <tr><td>priority</td><td><code>tasks.priority</code></td><td>enum <code>project_priority</code></td></tr>
+      <tr><td>due_date</td><td><code>tasks.due_date</code></td><td>DATE</td></tr>
+      <tr><td>assignee</td><td><code>tasks.assignee_id</code></td><td>UUID → user; previous/new stored as UUID text</td></tr>
+      <tr><td>project</td><td><code>tasks.project_id</code></td><td>UUID → project; captures reassignment</td></tr>
+      <tr><td rowspan="4"><strong>project</strong></td><td>status</td><td><code>projects.status</code></td><td>enum <code>project_status</code></td></tr>
+      <tr><td>priority</td><td><code>projects.priority</code></td><td>enum <code>project_priority</code></td></tr>
+      <tr><td>due_date</td><td><code>projects.due_date</code></td><td>DATE</td></tr>
+      <tr><td>phase</td><td><code>projects.phase</code></td><td>TEXT (freeform phase label)</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Other columns (<code>title</code>, <code>description</code>, <code>tags</code>, etc.) are <strong>not</strong> tracked this slice. Easy to add later by extending the trigger.
+  </p>
+
+  <h2>Trigger semantics</h2>
+  <pre class="sql">
+<span class="kw">CREATE OR REPLACE FUNCTION</span> record_task_history() <span class="kw">RETURNS</span> <span class="ty">TRIGGER AS</span> $$
+<span class="kw">DECLARE</span>
+  actor <span class="ty">UUID</span> := auth.uid();   <span class="cm">-- null when called from a non-authed context</span>
+<span class="kw">BEGIN</span>
+  <span class="kw">IF</span> NEW.status <span class="kw">IS DISTINCT FROM</span> OLD.status <span class="kw">THEN</span>
+    <span class="kw">INSERT INTO</span> entity_history (org_id, entity_type, entity_id, field_name,
+                                previous_value, new_value, changed_by)
+    <span class="kw">VALUES</span> (NEW.org_id, <span class="st">'task'</span>, NEW.id, <span class="st">'status'</span>,
+            OLD.status::<span class="ty">text</span>, NEW.status::<span class="ty">text</span>, actor);
+  <span class="kw">END IF</span>;
+  <span class="cm">-- repeat IS DISTINCT FROM block for priority, due_date, assignee_id, project_id</span>
+  <span class="kw">RETURN</span> NEW;
+<span class="kw">END</span>;
+$$ <span class="kw">LANGUAGE</span> plpgsql <span class="kw">SECURITY DEFINER</span>;
+
+<span class="kw">CREATE TRIGGER</span> tasks_history_capture
+  <span class="kw">AFTER UPDATE ON</span> tasks
+  <span class="kw">FOR EACH ROW EXECUTE FUNCTION</span> record_task_history();
+
+<span class="cm">-- parallel function record_project_history() + trigger projects_history_capture</span>
+</pre>
+  <ul>
+    <li><strong><code>IS DISTINCT FROM</code></strong> handles NULL correctly (unlike <code>!=</code>). No row emitted when both sides equal, including both-NULL.</li>
+    <li><strong>One row per changed field per UPDATE.</strong> An UPDATE that changes status + priority emits 2 rows with identical <code>changed_at</code>.</li>
+    <li><strong>Actor</strong> = <code>auth.uid()</code>. NULL when run via service-role (Server Action with elevated client) or migration — that's intentional. Server Actions that should attribute to the user must pass through the user-scoped client.</li>
+    <li><strong>SECURITY DEFINER</strong> so the trigger can insert into <code>entity_history</code> regardless of the caller's RLS context. The trigger only writes well-formed rows derived from a row the caller already had permission to UPDATE.</li>
+    <li><strong>No INSERT/DELETE coverage</strong> this slice. Task creation isn't a "change," and deletion is rare in HQ (status='cancelled' is the soft-delete). Easy follow-up if needed.</li>
+  </ul>
+
+  <h2>RLS policy</h2>
+  <pre class="sql">
+<span class="kw">ALTER TABLE</span> entity_history <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+
+<span class="cm">-- Read: tenant-scoped, matching parent table tenancy.</span>
+<span class="cm">-- Task confidentiality is enforced by joining to the live tasks row at read time;</span>
+<span class="cm">-- if you can't SELECT the task, your history rows for it filter out.</span>
+<span class="kw">CREATE POLICY</span> <span class="st">"entity_history_read"</span> <span class="kw">ON</span> entity_history
+  <span class="kw">FOR SELECT USING</span> (
+    org_id = (<span class="kw">SELECT</span> org_id <span class="kw">FROM</span> user_profiles <span class="kw">WHERE</span> id = auth.uid())
+    <span class="kw">AND</span> (
+      entity_type = <span class="st">'project'</span>
+      <span class="kw">OR</span> entity_type = <span class="st">'task'</span> <span class="kw">AND EXISTS</span> (
+        <span class="kw">SELECT</span> 1 <span class="kw">FROM</span> tasks t
+        <span class="kw">WHERE</span> t.id = entity_history.entity_id
+      )  <span class="cm">-- the tasks SELECT itself applies confidentiality_tier filter via tasks RLS</span>
+    )
+  );
+
+<span class="cm">-- No INSERT policy: only the SECURITY DEFINER trigger writes. Direct INSERTs blocked.</span>
+<span class="cm">-- No UPDATE / DELETE policy: history is append-only.</span>
+</pre>
+
+  <h2>Dashboard activity feed</h2>
+  <p>
+    New section on <code>/dashboard</code>, rendered as a server component. Slots above or below the existing "Recent activity" (project_updates) section — TBD in review.
+  </p>
+
+  <div class="feed-mock">
+    <div class="feed-header">Recent changes</div>
+
+    <div class="feed-row">
+      <div class="feed-icon">→</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> moved task <strong>"Wire up Stripe webhook"</strong>
+        from <span class="chip">in_progress</span> to <span class="chip">done</span>
+        in project <strong>SF Ops · Phase 5.3.3</strong>
+      </div>
+      <div class="feed-time">2m ago</div>
+    </div>
+
+    <div class="feed-row">
+      <div class="feed-icon">→</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> set due date on task <strong>"Draft restore-rehearsal cron"</strong>
+        to <span class="chip">2026-06-08</span>
+      </div>
+      <div class="feed-time">14m ago</div>
+    </div>
+
+    <div class="feed-row">
+      <div class="feed-icon">→</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> moved project <strong>"Notion cutover"</strong>
+        from <span class="chip">planning</span> to <span class="chip">active</span>
+      </div>
+      <div class="feed-time">1h ago</div>
+    </div>
+
+    <div class="feed-row">
+      <div class="feed-icon">→</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> reassigned task <strong>"Triage inbox"</strong>
+        to <strong>(unassigned)</strong>
+      </div>
+      <div class="feed-time">3h ago</div>
+    </div>
+  </div>
+
+  <h3>Server query shape</h3>
+  <pre class="sql">
+<span class="kw">SELECT</span>
+  eh.id, eh.entity_type, eh.entity_id, eh.field_name,
+  eh.previous_value, eh.new_value, eh.changed_at,
+  eh.changed_by,
+  up.full_name <span class="kw">AS</span> actor_name,
+  <span class="kw">COALESCE</span>(t.title, p.name) <span class="kw">AS</span> entity_name,
+  t.project_id <span class="kw">AS</span> task_project_id,
+  pp.name <span class="kw">AS</span> task_project_name
+<span class="kw">FROM</span> entity_history eh
+<span class="kw">LEFT JOIN</span> user_profiles up <span class="kw">ON</span> up.id = eh.changed_by
+<span class="kw">LEFT JOIN</span> tasks t <span class="kw">ON</span> eh.entity_type = <span class="st">'task'</span> <span class="kw">AND</span> t.id = eh.entity_id
+<span class="kw">LEFT JOIN</span> projects p <span class="kw">ON</span> eh.entity_type = <span class="st">'project'</span> <span class="kw">AND</span> p.id = eh.entity_id
+<span class="kw">LEFT JOIN</span> projects pp <span class="kw">ON</span> t.project_id = pp.id
+<span class="kw">ORDER BY</span> eh.changed_at <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> 20;
+</pre>
+  <p>
+    RLS filters the result automatically. Deleted entities show <code>entity_name = NULL</code> → render as "(deleted task)" / "(deleted project)".
+  </p>
+
+  <h3>Field-aware copy rules</h3>
+  <table class="data">
+    <thead><tr><th>field_name</th><th>Template</th></tr></thead>
+    <tbody>
+      <tr><td><code>status</code></td><td><strong>{actor}</strong> moved {entity_type} <strong>"{name}"</strong> from <span class="chip">{prev}</span> to <span class="chip">{new}</span></td></tr>
+      <tr><td><code>priority</code></td><td><strong>{actor}</strong> changed priority on {entity_type} <strong>"{name}"</strong> from <span class="chip">{prev}</span> to <span class="chip">{new}</span></td></tr>
+      <tr><td><code>due_date</code></td><td><strong>{actor}</strong> set due date on {entity_type} <strong>"{name}"</strong> to <span class="chip">{new}</span> <em>(or "cleared due date" if new is null)</em></td></tr>
+      <tr><td><code>assignee_id</code></td><td><strong>{actor}</strong> reassigned task <strong>"{name}"</strong> to <strong>{new_user}</strong> <em>(or "(unassigned)")</em></td></tr>
+      <tr><td><code>project_id</code></td><td><strong>{actor}</strong> moved task <strong>"{name}"</strong> to project <strong>{new_project}</strong></td></tr>
+      <tr><td><code>phase</code></td><td><strong>{actor}</strong> set phase on project <strong>"{name}"</strong> to <span class="chip">{new}</span></td></tr>
+    </tbody>
+  </table>
+  <p>
+    Actor "(System)" when <code>changed_by</code> is NULL.
+  </p>
+
+  <h2>Open questions for review</h2>
+  <ol class="q-list">
+    <li><strong>Feed position on dashboard.</strong> Above or below the existing "Recent activity" (project_updates) section? Or merged into one combined "Recent" feed?</li>
+    <li><strong>Feed length.</strong> Top 20 rows? Top 10? Pagination/"show more" or hard cap?</li>
+    <li><strong>Backfill on migration.</strong> Skip (history starts now, prior state lost) or seed one row per existing row with current values? Recommendation: skip — backfill adds noise, current state is already visible elsewhere.</li>
+    <li><strong>Service-role attribution.</strong> Some Server Actions use the service-role client (bypasses RLS). Those changes will land with <code>changed_by = NULL</code> → "(System)" in the feed. Acceptable, or should we thread the user_id through Server Actions so they attribute correctly? Recommendation: acceptable for v1.</li>
+    <li><strong>Confidentiality on task history.</strong> Current RLS proposal: history readable iff parent task readable. Means a task that goes <code>confidentiality_tier = 'private'</code> hides its history from teammates immediately. Sound right?</li>
+  </ol>
+
+  <h2>Out of scope (this slice)</h2>
+  <ul>
+    <li><strong>Detail-page timelines</strong> on <code>/dashboard/tasks/[id]</code> and <code>/dashboard/projects/[id]</code>. Per intake Q2 you picked dashboard feed only. Trivial follow-up once the data exists.</li>
+    <li><strong>Other tracked fields</strong> (title, description, tags). Trigger easily extended.</li>
+    <li><strong>INSERT / DELETE events.</strong> Only UPDATE changes captured.</li>
+    <li><strong>Merge with <code>project_updates</code>.</strong> Out of scope — that's manual update content, not field-change history. Could merge feeds in UI later.</li>
+    <li><strong>Filtering / search</strong> on the feed. Top-N reverse-chronological only.</li>
+  </ul>
+
+  <h2>Test plan</h2>
+  <ul>
+    <li><strong>Trigger correctness</strong> (real DB per <code>feedback-testing</code>):
+      <ul>
+        <li>UPDATE that changes status emits exactly 1 row with correct prev/new/actor.</li>
+        <li>UPDATE that changes 3 tracked fields emits 3 rows, same <code>changed_at</code>.</li>
+        <li>UPDATE that touches only <code>updated_at</code> (no tracked field) emits 0 rows.</li>
+        <li>UPDATE NULL → value (and value → NULL) emits a row.</li>
+        <li>UPDATE NULL → NULL emits 0 rows.</li>
+      </ul>
+    </li>
+    <li><strong>RLS isolation</strong>:
+      <ul>
+        <li>User in org A cannot read history rows for org B.</li>
+        <li>User cannot read history for a private task that isn't theirs.</li>
+        <li>Direct INSERT into <code>entity_history</code> by authenticated user is rejected (no INSERT policy).</li>
+      </ul>
+    </li>
+    <li><strong>ActivityFeed component</strong>:
+      <ul>
+        <li>Renders status/priority/due_date/assignee/project/phase rows with the right templates.</li>
+        <li>Renders "(deleted task)" when join misses.</li>
+        <li>Renders "(System)" when actor missing.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h2>Migration plan</h2>
+  <ol>
+    <li><code>supabase/migrations/20260526000001_entity_history.sql</code> — table, enum, indexes, RLS policy.</li>
+    <li><code>supabase/migrations/20260526000002_history_triggers.sql</code> — trigger functions + triggers on tasks + projects.</li>
+    <li>No backfill (per Q3 recommendation, pending Sonja confirmation).</li>
+    <li>Apply via Supabase MCP <code>apply_migration</code>, mirroring the Sprint 11 pattern.</li>
+  </ol>
+
+  <hr class="section" />
+  <p style="color: var(--sf-muted); font-size: 12px;">
+    Next: Sonja reviews, answers the 5 open questions, locks v2 (or approves v1 as-is). Implementation PR opens against <code>main</code> from worktree <code>~/dev/sf-sonja-hq-row4-history</code>.
+  </p>
+
+</div>
+</body>
+</html>
