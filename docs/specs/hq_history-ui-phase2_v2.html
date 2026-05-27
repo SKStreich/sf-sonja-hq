@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HQ · History UI Phase 2 — v2 (locked)</title>
+<style>
+  :root {
+    --sf-red:    #C0392B;
+    --sf-red-hot:#A93226;
+    --sf-fg:     #1F2937;
+    --sf-muted:  #6B7280;
+    --sf-card:   #FFFFFF;
+    --sf-bg:     #FAFAFA;
+    --sf-border: #E5E7EB;
+    --sf-ok:     #16A34A;
+    --sf-warn:   #D97706;
+    --sf-cool:   #2563EB;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--sf-bg); color: var(--sf-fg); }
+  body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 1.5; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--sf-muted);
+  }
+  h1 { font-size: 28px; font-weight: 800; margin: 4px 0 8px; letter-spacing: -0.01em; }
+  h2 {
+    font-size: 20px; font-weight: 700; letter-spacing: -0.005em;
+    margin: 48px 0 12px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--sf-red);
+  }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 6px; }
+  p  { margin: 8px 0; }
+
+  .meta {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin: 16px 0 32px;
+    padding: 16px; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  .meta .item .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--sf-muted); margin-bottom: 2px;
+  }
+  .meta .item .value { font-size: 13px; font-weight: 600; }
+  code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: rgba(0,0,0,0.04); padding: 1px 4px; }
+
+  .callout {
+    margin: 16px 0; padding: 12px 16px;
+    border-left: 3px solid var(--sf-red);
+    background: var(--sf-card);
+    border-top: 1px solid var(--sf-border);
+    border-right: 1px solid var(--sf-border);
+    border-bottom: 1px solid var(--sf-border);
+  }
+  .callout.warn { border-left-color: var(--sf-warn); }
+  .callout.ok   { border-left-color: var(--sf-ok); }
+  .callout.info { border-left-color: var(--sf-cool); }
+  .callout-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--sf-muted); margin-bottom: 4px;
+  }
+
+  table.data {
+    width: 100%; border-collapse: collapse;
+    margin: 12px 0; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  table.data th, table.data td {
+    padding: 10px 12px; text-align: left;
+    border-bottom: 1px solid var(--sf-border);
+    font-size: 13px; vertical-align: top;
+  }
+  table.data th {
+    background: rgba(0,0,0,0.02);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--sf-muted); font-weight: 700;
+  }
+
+  pre.sql, pre.code {
+    background: #1F2937; color: #F9FAFB;
+    padding: 16px; overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    line-height: 1.55; margin: 12px 0;
+    border-left: 3px solid var(--sf-red);
+  }
+  pre.sql .kw { color: #F87171; font-weight: 700; }
+  pre.sql .ty { color: #60A5FA; }
+  pre.sql .st { color: #FBBF24; }
+  pre.sql .cm { color: #9CA3AF; font-style: italic; }
+
+  .feed-mock {
+    background: var(--sf-card); border: 1px solid var(--sf-border);
+    padding: 20px; margin: 12px 0;
+    font-size: 14px;
+  }
+  .feed-mock .feed-header {
+    font-weight: 700; font-size: 15px; margin-bottom: 12px;
+    padding-bottom: 8px; border-bottom: 1px solid var(--sf-border);
+    display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .feed-mock .feed-header .filter-pills {
+    font-size: 11px; font-weight: 500; color: var(--sf-muted);
+  }
+  .feed-mock .feed-header .filter-pills .pill {
+    display: inline-block; padding: 2px 8px; margin-left: 4px;
+    background: rgba(0,0,0,0.05); border-radius: 10px;
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .feed-mock .feed-header .filter-pills .pill.active {
+    background: var(--sf-red); color: white;
+  }
+  .feed-mock .feed-row {
+    display: grid; grid-template-columns: 24px 70px 1fr auto;
+    gap: 10px; padding: 10px 0;
+    border-bottom: 1px solid var(--sf-border);
+    align-items: start;
+  }
+  .feed-mock .feed-row:last-child { border-bottom: none; }
+  .feed-mock .feed-icon {
+    font-size: 14px; color: var(--sf-muted); padding-top: 2px;
+  }
+  .feed-mock .feed-flag {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px;
+    letter-spacing: 0.06em; text-transform: uppercase;
+    padding: 2px 6px; background: rgba(0,0,0,0.05);
+    border-radius: 3px; align-self: start; color: var(--sf-muted);
+    font-weight: 600;
+  }
+  .feed-mock .feed-flag.field-change { background: #FEF3C7; color: #92400E; }
+  .feed-mock .feed-flag.update       { background: #DBEAFE; color: #1E40AF; }
+  .feed-mock .feed-text { font-size: 13px; line-height: 1.5; }
+  .feed-mock .feed-text strong { font-weight: 600; }
+  .feed-mock .feed-text .chip {
+    display: inline-block; padding: 1px 6px; font-size: 11px;
+    background: rgba(0,0,0,0.05); border-radius: 3px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .feed-mock .feed-time { font-size: 11px; color: var(--sf-muted); white-space: nowrap; }
+  .feed-mock .show-more {
+    text-align: center; padding: 12px 0 0;
+    font-size: 12px; color: var(--sf-cool);
+    border-top: 1px dashed var(--sf-border); margin-top: 8px;
+  }
+
+  ul li { margin: 4px 0; }
+  hr.section { border: none; border-top: 1px dashed var(--sf-border); margin: 24px 0; }
+
+  .diff-table th:first-child { width: 30%; }
+  .diff-table td.before { color: var(--sf-muted); }
+  .diff-table td.after { color: var(--sf-fg); font-weight: 500; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">HQ · Sprint 12 · audit row 4 · LOCKED</div>
+  <h1>History UI · Phase 2 — v2</h1>
+  <p style="color: var(--sf-muted); font-size: 14px;">
+    All 5 review questions answered. Implementation can start.
+  </p>
+
+  <div class="meta">
+    <div class="item"><div class="label">Status</div><div class="value">LOCKED · ready to implement</div></div>
+    <div class="item"><div class="label">Version</div><div class="value">v2 (supersedes v1)</div></div>
+    <div class="item"><div class="label">Date</div><div class="value">2026-05-26</div></div>
+    <div class="item"><div class="label">Audit row</div><div class="value">4 (locked 2026-05-25)</div></div>
+  </div>
+
+  <div class="callout ok">
+    <div class="callout-label">What changed v1 → v2</div>
+    <p style="margin: 0;">
+      Sonja answered all 5 open questions. Notable scope additions: (a) the dashboard feed is <strong>merged</strong> with the existing <code>project_updates</code> "Recent activity" feed, distinguished by activity-type flags; (b) <strong>cursor-based pagination</strong> instead of fixed top-N; (c) attribution is <strong>threaded through service-role Server Actions</strong> via a session-local setting, not left as "(System)". Backfill is skipped. RLS confidentiality cascade confirmed sound.
+    </p>
+  </div>
+
+  <h2>Locked answers (review Q&amp;A)</h2>
+  <table class="data">
+    <thead>
+      <tr><th>Q</th><th>Question (from v1)</th><th>Sonja's answer</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>1</td><td>Feed position on dashboard</td><td><strong>Merged</strong> with existing project_updates feed; distinct flags per activity type.</td></tr>
+      <tr><td>2</td><td>Feed length</td><td><strong>Paginated</strong>. Cursor-based on <code>occurred_at</code>, "Show more" button.</td></tr>
+      <tr><td>3</td><td>Backfill on migration</td><td><strong>Skip</strong>. History starts now.</td></tr>
+      <tr><td>4</td><td>Service-role attribution</td><td><strong>Thread user_id</strong>. Mechanism specced below.</td></tr>
+      <tr><td>5</td><td>Confidentiality RLS cascade</td><td><strong>Sound as proposed</strong> — task history readable iff parent task readable.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Schema — unchanged from v1</h2>
+  <p>
+    <code>entity_history</code> table + <code>entity_history_entity_type</code> enum + indexes. See v1 for full DDL; reproduced here for completeness.
+  </p>
+  <pre class="sql">
+<span class="kw">CREATE TYPE</span> entity_history_entity_type <span class="kw">AS ENUM</span> (<span class="st">'task'</span>, <span class="st">'project'</span>);
+
+<span class="kw">CREATE TABLE</span> entity_history (
+  id              <span class="ty">UUID</span> <span class="kw">PRIMARY KEY DEFAULT</span> uuid_generate_v4(),
+  org_id          <span class="ty">UUID</span> <span class="kw">NOT NULL REFERENCES</span> orgs(id) <span class="kw">ON DELETE CASCADE</span>,
+  entity_type     entity_history_entity_type <span class="kw">NOT NULL</span>,
+  entity_id       <span class="ty">UUID</span> <span class="kw">NOT NULL</span>,
+  field_name      <span class="ty">TEXT</span> <span class="kw">NOT NULL</span>,
+  previous_value  <span class="ty">TEXT</span>,
+  new_value       <span class="ty">TEXT</span>,
+  changed_by      <span class="ty">UUID</span> <span class="kw">REFERENCES</span> auth.users(id),
+  changed_at      <span class="ty">TIMESTAMPTZ</span> <span class="kw">NOT NULL DEFAULT</span> NOW()
+);
+<span class="kw">CREATE INDEX</span> idx_entity_history_lookup
+  <span class="kw">ON</span> entity_history (entity_type, entity_id, changed_at <span class="kw">DESC</span>);
+<span class="kw">CREATE INDEX</span> idx_entity_history_feed
+  <span class="kw">ON</span> entity_history (org_id, changed_at <span class="kw">DESC</span>);
+</pre>
+
+  <p>Tracked fields (locked, unchanged from v1):</p>
+  <table class="data">
+    <thead><tr><th>Entity</th><th>Fields</th></tr></thead>
+    <tbody>
+      <tr><td><strong>task</strong></td><td><code>status</code>, <code>priority</code>, <code>due_date</code>, <code>assignee_id</code>, <code>project_id</code></td></tr>
+      <tr><td><strong>project</strong></td><td><code>status</code>, <code>priority</code>, <code>due_date</code>, <code>phase</code></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Trigger semantics + actor threading (Q4)</h2>
+
+  <h3>The mechanism</h3>
+  <p>
+    Triggers read the actor from a session-local Postgres setting <code>app.current_user_id</code>, falling back to <code>auth.uid()</code> if not set. User-scoped Server Actions need no changes — <code>auth.uid()</code> resolves correctly. Service-role / admin-client Server Actions call a tiny helper RPC <code>set_history_actor(uuid)</code> at the top of their transaction; the trigger then picks up that user_id for any subsequent UPDATEs in the same transaction.
+  </p>
+
+  <pre class="sql">
+<span class="cm">-- Helper: callers set this once per transaction before UPDATEs they want attributed.</span>
+<span class="cm">-- The `is_local=true` argument scopes the setting to the current transaction.</span>
+<span class="kw">CREATE OR REPLACE FUNCTION</span> set_history_actor(user_id <span class="ty">UUID</span>) <span class="kw">RETURNS void AS</span> $$
+<span class="kw">BEGIN</span>
+  <span class="kw">PERFORM</span> set_config(<span class="st">'app.current_user_id'</span>, user_id::<span class="ty">text</span>, <span class="kw">true</span>);
+<span class="kw">END</span>;
+$$ <span class="kw">LANGUAGE</span> plpgsql;
+
+<span class="kw">CREATE OR REPLACE FUNCTION</span> record_task_history() <span class="kw">RETURNS TRIGGER AS</span> $$
+<span class="kw">DECLARE</span>
+  actor <span class="ty">UUID</span> := <span class="kw">COALESCE</span>(
+    <span class="kw">NULLIF</span>(current_setting(<span class="st">'app.current_user_id'</span>, <span class="kw">true</span>), <span class="st">''</span>)::<span class="ty">uuid</span>,
+    auth.uid()
+  );
+<span class="kw">BEGIN</span>
+  <span class="kw">IF</span> NEW.status <span class="kw">IS DISTINCT FROM</span> OLD.status <span class="kw">THEN</span>
+    <span class="kw">INSERT INTO</span> entity_history (org_id, entity_type, entity_id, field_name,
+                                previous_value, new_value, changed_by)
+    <span class="kw">VALUES</span> (NEW.org_id, <span class="st">'task'</span>, NEW.id, <span class="st">'status'</span>,
+            OLD.status::<span class="ty">text</span>, NEW.status::<span class="ty">text</span>, actor);
+  <span class="kw">END IF</span>;
+  <span class="cm">-- repeat IS DISTINCT FROM block for priority, due_date, assignee_id, project_id</span>
+  <span class="kw">RETURN</span> NEW;
+<span class="kw">END</span>;
+$$ <span class="kw">LANGUAGE</span> plpgsql <span class="kw">SECURITY DEFINER</span>;
+
+<span class="kw">CREATE TRIGGER</span> tasks_history_capture
+  <span class="kw">AFTER UPDATE ON</span> tasks
+  <span class="kw">FOR EACH ROW EXECUTE FUNCTION</span> record_task_history();
+
+<span class="cm">-- parallel function record_project_history() + trigger projects_history_capture</span>
+</pre>
+
+  <h3>TypeScript wrapper</h3>
+  <pre class="code"><code>// src/lib/supabase/history-actor.ts
+//
+// Use when calling tasks/projects UPDATEs via a service-role / admin client
+// where auth.uid() returns NULL. User-scoped clients don't need this — the
+// trigger already resolves auth.uid() correctly for them.
+//
+// Caller is responsible for batching the set_history_actor + UPDATE in a
+// single transaction (PostgREST exposes RPC + DML on the same connection
+// when called sequentially through a single client instance).
+
+export async function setHistoryActor(
+  client: SupabaseClient,
+  userId: string,
+) {
+  const { error } = await client.rpc('set_history_actor', { user_id: userId })
+  if (error) throw error
+}</code></pre>
+
+  <div class="callout info">
+    <div class="callout-label">audit during implementation</div>
+    <p style="margin: 0;">
+      <strong>No HQ Server Action today uses <code>createAdminClient()</code> to write to tasks or projects</strong> (verified 2026-05-26 via grep). The threading mechanism is forward-looking — it ensures correctness when (a) a future webhook lands, (b) the SF Ops Agent eventually writes to HQ, or (c) the Notion-cutover importer creates/updates tasks in bulk. Implementation includes a unit test that calls <code>set_history_actor</code> before an UPDATE via the admin client and asserts the trigger picked up the right user.
+    </p>
+  </div>
+
+  <h2>RLS — unchanged from v1</h2>
+  <pre class="sql">
+<span class="kw">ALTER TABLE</span> entity_history <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+
+<span class="kw">CREATE POLICY</span> <span class="st">"entity_history_read"</span> <span class="kw">ON</span> entity_history
+  <span class="kw">FOR SELECT USING</span> (
+    org_id = (<span class="kw">SELECT</span> org_id <span class="kw">FROM</span> user_profiles <span class="kw">WHERE</span> id = auth.uid())
+    <span class="kw">AND</span> (
+      entity_type = <span class="st">'project'</span>
+      <span class="kw">OR</span> entity_type = <span class="st">'task'</span> <span class="kw">AND EXISTS</span> (
+        <span class="kw">SELECT</span> 1 <span class="kw">FROM</span> tasks t <span class="kw">WHERE</span> t.id = entity_history.entity_id
+      )
+    )
+  );
+
+<span class="cm">-- Append-only. No INSERT/UPDATE/DELETE policies — only the SECURITY DEFINER</span>
+<span class="cm">-- trigger writes; everything else is blocked.</span>
+</pre>
+
+  <h2>Merged dashboard feed (Q1)</h2>
+
+  <h3>Postgres view: <code>recent_activity_feed</code></h3>
+  <p>
+    A single view that UNIONs <code>entity_history</code> + <code>project_updates</code> into a normalized shape. RLS cascades through both underlying tables. Created with <code>SECURITY INVOKER</code> so it respects the caller's row-level access.
+  </p>
+  <pre class="sql">
+<span class="kw">CREATE VIEW</span> recent_activity_feed
+<span class="kw">WITH</span> (security_invoker = <span class="kw">true</span>) <span class="kw">AS</span>
+<span class="kw">SELECT</span>
+  <span class="st">'field_change'</span>::<span class="ty">text</span>      <span class="kw">AS</span> activity_type,
+  eh.id                  <span class="kw">AS</span> id,
+  eh.org_id              <span class="kw">AS</span> org_id,
+  eh.changed_at          <span class="kw">AS</span> occurred_at,
+  eh.changed_by          <span class="kw">AS</span> actor_id,
+  eh.entity_type::<span class="ty">text</span>    <span class="kw">AS</span> entity_type,
+  eh.entity_id           <span class="kw">AS</span> entity_id,
+  eh.field_name          <span class="kw">AS</span> field_name,
+  eh.previous_value      <span class="kw">AS</span> previous_value,
+  eh.new_value           <span class="kw">AS</span> new_value,
+  <span class="kw">NULL</span>::<span class="ty">text</span>             <span class="kw">AS</span> update_content,
+  <span class="kw">NULL</span>::<span class="ty">text</span>             <span class="kw">AS</span> update_subtype
+<span class="kw">FROM</span> entity_history eh
+<span class="kw">UNION ALL</span>
+<span class="kw">SELECT</span>
+  <span class="st">'project_update'</span>::<span class="ty">text</span>,
+  pu.id, pu.org_id, pu.created_at, pu.user_id,
+  <span class="st">'project'</span>::<span class="ty">text</span>, pu.project_id,
+  <span class="kw">NULL</span>::<span class="ty">text</span>, <span class="kw">NULL</span>::<span class="ty">text</span>, <span class="kw">NULL</span>::<span class="ty">text</span>,
+  pu.content, pu.update_type
+<span class="kw">FROM</span> project_updates pu;
+</pre>
+
+  <h3>Server query</h3>
+  <p>
+    Cursor-based pagination: pass the previous page's last <code>occurred_at</code> as <code>before_cursor</code>. Initial load uses <code>NOW()</code>. Page size = 20.
+  </p>
+  <pre class="sql">
+<span class="kw">SELECT</span>
+  f.*,
+  up.full_name <span class="kw">AS</span> actor_name,
+  <span class="kw">COALESCE</span>(t.title, p.name)         <span class="kw">AS</span> entity_name,
+  t.project_id                       <span class="kw">AS</span> task_project_id,
+  pp.name                            <span class="kw">AS</span> task_project_name,
+  asg.full_name                      <span class="kw">AS</span> new_assignee_name
+<span class="kw">FROM</span> recent_activity_feed f
+<span class="kw">LEFT JOIN</span> user_profiles up <span class="kw">ON</span> up.id = f.actor_id
+<span class="kw">LEFT JOIN</span> tasks t          <span class="kw">ON</span> f.entity_type = <span class="st">'task'</span>    <span class="kw">AND</span> t.id = f.entity_id
+<span class="kw">LEFT JOIN</span> projects p       <span class="kw">ON</span> f.entity_type = <span class="st">'project'</span> <span class="kw">AND</span> p.id = f.entity_id
+<span class="kw">LEFT JOIN</span> projects pp      <span class="kw">ON</span> t.project_id = pp.id
+<span class="kw">LEFT JOIN</span> user_profiles asg <span class="kw">ON</span> f.field_name = <span class="st">'assignee_id'</span> <span class="kw">AND</span> asg.id = f.new_value::<span class="ty">uuid</span>
+<span class="kw">WHERE</span> f.occurred_at &lt; $1   <span class="cm">-- before_cursor</span>
+<span class="kw">ORDER BY</span> f.occurred_at <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> 21;                  <span class="cm">-- 20 to render + 1 to detect "has more"</span>
+</pre>
+  <p>
+    Server takes 21 rows, returns the first 20, and if a 21st exists exposes <code>nextCursor = rows[19].occurred_at</code>. "Show more" button visible iff <code>nextCursor</code> is set.
+  </p>
+
+  <h3>Feed mock</h3>
+  <div class="feed-mock">
+    <div class="feed-header">
+      Recent activity
+      <span class="filter-pills">
+        <span class="pill active">all</span><span class="pill">changes</span><span class="pill">updates</span>
+      </span>
+    </div>
+
+    <div class="feed-row">
+      <div class="feed-icon">→</div>
+      <div class="feed-flag field-change">Change</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> moved task <strong>"Wire up Stripe webhook"</strong>
+        from <span class="chip">in_progress</span> to <span class="chip">done</span>
+        in <strong>SF Ops · Phase 5.3.3</strong>
+      </div>
+      <div class="feed-time">2m</div>
+    </div>
+
+    <div class="feed-row">
+      <div class="feed-icon">💬</div>
+      <div class="feed-flag update">Update</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> · <em>decision</em> on project <strong>Notion cutover</strong>:
+        "Going with Granola-style table for archived pages instead of leaf-by-leaf migration."
+      </div>
+      <div class="feed-time">8m</div>
+    </div>
+
+    <div class="feed-row">
+      <div class="feed-icon">→</div>
+      <div class="feed-flag field-change">Change</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> set due date on task <strong>"Draft restore-rehearsal cron"</strong>
+        to <span class="chip">2026-06-08</span>
+      </div>
+      <div class="feed-time">14m</div>
+    </div>
+
+    <div class="feed-row">
+      <div class="feed-icon">→</div>
+      <div class="feed-flag field-change">Change</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> moved project <strong>"Notion cutover"</strong>
+        from <span class="chip">planning</span> to <span class="chip">active</span>
+      </div>
+      <div class="feed-time">1h</div>
+    </div>
+
+    <div class="feed-row">
+      <div class="feed-icon">💬</div>
+      <div class="feed-flag update">Update</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> · <em>milestone</em> on project <strong>SF Ops</strong>:
+        "Theme B closed — PR #40 merged."
+      </div>
+      <div class="feed-time">2h</div>
+    </div>
+
+    <div class="feed-row">
+      <div class="feed-icon">→</div>
+      <div class="feed-flag field-change">Change</div>
+      <div class="feed-text">
+        <strong>Sonja</strong> reassigned task <strong>"Triage inbox"</strong>
+        to <strong>(unassigned)</strong>
+      </div>
+      <div class="feed-time">3h</div>
+    </div>
+
+    <div class="show-more">Show more →</div>
+  </div>
+
+  <h3>Filter pills</h3>
+  <p>
+    Client-side filter on the discriminator: <code>all</code> (default) · <code>changes</code> (entity_history rows) · <code>updates</code> (project_updates rows). Filter state lives in URL query param (<code>?activity=changes</code>) so it persists across reloads. Server returns all activity types; client filters by hiding rows whose flag doesn't match. Cursor stays activity-type-agnostic to keep pagination semantics simple.
+  </p>
+
+  <h2>Diff: existing dashboard "Recent activity" → new merged feed</h2>
+  <table class="data diff-table">
+    <thead><tr><th>Aspect</th><th>Before (current)</th><th>After (this slice)</th></tr></thead>
+    <tbody>
+      <tr><td>Data source</td><td class="before"><code>project_updates</code> only</td><td class="after"><code>recent_activity_feed</code> view (union of entity_history + project_updates)</td></tr>
+      <tr><td>Items shown</td><td class="before">Top 6, fixed</td><td class="after">Top 20 + "Show more" cursor</td></tr>
+      <tr><td>Filter</td><td class="before">None</td><td class="after">All / Changes / Updates (URL-persisted)</td></tr>
+      <tr><td>Per-row data</td><td class="before">Manual update text</td><td class="after">Two row shapes: change rows (templates) + update rows (existing copy)</td></tr>
+      <tr><td>Component</td><td class="before"><code>DashboardHome</code> inline rendering of <code>recentLog</code></td><td class="after">New <code>&lt;ActivityFeed /&gt;</code> server component, replaces inline rendering</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Field-aware copy rules (change rows)</h3>
+  <table class="data">
+    <thead><tr><th>field_name</th><th>Template</th></tr></thead>
+    <tbody>
+      <tr><td><code>status</code></td><td><strong>{actor}</strong> moved {entity_type} <strong>"{name}"</strong> from <span class="chip">{prev}</span> to <span class="chip">{new}</span></td></tr>
+      <tr><td><code>priority</code></td><td><strong>{actor}</strong> changed priority on {entity_type} <strong>"{name}"</strong> from <span class="chip">{prev}</span> to <span class="chip">{new}</span></td></tr>
+      <tr><td><code>due_date</code></td><td><strong>{actor}</strong> set due date on {entity_type} <strong>"{name}"</strong> to <span class="chip">{new}</span> · or "cleared due date" if new is null</td></tr>
+      <tr><td><code>assignee_id</code></td><td><strong>{actor}</strong> reassigned task <strong>"{name}"</strong> to <strong>{new_assignee_name}</strong> · or "(unassigned)"</td></tr>
+      <tr><td><code>project_id</code></td><td><strong>{actor}</strong> moved task <strong>"{name}"</strong> to project <strong>{new_project}</strong></td></tr>
+      <tr><td><code>phase</code></td><td><strong>{actor}</strong> set phase on project <strong>"{name}"</strong> to <span class="chip">{new}</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Out of scope (this slice)</h2>
+  <ul>
+    <li><strong>Detail-page timelines</strong> on <code>/dashboard/tasks/[id]</code> and <code>/dashboard/projects/[id]</code>.</li>
+    <li><strong>Other tracked fields</strong> (title, description, tags). Trigger easily extended.</li>
+    <li><strong>INSERT / DELETE events.</strong> Only UPDATE changes captured.</li>
+    <li><strong>Server-side filter</strong> on the activity-type discriminator. Client-side hide is sufficient for v1.</li>
+    <li><strong>"Watch this entity" subscription</strong> / notifications on changes. Future slice.</li>
+    <li><strong>Auditing of entity_history reads</strong> (who looked at what history). Out of scope.</li>
+  </ul>
+
+  <h2>Test plan</h2>
+  <ul>
+    <li><strong>Trigger correctness</strong> (real DB per <code>feedback-testing</code>):
+      <ul>
+        <li>UPDATE that changes status emits exactly 1 row with correct prev/new/actor.</li>
+        <li>UPDATE that changes 3 tracked fields emits 3 rows, identical <code>changed_at</code>.</li>
+        <li>UPDATE touching only <code>updated_at</code> (no tracked field) emits 0 rows.</li>
+        <li>UPDATE NULL → value emits a row; UPDATE NULL → NULL emits 0 rows.</li>
+        <li><strong>Actor threading</strong>: admin-client UPDATE without <code>set_history_actor</code> emits a row with <code>changed_by = NULL</code>; admin-client UPDATE with <code>set_history_actor(X)</code> emits a row with <code>changed_by = X</code>.</li>
+      </ul>
+    </li>
+    <li><strong>RLS isolation</strong>:
+      <ul>
+        <li>User in org A cannot read history rows for org B.</li>
+        <li>User cannot read history for a private task that isn't theirs.</li>
+        <li>Direct INSERT into <code>entity_history</code> by authenticated user is rejected.</li>
+        <li>View <code>recent_activity_feed</code> respects RLS via <code>security_invoker = true</code>.</li>
+      </ul>
+    </li>
+    <li><strong>ActivityFeed component</strong>:
+      <ul>
+        <li>Renders all 6 change templates with correct copy.</li>
+        <li>Renders project_update rows interleaved with change rows in correct chrono order.</li>
+        <li>Filter pills hide/show rows correctly; URL param syncs.</li>
+        <li>"Show more" button visible iff cursor present; click loads next page.</li>
+        <li>Renders "(deleted task/project)" when join misses; "(System)" when actor missing.</li>
+      </ul>
+    </li>
+  </ul>
+
+  <h2>Migration plan</h2>
+  <ol>
+    <li><code>supabase/migrations/20260526000001_entity_history.sql</code> — enum + table + indexes + RLS.</li>
+    <li><code>supabase/migrations/20260526000002_history_triggers.sql</code> — <code>set_history_actor</code> helper + trigger functions + triggers.</li>
+    <li><code>supabase/migrations/20260526000003_activity_feed_view.sql</code> — <code>recent_activity_feed</code> view.</li>
+    <li>No backfill.</li>
+    <li>Apply via Supabase MCP <code>apply_migration</code>, one PR.</li>
+  </ol>
+
+  <hr class="section" />
+  <p style="color: var(--sf-muted); font-size: 12px;">
+    Next: implementation in worktree <code>~/dev/sf-sonja-hq-row4-history</code>. PR opens against <code>main</code>. Vercel preview gate before merge. This v2 doc + v1 doc both stay intact per <code>feedback-html-specs</code>.
+  </p>
+
+</div>
+</body>
+</html>
