@@ -152,57 +152,6 @@ export type Database = {
         }
         Relationships: []
       }
-      documents: {
-        Row: {
-          confidentiality_tier: Database["public"]["Enums"]["confidentiality_tier"]
-          content_preview: string | null
-          created_at: string
-          created_by: string
-          entity_id: string | null
-          id: string
-          last_synced_at: string | null
-          notion_page_id: string | null
-          notion_url: string | null
-          org_id: string
-          source: Database["public"]["Enums"]["document_source"]
-          tags: string[] | null
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          confidentiality_tier?: Database["public"]["Enums"]["confidentiality_tier"]
-          content_preview?: string | null
-          created_at?: string
-          created_by: string
-          entity_id?: string | null
-          id?: string
-          last_synced_at?: string | null
-          notion_page_id?: string | null
-          notion_url?: string | null
-          org_id: string
-          source?: Database["public"]["Enums"]["document_source"]
-          tags?: string[] | null
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          confidentiality_tier?: Database["public"]["Enums"]["confidentiality_tier"]
-          content_preview?: string | null
-          created_at?: string
-          created_by?: string
-          entity_id?: string | null
-          id?: string
-          last_synced_at?: string | null
-          notion_page_id?: string | null
-          notion_url?: string | null
-          org_id?: string
-          source?: Database["public"]["Enums"]["document_source"]
-          tags?: string[] | null
-          title?: string
-          updated_at?: string
-        }
-        Relationships: []
-      }
       entities: {
         Row: {
           active: boolean
@@ -523,7 +472,6 @@ export type Database = {
           live_url: string | null
           name: string
           next_action: string | null
-          notion_url: string | null
           org_id: string
           phase: string | null
           priority: Database["public"]["Enums"]["project_priority"]
@@ -545,7 +493,6 @@ export type Database = {
           live_url?: string | null
           name: string
           next_action?: string | null
-          notion_url?: string | null
           org_id: string
           phase?: string | null
           priority?: Database["public"]["Enums"]["project_priority"]
@@ -567,7 +514,6 @@ export type Database = {
           live_url?: string | null
           name?: string
           next_action?: string | null
-          notion_url?: string | null
           org_id?: string
           phase?: string | null
           priority?: Database["public"]["Enums"]["project_priority"]
@@ -737,12 +683,11 @@ export type Database = {
     }
     Enums: {
       confidentiality_tier: "private" | "team" | "shared" | "public"
-      document_source: "notion" | "upload" | "generated"
       entity_type: "tm" | "sf" | "personal"
       idea_source: "typed" | "voice" | "chat"
       idea_status: "raw" | "developing" | "parked" | "shipped"
       integration_status: "active" | "error" | "disconnected"
-      integration_type: "notion" | "claude" | "ms365" | "slack" | "github" | "stripe" | "tm_api"
+      integration_type: "claude" | "ms365" | "slack" | "github" | "stripe" | "tm_api"
       project_priority: "high" | "medium" | "low"
       project_status: "planning" | "active" | "on_hold" | "complete"
       task_status: "todo" | "in_progress" | "done" | "parked"
@@ -763,7 +708,6 @@ export type ConfidentialityTier = Database["public"]["Enums"]["confidentiality_t
 export type UserRole = Database["public"]["Enums"]["user_role"]
 export type IdeaStatus = Database["public"]["Enums"]["idea_status"]
 export type IdeaSource = Database["public"]["Enums"]["idea_source"]
-export type DocumentSource = Database["public"]["Enums"]["document_source"]
 export type IntegrationType = Database["public"]["Enums"]["integration_type"]
 export type IntegrationStatus = Database["public"]["Enums"]["integration_status"]
 export type ProjectMemberPermission = "view" | "comment" | "edit" | "manage"

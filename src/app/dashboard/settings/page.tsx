@@ -2,7 +2,6 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { SettingsClient } from '@/components/settings/SettingsClient'
-import { isNotionConfigured } from '@/lib/notion/client'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,7 +26,7 @@ export default async function SettingsPage() {
     // Safe here because we've already verified the caller is platform_owner/org_admin above.
     const admin = createAdminClient()
 
-    const [membersResult, invitationsResult, notionResult] = await Promise.allSettled([
+    const [membersResult, invitationsResult] = await Promise.allSettled([
       orgId
         ? (admin as any)
             .from('user_profiles')
@@ -42,16 +41,10 @@ export default async function SettingsPage() {
             .eq('org_id', orgId)
             .order('created_at', { ascending: false })
         : Promise.resolve({ data: [] }),
-      (supabase as any)
-        .from('integrations')
-        .select('last_sync_at')
-        .eq('type', 'notion')
-        .maybeSingle(),
     ])
 
     const members = membersResult.status === 'fulfilled' ? (membersResult.value as any).data : null
     const invitations = invitationsResult.status === 'fulfilled' ? (invitationsResult.value as any).data : null
-    const notionIntegration = notionResult.status === 'fulfilled' ? (notionResult.value as any).data : null
 
     return (
       <SettingsClient
@@ -62,8 +55,6 @@ export default async function SettingsPage() {
         currentUserRole={profile?.role ?? 'member'}
         members={members ?? []}
         pendingInvitations={invitations ?? []}
-        notionConfigured={isNotionConfigured()}
-        notionLastSync={notionIntegration?.last_sync_at ?? null}
       />
     )
   } catch (err: any) {

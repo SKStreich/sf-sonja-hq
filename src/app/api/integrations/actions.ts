@@ -25,36 +25,13 @@ export interface IntegrationStatus {
 }
 
 export async function getIntegrationStatuses(): Promise<IntegrationStatus[]> {
-  const { supabase } = await getContext()
-  const { data: records } = await (supabase as any)
-    .from('integrations')
-    .select('type, status, last_sync_at') as {
-      data: { type: string; status: string; last_sync_at: string | null }[] | null
-    }
-  const byType = Object.fromEntries((records ?? []).map(r => [r.type, r]))
-  const notionKey = !!process.env.NOTION_API_KEY
+  // Force authenticated context for tenant scoping even though we don't query
+  // per-tenant integration records anymore (Notion was the only consumer).
+  await getContext()
   const anthropicKey = isAnthropicConfigured()
   const githubToken = !!process.env.GITHUB_TOKEN
 
-  const notionRec = byType['notion']
-  const notionErrored = notionKey && notionRec?.status === 'error'
-
   return [
-    {
-      id: 'notion',
-      name: 'Notion',
-      icon: 'N',
-      description: 'Sync pages from your Notion workspace into the Document Library.',
-      category: notionErrored ? 'error' : notionKey ? 'active' : 'disconnected',
-      detail: notionErrored
-        ? 'Last sync failed — check the error and try again'
-        : notionKey
-          ? 'Connected via API key'
-          : 'Ask your admin to configure the Notion API key to enable sync',
-      lastSync: notionRec?.last_sync_at ?? null,
-      canSync: notionKey,
-      errorMessage: null,
-    },
     {
       id: 'claude',
       name: 'Claude API',
@@ -114,11 +91,6 @@ export async function getIntegrationStatuses(): Promise<IntegrationStatus[]> {
       canSync: false,
     },
   ]
-}
-
-export async function triggerNotionSync(): Promise<void> {
-  // Notion sync is on-demand from Knowledge Hub (Sprint 6). No-op here.
-  revalidatePath('/dashboard/integrations')
 }
 
 export interface GitHubCommit {

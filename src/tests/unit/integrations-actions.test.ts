@@ -23,10 +23,6 @@ vi.mock('@/lib/supabase/server', () => ({
 
 vi.mock('next/cache', () => ({ revalidatePath: vi.fn() }))
 
-vi.mock('@/app/api/documents/actions', () => ({
-  syncNotionPages: vi.fn().mockResolvedValue(undefined),
-}))
-
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 import { fetchGitHubCommits, saveGitHubUrl } from '@/app/api/integrations/actions'
