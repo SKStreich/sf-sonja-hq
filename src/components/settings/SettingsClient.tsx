@@ -15,8 +15,6 @@ interface Props {
   currentUserRole: string
   members: Member[]
   pendingInvitations: Invitation[]
-  notionConfigured: boolean
-  notionLastSync: string | null
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -29,7 +27,7 @@ const ROLE_LABELS: Record<string, string> = {
 
 type AssignableRole = 'org_admin' | 'supervisor' | 'member' | 'read_only'
 
-export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, currentUserId, currentUserRole, members: initialMembers, pendingInvitations: initialInvitations, notionConfigured, notionLastSync }: Props) {
+export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, currentUserId, currentUserRole, members: initialMembers, pendingInvitations: initialInvitations }: Props) {
   const [apiKey, setApiKey] = useState(initialKey)
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -535,28 +533,6 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
         )}
       </section>
 
-      {/* Integrations */}
-      <section className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
-        <h2 className="text-base font-semibold text-gray-900 mb-1">Integrations</h2>
-        <p className="text-sm text-gray-500 mb-5">Connected services that sync data into HQ.</p>
-
-        <div className="flex items-center gap-3 rounded-lg border border-gray-200 px-4 py-3">
-          <span className="text-lg shrink-0">N</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm text-gray-900">Notion</p>
-            {notionConfigured ? (
-              <p className="text-xs text-gray-500">
-                Connected · Last synced {notionLastSync
-                  ? new Date(notionLastSync).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                  : 'never'}
-              </p>
-            ) : (
-              <p className="text-xs text-yellow-600">Add <code className="font-mono">NOTION_API_KEY</code> to your environment to enable sync</p>
-            )}
-          </div>
-          <span className={`h-2 w-2 rounded-full shrink-0 ${notionConfigured ? 'bg-green-500' : 'bg-gray-600'}`} />
-        </div>
-      </section>
     </div>
   )
 }

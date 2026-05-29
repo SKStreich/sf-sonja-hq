@@ -1,6 +1,4 @@
 'use client'
-import { useState, useTransition } from 'react'
-import { triggerNotionSync } from '@/app/api/integrations/actions'
 import type { IntegrationStatus } from '@/app/api/integrations/actions'
 
 const CATEGORY_COLORS: Record<IntegrationStatus['category'], { border: string; dot: string; badge: string; text: string }> = {
@@ -32,16 +30,7 @@ function formatSync(iso: string | null | undefined): string {
 }
 
 function IntegrationCard({ integration }: { integration: IntegrationStatus }) {
-  const [syncing, startSync] = useTransition()
-  const [synced, setSynced] = useState(false)
   const colors = CATEGORY_COLORS[integration.category]
-
-  const handleSync = () => {
-    startSync(async () => {
-      await triggerNotionSync()
-      setSynced(true)
-    })
-  }
 
   return (
     <div className={`rounded-xl border ${colors.border} bg-white p-5 flex flex-col gap-3`}>
@@ -75,16 +64,6 @@ function IntegrationCard({ integration }: { integration: IntegrationStatus }) {
         )}
       </div>
 
-      {/* Action */}
-      {integration.canSync && (
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="self-start rounded-md border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 transition-colors"
-        >
-          {syncing ? 'Syncing…' : synced ? '✓ Synced' : '↻ Sync Now'}
-        </button>
-      )}
     </div>
   )
 }

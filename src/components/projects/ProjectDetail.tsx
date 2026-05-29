@@ -6,7 +6,6 @@ import { ProjectStatusBadge, ProjectPriorityBadge } from './ProjectStatusBadge'
 import { ProjectCreateDialog } from './ProjectCreateDialog'
 import { createTask, updateTask, deleteTask } from '@/app/api/tasks/actions'
 import { archiveProject, addProjectUpdate, deleteProjectUpdate, saveProjectFile, deleteProjectFile } from '@/app/api/projects/actions'
-import { linkProjectToNotion } from '@/app/api/documents/actions'
 import { saveGitHubUrl, type GitHubCommit } from '@/app/api/integrations/actions'
 import { getProjectBacklinks, type Backlink } from '@/app/api/knowledge/links'
 import { createClient } from '@/lib/supabase/client'
@@ -107,9 +106,6 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
   const [archiving, setArchiving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [notionUrl, setNotionUrl] = useState<string>((project as any).notion_url ?? '')
-  const [notionEditing, setNotionEditing] = useState(false)
-  const [savingNotion, startSaveNotion] = useTransition()
   const [githubUrl, setGithubUrl] = useState<string>(initialGithubUrl ?? '')
   const [githubEditing, setGithubEditing] = useState(false)
   const [savingGithub, startSaveGithub] = useTransition()
@@ -208,13 +204,6 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
     router.push('/dashboard/projects')
   }
 
-  const handleSaveNotionUrl = () => {
-    startSaveNotion(async () => {
-      await linkProjectToNotion(project.id, notionUrl.trim() || null)
-      setNotionEditing(false)
-    })
-  }
-
   const handleSaveGithubUrl = () => {
     startSaveGithub(async () => {
       await saveGitHubUrl(project.id, githubUrl.trim())
@@ -302,40 +291,6 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
         {project.description && (
           <p className="text-sm text-gray-600 leading-relaxed mb-5 max-w-2xl">{project.description}</p>
         )}
-
-        {/* Notion link */}
-        <div className="flex items-center gap-2 mb-5">
-          {notionEditing ? (
-            <>
-              <input
-                autoFocus
-                value={notionUrl}
-                onChange={e => setNotionUrl(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleSaveNotionUrl(); if (e.key === 'Escape') setNotionEditing(false) }}
-                placeholder="https://notion.so/…"
-                className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400"
-              />
-              <button onClick={handleSaveNotionUrl} disabled={savingNotion}
-                className="rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors">
-                Save
-              </button>
-              <button onClick={() => setNotionEditing(false)} className="text-xs text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
-            </>
-          ) : notionUrl ? (
-            <>
-              <a href={notionUrl} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-indigo-600 transition-colors">
-                <span className="font-bold">N</span> Notion page ↗
-              </a>
-              <button onClick={() => setNotionEditing(true)} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">Edit</button>
-            </>
-          ) : (
-            <button onClick={() => setNotionEditing(true)}
-              className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-              <span className="font-bold">N</span> Link Notion page
-            </button>
-          )}
-        </div>
 
         {/* Next Action */}
         {project.next_action && (
