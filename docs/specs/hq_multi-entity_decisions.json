@@ -1,0 +1,17 @@
+{
+  "spec": "hq_multi-entity-and-doc-linking_v1",
+  "exported_at": "2026-05-31T16:52:28.713Z",
+  "locked_decisions": {
+    "entity_model": "flat_many_to_many",
+    "multi_entity_scope": "documents_and_projects",
+    "process": "spec_first"
+  },
+  "open_question_answers": {
+    "OQ1": "single",
+    "OQ2": "app",
+    "OQ3": "all",
+    "OQ4": "or",
+    "OQ5": "both",
+    "OQ6": "allow"
+  }
+}

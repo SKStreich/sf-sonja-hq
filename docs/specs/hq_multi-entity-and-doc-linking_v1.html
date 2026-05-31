@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HQ · Multi-Entity + Document Linking — v1 (for review)</title>
+<style>
+  :root {
+    --sf-red:    #C0392B;
+    --sf-fg:     #1F2937;
+    --sf-muted:  #6B7280;
+    --sf-card:   #FFFFFF;
+    --sf-bg:     #FAFAFA;
+    --sf-border: #E5E7EB;
+    --sf-ok:     #16A34A;
+    --sf-warn:   #D97706;
+    --sf-cool:   #2563EB;
+    --sf-indigo: #4F46E5;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--sf-bg); color: var(--sf-fg); }
+  body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 1.5; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+    font-size: 11px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--sf-muted);
+  }
+  h1 { font-size: 28px; font-weight: 800; margin: 4px 0 8px; letter-spacing: -0.01em; }
+  h2 {
+    font-size: 20px; font-weight: 700; letter-spacing: -0.005em;
+    margin: 48px 0 12px; padding-bottom: 8px;
+    border-bottom: 2px solid var(--sf-indigo);
+  }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 6px; }
+  p  { margin: 8px 0; }
+
+  .meta {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 12px; margin: 16px 0 32px;
+    padding: 16px; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  .meta .item .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--sf-muted); margin-bottom: 2px;
+  }
+  .meta .item .value { font-size: 13px; font-weight: 600; }
+  code, .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; background: rgba(0,0,0,0.05); padding: 1px 4px; }
+
+  .callout {
+    margin: 16px 0; padding: 12px 16px;
+    border-left: 3px solid var(--sf-indigo);
+    background: var(--sf-card);
+    border-top: 1px solid var(--sf-border);
+    border-right: 1px solid var(--sf-border);
+    border-bottom: 1px solid var(--sf-border);
+  }
+  .callout.warn { border-left-color: var(--sf-warn); }
+  .callout.ok   { border-left-color: var(--sf-ok); }
+  .callout.info { border-left-color: var(--sf-cool); }
+  .callout-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--sf-muted); margin-bottom: 4px;
+  }
+
+  table.data {
+    width: 100%; border-collapse: collapse;
+    margin: 12px 0; background: var(--sf-card);
+    border: 1px solid var(--sf-border);
+  }
+  table.data th, table.data td {
+    padding: 10px 12px; text-align: left;
+    border-bottom: 1px solid var(--sf-border);
+    font-size: 13px; vertical-align: top;
+  }
+  table.data th {
+    background: rgba(0,0,0,0.02);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase;
+    color: var(--sf-muted); font-weight: 700;
+  }
+
+  pre.sql {
+    background: #1F2937; color: #F9FAFB;
+    padding: 16px; overflow-x: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    line-height: 1.55; margin: 12px 0;
+    border-left: 3px solid var(--sf-indigo);
+  }
+  pre.sql .kw { color: #F87171; font-weight: 700; }
+  pre.sql .ty { color: #60A5FA; }
+  pre.sql .st { color: #FBBF24; }
+  pre.sql .cm { color: #9CA3AF; font-style: italic; }
+
+  ul li { margin: 4px 0; }
+  hr.section { border: none; border-top: 1px dashed var(--sf-border); margin: 24px 0; }
+
+  /* entity chips */
+  .chip {
+    display: inline-block; padding: 2px 9px; margin: 1px 3px 1px 0;
+    border-radius: 11px; font-size: 11px; font-weight: 700;
+    font-family: 'JetBrains Mono', monospace; letter-spacing: 0.04em;
+  }
+  .chip.tm       { background: #DBEAFE; color: #1E40AF; }
+  .chip.sf       { background: #DCFCE7; color: #166534; }
+  .chip.sfe      { background: #FEF3C7; color: #92400E; }
+  .chip.personal { background: #EDE9FE; color: #5B21B6; }
+
+  /* UI mock */
+  .mock {
+    background: var(--sf-card); border: 1px solid var(--sf-border);
+    padding: 18px; margin: 12px 0; font-size: 14px;
+  }
+  .mock .mock-title { font-weight: 700; font-size: 14px; margin-bottom: 10px; }
+  .mock .row { padding: 9px 0; border-bottom: 1px solid var(--sf-border); }
+  .mock .row:last-child { border-bottom: none; }
+  .mock .label-sm { font-size: 11px; color: var(--sf-muted); text-transform: uppercase; letter-spacing: 0.06em; font-family: 'JetBrains Mono', monospace; }
+  .mock .doc-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 10px; margin: 3px 4px 3px 0; border-radius: 6px;
+    background: #F3F4F6; border: 1px solid var(--sf-border); font-size: 13px;
+  }
+  .mock .doc-pill .x { color: var(--sf-muted); font-weight: 700; }
+  .mock .add-btn { display: inline-block; padding: 4px 10px; border: 1px dashed var(--sf-cool); color: var(--sf-cool); border-radius: 6px; font-size: 12px; }
+
+  /* interactive decisions */
+  .decision {
+    background: var(--sf-card); border: 1px solid var(--sf-border);
+    border-left: 3px solid var(--sf-warn);
+    padding: 16px 18px; margin: 14px 0;
+  }
+  .decision.locked { border-left-color: var(--sf-ok); }
+  .decision .q-head { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .decision .q-id { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--sf-warn); letter-spacing: 0.08em; }
+  .decision.locked .q-id { color: var(--sf-ok); }
+  .opt { display: block; padding: 8px 10px; margin: 6px 0; border: 1px solid var(--sf-border); border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .opt:hover { background: rgba(79,70,229,0.04); }
+  .opt input { margin-right: 8px; }
+  .opt .rec { font-size: 10px; font-weight: 700; color: var(--sf-indigo); font-family: 'JetBrains Mono', monospace; letter-spacing: 0.06em; }
+  .opt .why { display: block; color: var(--sf-muted); font-size: 12px; margin: 3px 0 0 24px; }
+  .opt.chosen { border-color: var(--sf-indigo); background: rgba(79,70,229,0.06); box-shadow: inset 3px 0 0 var(--sf-indigo); }
+
+  .toolbar {
+    position: sticky; top: 0; z-index: 10;
+    background: var(--sf-card); border: 1px solid var(--sf-border);
+    padding: 10px 16px; margin: 0 0 24px;
+    display: flex; align-items: center; gap: 14px; justify-content: space-between;
+  }
+  .toolbar .status { font-size: 12px; color: var(--sf-muted); font-family: 'JetBrains Mono', monospace; }
+  .toolbar button {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px;
+    padding: 7px 14px; border: 1px solid var(--sf-indigo); background: var(--sf-indigo);
+    color: white; border-radius: 6px; cursor: pointer;
+  }
+  .toolbar button.ghost { background: transparent; color: var(--sf-indigo); }
+
+  .pr-card { background: var(--sf-card); border: 1px solid var(--sf-border); padding: 14px 16px; margin: 10px 0; }
+  .pr-card .pr-id { font-family: 'JetBrains Mono', monospace; font-weight: 700; color: var(--sf-indigo); font-size: 13px; }
+  .pr-card .pr-effort { float: right; font-size: 11px; color: var(--sf-muted); font-family: 'JetBrains Mono', monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">HQ · Sprint 12 · structural change · FOR REVIEW</div>
+  <h1>Multi-Entity Tagging &amp; Document Linking — v1</h1>
+  <p style="color: var(--sf-muted); font-size: 14px;">
+    Two structural additions to HQ: (1) tie Knowledge documents to projects &amp; tasks, and
+    (2) let documents and projects belong to more than one entity ("personality") at once.
+  </p>
+
+  <div class="meta">
+    <div class="item"><div class="label">Status</div><div class="value">v1 · open questions inside</div></div>
+    <div class="item"><div class="label">Date</div><div class="value">2026-05-31</div></div>
+    <div class="item"><div class="label">Prod HEAD</div><div class="value">39dc0214 (PR #36)</div></div>
+    <div class="item"><div class="label">Decisions pre-locked</div><div class="value">3 (see below)</div></div>
+  </div>
+
+  <div class="toolbar">
+    <span class="status" id="status">Open questions: choose to lock</span>
+    <span>
+      <button class="ghost" id="resetBtn">Reset picks</button>
+      <button id="exportBtn">Export decisions JSON</button>
+    </span>
+  </div>
+
+  <div class="callout">
+    <div class="callout-label">The ask, in Sonja's words</div>
+    <p style="margin:0 0 6px;"><strong>1.</strong> "If there are documents in the Knowledge Database, I want to be able to tie them to projects or tasks."</p>
+    <p style="margin:0;"><strong>2.</strong> "I need to be able to assign multiple personalities. If a document is tied to both HQ and SF Ops, I need to tie it to both entities. Same with projects — one or more — and they need to be accessible from each one of them."</p>
+  </div>
+
+  <div class="callout ok">
+    <div class="callout-label">Decisions already locked (this session)</div>
+    <ul style="margin:4px 0;">
+      <li><strong>Entity model:</strong> flat many-to-many set (no primary; all entities equal members).</li>
+      <li><strong>Scope of multi-entity:</strong> documents + projects. Tasks keep their single entity.</li>
+      <li><strong>Process:</strong> this spec first, build after sign-off.</li>
+    </ul>
+  </div>
+
+  <!-- ───────────────────────────── CURRENT MODEL ───────────────────────────── -->
+  <h2>1 · Where we are today</h2>
+
+  <h3>Entity ("personality") is single-valued everywhere</h3>
+  <table class="data">
+    <thead><tr><th>Record</th><th>Column</th><th>Shape</th></tr></thead>
+    <tbody>
+      <tr><td>Knowledge entry</td><td><code>knowledge_entries.entity</code></td><td><code>TEXT NOT NULL</code> — one of <code>tm·sf·sfe·personal</code> (CHECK enum)</td></tr>
+      <tr><td>Project</td><td><code>projects.entity_id</code></td><td><code>UUID NOT NULL</code> → FK to <code>entities</code> table</td></tr>
+      <tr><td>Task</td><td><code>tasks.entity_id</code></td><td><code>UUID NOT NULL</code> → FK to <code>entities</code> table</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The two record types represent entity differently: knowledge uses a <strong>text enum</strong>, projects/tasks use a
+    <strong>FK to the <code>entities</code> table</strong> (one row per <code>(org, type)</code>). The junction design respects each
+    parent's native representation to keep churn low.
+  </p>
+
+  <div class="callout info">
+    <div class="callout-label">Key fact that makes this cheap</div>
+    <p style="margin:0;">
+      Entity is a <strong>label / filter dimension, not a security boundary.</strong> RLS on projects, tasks, and knowledge is
+      keyed on <code>org_id</code> (plus task confidentiality tier) — never on entity. So moving to many-to-many touches
+      <em>display and filtering</em>, not the security model. The junction tables only need standard tenant-isolation RLS.
+    </p>
+  </div>
+
+  <h3>Document → project/task linking: the rails exist, the train doesn't</h3>
+  <p>
+    <code>knowledge_links</code> already carries three target columns — <code>to_entry</code>, <code>to_project</code>,
+    <code>to_task</code> — under an XOR constraint (exactly one target per row, many rows per document allowed). So a document
+    <em>can already</em> point at many projects/tasks at the data layer.
+  </p>
+  <p>
+    But every such row today is written by <strong>one mechanism only</strong>: the workspace-page <code>[[…]]</code> mention
+    scanner (<code>relation='mentions'</code>) in <code>src/app/api/knowledge/links.ts</code>. There is no deliberate
+    "Attach this document to this project" action, and project/task pages surface only incidental <em>mentions</em> via
+    <code>getProjectBacklinks()</code> — not curated attachments.
+  </p>
+
+  <!-- ───────────────────────────── TARGET MODEL ───────────────────────────── -->
+  <h2>2 · Target model — Request 2 (multi-entity)</h2>
+
+  <p>Two junction tables, each mirroring its parent's entity representation:</p>
+  <pre class="sql"><span class="cm">-- knowledge entries use the text enum, so the junction does too</span>
+<span class="kw">CREATE TABLE</span> knowledge_entry_entities (
+  entry_id    <span class="ty">UUID</span> <span class="kw">NOT NULL REFERENCES</span> knowledge_entries(id) <span class="kw">ON DELETE CASCADE</span>,
+  entity      <span class="ty">TEXT</span> <span class="kw">NOT NULL CHECK</span> (entity <span class="kw">IN</span> (<span class="st">'tm'</span>,<span class="st">'sf'</span>,<span class="st">'sfe'</span>,<span class="st">'personal'</span>)),
+  org_id      <span class="ty">UUID</span> <span class="kw">NOT NULL REFERENCES</span> orgs(id) <span class="kw">ON DELETE CASCADE</span>,
+  created_at  <span class="ty">TIMESTAMPTZ</span> <span class="kw">NOT NULL DEFAULT</span> now(),
+  <span class="kw">PRIMARY KEY</span> (entry_id, entity)
+);
+
+<span class="cm">-- projects use the entities FK, so the junction does too</span>
+<span class="kw">CREATE TABLE</span> project_entities (
+  project_id  <span class="ty">UUID</span> <span class="kw">NOT NULL REFERENCES</span> projects(id) <span class="kw">ON DELETE CASCADE</span>,
+  entity_id   <span class="ty">UUID</span> <span class="kw">NOT NULL REFERENCES</span> entities(id) <span class="kw">ON DELETE CASCADE</span>,
+  org_id      <span class="ty">UUID</span> <span class="kw">NOT NULL REFERENCES</span> orgs(id) <span class="kw">ON DELETE CASCADE</span>,
+  created_at  <span class="ty">TIMESTAMPTZ</span> <span class="kw">NOT NULL DEFAULT</span> now(),
+  <span class="kw">PRIMARY KEY</span> (project_id, entity_id)
+);
+
+<span class="cm">-- tenant isolation RLS (entity is NOT a security boundary; org_id is)</span>
+<span class="kw">ALTER TABLE</span> knowledge_entry_entities <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="kw">ALTER TABLE</span> project_entities         <span class="kw">ENABLE ROW LEVEL SECURITY</span>;
+<span class="cm">-- policy: org_id = get_my_org_id()  (mirrors every other HQ table)</span></pre>
+
+  <h3>Backfill — every existing row gets exactly one junction row</h3>
+  <pre class="sql"><span class="kw">INSERT INTO</span> knowledge_entry_entities (entry_id, entity, org_id)
+  <span class="kw">SELECT</span> id, entity, org_id <span class="kw">FROM</span> knowledge_entries;
+
+<span class="kw">INSERT INTO</span> project_entities (project_id, entity_id, org_id)
+  <span class="kw">SELECT</span> id, entity_id, org_id <span class="kw">FROM</span> projects;</pre>
+  <p>After backfill, the app reads entity membership from the junctions. The old single columns
+    (<code>knowledge_entries.entity</code>, <code>projects.entity_id</code>) — whether we drop them or keep them as deprecated —
+    is <strong>open question OQ1</strong> below.</p>
+
+  <div class="callout warn">
+    <div class="callout-label">"At least one entity" — the flat model's one sharp edge</div>
+    <p style="margin:0;">
+      Today a <code>NOT NULL</code> column guarantees every record has an entity. A junction table can't express that with a
+      simple constraint — a record could end up with zero rows. We must enforce "≥ 1 entity" somewhere. See <strong>OQ2</strong>.
+    </p>
+  </div>
+
+  <!-- ───────────────────────────── LINKING MODEL ───────────────────────────── -->
+  <h2>3 · Target model — Request 1 (document linking)</h2>
+  <p>
+    Reuse <code>knowledge_links</code> with a new, deliberate relation value <code>'attached'</code> (distinct from the
+    auto-generated <code>'mentions'</code>). One row per attachment:
+  </p>
+  <pre class="sql"><span class="cm">-- extend the existing relation CHECK to add 'attached'</span>
+<span class="kw">ALTER TABLE</span> knowledge_links <span class="kw">DROP CONSTRAINT</span> knowledge_links_relation_check;
+<span class="kw">ALTER TABLE</span> knowledge_links <span class="kw">ADD CONSTRAINT</span> knowledge_links_relation_check
+  <span class="kw">CHECK</span> (relation <span class="kw">IN</span> (<span class="st">'cites'</span>,<span class="st">'duplicate_of'</span>,<span class="st">'extends'</span>,<span class="st">'chat_about'</span>,
+    <span class="st">'merged_into'</span>,<span class="st">'critique_of'</span>,<span class="st">'note_on'</span>,<span class="st">'superseded_by'</span>,<span class="st">'mentions'</span>,<span class="st">'attached'</span>));
+
+<span class="cm">-- an attachment is: from_entry (the document) → to_project OR to_task</span>
+<span class="cm">-- row example:</span>
+<span class="cm">--   from_entry = &lt;doc id&gt;, to_project = &lt;project id&gt;, relation = 'attached'</span></pre>
+  <p>
+    Two new server actions — <code>attachEntryTo(entryId, {projectId | taskId})</code> and
+    <code>detachEntry(linkId)</code> — write/delete these rows explicitly (not via the mention scanner). The XOR target
+    constraint already guarantees a row points at exactly one of project/task. Linking targets <strong>both projects and
+    tasks</strong>, per Request 1.
+  </p>
+
+  <h3>UX — where you attach &amp; where attachments show</h3>
+  <div class="mock">
+    <div class="mock-title">📄 Knowledge entry detail — new "Linked to" block</div>
+    <div class="row">
+      <span class="label-sm">Linked to</span><br/>
+      <span class="doc-pill">📁 SF Ops — Activity Events <span class="x">×</span></span>
+      <span class="doc-pill">✓ Task: Backfill 5 WOs <span class="x">×</span></span>
+      <span class="add-btn">+ Link to project or task</span>
+    </div>
+  </div>
+  <div class="mock">
+    <div class="mock-title">📁 Project detail / ✓ Task detail — new "Documents" block</div>
+    <div class="row">
+      <span class="label-sm">Attached documents</span><br/>
+      <span class="doc-pill">📄 Cross-project audit v2 <span class="x">×</span></span>
+      <span class="doc-pill">📄 Backup strategy note <span class="x">×</span></span>
+      <span class="add-btn">+ Attach document</span>
+    </div>
+  </div>
+  <p style="font-size:13px; color:var(--sf-muted);">
+    Both views read the same <code>relation='attached'</code> rows — the document side queries by <code>from_entry</code>,
+    the project/task side by <code>to_project</code>/<code>to_task</code>. Vault entries excluded from pickers (OQ6).
+  </p>
+
+  <!-- ───────────────────────────── UX MULTI-ENTITY ───────────────────────────── -->
+  <h2>4 · UX — how multi-entity looks &amp; filters</h2>
+  <div class="mock">
+    <div class="mock-title">Card / list row — entity becomes a chip set</div>
+    <div class="row">
+      <strong>Cross-project platform audit</strong><br/>
+      <span class="chip sfe">SFE</span><span class="chip sf">SF</span><span class="chip personal">PERSONAL</span>
+    </div>
+    <div class="row">
+      <strong>Loadstar engagement</strong><br/>
+      <span class="chip sf">SF</span>
+    </div>
+  </div>
+  <ul>
+    <li><strong>Create / edit:</strong> the single-select entity dropdown becomes a multi-select chip picker (must pick ≥ 1).</li>
+    <li><strong>Filter:</strong> selecting one or more entities shows every record belonging to <em>any</em> selected entity
+      (OR semantics — OQ4). A document tagged <code>sf + sfe</code> appears under both the SF and SFE filters — this is exactly
+      "accessible from each one of them."</li>
+    <li><strong>Badge display</strong> on compact surfaces (cards, nav counts): OQ3 — show all chips vs. show first + "+N".</li>
+  </ul>
+
+  <!-- ───────────────────────────── BLAST RADIUS ───────────────────────────── -->
+  <h2>5 · Blast radius</h2>
+  <p>Files that read the single-entity columns today and will switch to junction-backed reads. Counts are tracked source only
+    (untracked leftover dirs excluded — see note to Sonja).</p>
+  <table class="data">
+    <thead><tr><th>Area</th><th>~Files</th><th>What changes</th></tr></thead>
+    <tbody>
+      <tr><td>Knowledge — API (<code>actions.ts</code>, <code>detail.ts</code>, <code>insights.ts</code>, <code>snippets.ts</code>, <code>chat.ts</code>, <code>shares.ts</code>, <code>workspace.ts</code>, <code>upload/route.ts</code>, <code>vault.ts</code>)</td><td>~9</td><td>Read/write entity set; entity filter → join junction</td></tr>
+      <tr><td>Knowledge — views (<code>KnowledgeHub</code>, <code>CardView</code>, <code>ListView</code>, <code>VaultView</code>, <code>WorkspaceView</code>, <code>InsightsView</code>, <code>EntryDetail</code>)</td><td>~7</td><td>Chip set instead of one chip; multi-select editor; +link block</td></tr>
+      <tr><td>Projects — UI (<code>ProjectsClient</code>, <code>ProjectCard</code>, <code>ProjectDetail</code>, <code>ProjectCreateDialog</code>)</td><td>~4</td><td>Multi-select picker, chip set, OR-filter, +documents block</td></tr>
+      <tr><td>Projects/Tasks — API (<code>projects/actions.ts</code>, <code>tasks/actions.ts</code>)</td><td>~2</td><td>Write project entity set; task detail gains attached-docs read</td></tr>
+      <tr><td>Agent (<code>agent/actions.ts</code>, <code>agent/save-chat.ts</code>)</td><td>~2</td><td>Entity-aware tools read the set; new entries get a set</td></tr>
+      <tr><td>Shared / feed (<code>activity-feed.ts</code>, <code>ActivityFeed</code>, dashboard pages, <code>types/supabase.ts</code>)</td><td>~5</td><td>Display chip set; regenerate types</td></tr>
+    </tbody>
+  </table>
+  <p style="font-size:13px;color:var(--sf-muted);">Order of magnitude: ~30 tracked files, the large majority display-only one-liners (one chip → chip set).</p>
+
+  <!-- ───────────────────────────── PR PLAN ───────────────────────────── -->
+  <h2>6 · Proposed PR slicing</h2>
+  <div class="pr-card"><span class="pr-effort">DB · ~½ day</span><span class="pr-id">PR 1 — Multi-entity foundation</span>
+    <p style="margin:6px 0 0;">Junction tables + RLS + backfill + the "≥1 entity" guard (OQ2). Dual-write from existing create/update actions so the junction stays correct while UI catches up. Committed <code>.sql</code> migration + applied via MCP.</p></div>
+  <div class="pr-card"><span class="pr-effort">UI · ~1 day</span><span class="pr-id">PR 2 — Multi-entity UI (knowledge + projects)</span>
+    <p style="margin:6px 0 0;">Chip-set display everywhere; multi-select create/edit pickers; OR-semantics entity filters. Reads from junction.</p></div>
+  <div class="pr-card"><span class="pr-effort">DB+API · ~⅓ day</span><span class="pr-id">PR 3 — Document linking foundation</span>
+    <p style="margin:6px 0 0;"><code>'attached'</code> relation + <code>attachEntryTo</code>/<code>detachEntry</code> actions + queries for both directions.</p></div>
+  <div class="pr-card"><span class="pr-effort">UI · ~1 day</span><span class="pr-id">PR 4 — Document linking UI</span>
+    <p style="margin:6px 0 0;">"Linked to" block on EntryDetail; "Attached documents" block + picker on ProjectDetail &amp; TaskDetailPanel.</p></div>
+  <div class="pr-card"><span class="pr-effort">cleanup · ~¼ day</span><span class="pr-id">PR 5 — Cutover (conditional on OQ1)</span>
+    <p style="margin:6px 0 0;">Drop deprecated single-entity columns + remove dual-write. Only if OQ1 = phased; folds into PR 1 if OQ1 = single cutover.</p></div>
+
+  <!-- ───────────────────────────── OPEN QUESTIONS ───────────────────────────── -->
+  <h2>7 · Open questions — lock these to finalize v2</h2>
+  <p style="font-size:13px;color:var(--sf-muted);">Pick an option in each; selections persist in this browser. Use "Export decisions JSON" to hand them back.</p>
+
+  <div class="decision" data-q="OQ1">
+    <div class="q-id">OQ1 · MIGRATION STRATEGY</div>
+    <div class="q-head">Drop the old single-entity columns now, or keep them through a transition?</div>
+    <label class="opt"><input type="radio" name="OQ1" value="single"/> <span class="rec">RECOMMENDED</span> Single cutover — backfill, switch reads to junction, drop old columns in the same sprint.
+      <span class="why">Data volume is tiny and single-user; no reason to carry dead columns. PR 5 folds into PR 1.</span></label>
+    <label class="opt"><input type="radio" name="OQ1" value="phased"/> Phased — keep old columns + dual-write for one release, drop later (PR 5).
+      <span class="why">Safer if you want a rollback window, at the cost of temporary dual-write code.</span></label>
+  </div>
+
+  <div class="decision" data-q="OQ2">
+    <div class="q-id">OQ2 · "≥ 1 ENTITY" ENFORCEMENT</div>
+    <div class="q-head">How do we guarantee a document/project always has at least one entity?</div>
+    <label class="opt"><input type="radio" name="OQ2" value="app"/> <span class="rec">RECOMMENDED</span> App layer — create/update actions reject an empty set; pickers require ≥ 1.
+      <span class="why">Simple, matches how the rest of HQ validates. The only writers are our own server actions.</span></label>
+    <label class="opt"><input type="radio" name="OQ2" value="trigger"/> DB trigger — a deferred constraint trigger blocks commits that leave zero rows.
+      <span class="why">Bulletproof against any future direct-SQL writer, but more moving parts to maintain.</span></label>
+  </div>
+
+  <div class="decision" data-q="OQ3">
+    <div class="q-id">OQ3 · COMPACT BADGE DISPLAY</div>
+    <div class="q-head">On dense cards/rows with several entities, show what?</div>
+    <label class="opt"><input type="radio" name="OQ3" value="all"/> <span class="rec">RECOMMENDED</span> Show all chips (they wrap).
+      <span class="why">You rarely tag more than 2–3 entities; seeing them all is the point of the feature.</span></label>
+    <label class="opt"><input type="radio" name="OQ3" value="count"/> Show first chip + "+N" (full set on hover/detail).
+      <span class="why">Tidier in very dense lists; hides the rest until you look.</span></label>
+  </div>
+
+  <div class="decision" data-q="OQ4">
+    <div class="q-id">OQ4 · FILTER SEMANTICS</div>
+    <div class="q-head">When you select multiple entities in a filter, show records matching…</div>
+    <label class="opt"><input type="radio" name="OQ4" value="or"/> <span class="rec">RECOMMENDED</span> ANY selected entity (OR) — "show me everything SF or SFE."
+      <span class="why">Matches "accessible from each one of them." The natural reading of a personality filter.</span></label>
+    <label class="opt"><input type="radio" name="OQ4" value="and"/> ALL selected entities (AND) — only records tagged with every selected entity.
+      <span class="why">Narrower; useful for "what's shared between SF and SFE" but an unusual default.</span></label>
+  </div>
+
+  <div class="decision" data-q="OQ5">
+    <div class="q-id">OQ5 · LINK INITIATION</div>
+    <div class="q-head">Where can you create a document↔project/task link?</div>
+    <label class="opt"><input type="radio" name="OQ5" value="both"/> <span class="rec">RECOMMENDED</span> Both sides — attach from the document <em>and</em> from the project/task.
+      <span class="why">Same underlying row; just two entry points. Most natural, modest extra UI.</span></label>
+    <label class="opt"><input type="radio" name="OQ5" value="doc"/> Document side only — "+ Link to project/task" lives on the entry.</label>
+    <label class="opt"><input type="radio" name="OQ5" value="proj"/> Project/task side only — "+ Attach document" lives on the project/task.</label>
+  </div>
+
+  <div class="decision" data-q="OQ6">
+    <div class="q-id">OQ6 · VAULT ENTRIES IN LINK PICKERS</div>
+    <div class="q-head">Can Tier-2 (vault) documents be attached to projects/tasks?</div>
+    <label class="opt"><input type="radio" name="OQ6" value="exclude"/> <span class="rec">RECOMMENDED</span> Exclude vault from attach pickers.
+      <span class="why">Consistent with the existing mention scanner, which already skips <code>access='vault'</code>. Keeps owner-only docs from leaking into shared project views.</span></label>
+    <label class="opt"><input type="radio" name="OQ6" value="allow"/> Allow vault docs to be attached (link respects existing vault RLS on read).
+      <span class="why">More flexible, but a vault doc surfacing on a team-readable project needs careful access checks.</span></label>
+  </div>
+
+  <h2>8 · Risks &amp; notes</h2>
+  <ul>
+    <li><strong>Migration-before-preview:</strong> per the Phase-5.3.1 lesson, apply the junction migration to the DB <em>before</em> the Vercel preview expects junction-backed reads, or the preview 500s.</li>
+    <li><strong>Pre-prod gates:</strong> these are RLS-touching schema changes. They land cleanly in the pre-user window, but they strengthen the case for the Sprint-12 dev-Supabase + RLS-CI candidate before any external HQ user.</li>
+    <li><strong>Type regen:</strong> <code>types/supabase.ts</code> must be regenerated after the migration; entity is removed from the project/entry row shape and moves to junction queries.</li>
+    <li><strong>Agent:</strong> entry-creation tools must populate at least one junction row; entity-scoped tools switch to junction joins.</li>
+  </ul>
+
+  <hr class="section"/>
+  <p style="font-size:12px;color:var(--sf-muted);">
+    HQ · Sprint 12 · <code>docs/specs/hq_multi-entity-and-doc-linking_v1.html</code> · generated 2026-05-31.
+    Lock the open questions → I'll cut v2 (locked) and start PR 1.
+  </p>
+
+</div>
+
+<script>
+  (function () {
+    var KEY = 'hq_multi_entity_v1_decisions';
+    function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+    function save(o) { localStorage.setItem(KEY, JSON.stringify(o)); }
+    var state = load();
+
+    var groups = ['OQ1','OQ2','OQ3','OQ4','OQ5','OQ6'];
+
+    function paint() {
+      var locked = 0;
+      groups.forEach(function (g) {
+        var card = document.querySelector('.decision[data-q="' + g + '"]');
+        var chosen = state[g];
+        var any = false;
+        card.querySelectorAll('.opt').forEach(function (lab) {
+          var inp = lab.querySelector('input');
+          var on = inp.value === chosen;
+          inp.checked = on;
+          lab.classList.toggle('chosen', on);
+          if (on) any = true;
+        });
+        card.classList.toggle('locked', any);
+        if (any) locked++;
+      });
+      var s = document.getElementById('status');
+      s.textContent = locked === groups.length
+        ? 'All ' + groups.length + ' questions locked — ready to export'
+        : locked + ' / ' + groups.length + ' questions locked';
+    }
+
+    document.querySelectorAll('.decision input[type=radio]').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        state[inp.name] = inp.value;
+        save(state);
+        paint();
+      });
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', function () {
+      state = {}; save(state); paint();
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', function () {
+      var payload = {
+        spec: 'hq_multi-entity-and-doc-linking_v1',
+        exported_at: new Date().toISOString(),
+        locked_decisions: {
+          entity_model: 'flat_many_to_many',
+          multi_entity_scope: 'documents_and_projects',
+          process: 'spec_first'
+        },
+        open_question_answers: state
+      };
+      var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'hq_multi-entity_decisions.json';
+      a.click();
+    });
+
+    paint();
+  })();
+</script>
+</body>
+</html>
