@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Streich Force Platform · Build &amp; Storage Map (living)</title>
+<style>
+  :root {
+    --sf-red:    #C0392B;
+    --sf-fg:     #1F2937;
+    --sf-muted:  #6B7280;
+    --sf-card:   #FFFFFF;
+    --sf-bg:     #FAFAFA;
+    --sf-border: #E5E7EB;
+    --sf-ok:     #16A34A;
+    --sf-warn:   #D97706;
+    --sf-cool:   #2563EB;
+    --sf-indigo: #4F46E5;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--sf-bg); color: var(--sf-fg); }
+  body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 1.5; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 32px 24px 80px; }
+
+  .eyebrow { font-family: 'JetBrains Mono','SF Mono',Menlo,monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--sf-muted); }
+  h1 { font-size: 28px; font-weight: 800; margin: 4px 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; font-weight: 700; margin: 48px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--sf-red); }
+  h3 { font-size: 15px; font-weight: 700; margin: 22px 0 6px; }
+  p  { margin: 8px 0; }
+  code, .mono { font-family: 'JetBrains Mono',monospace; font-size: 12px; background: rgba(0,0,0,0.05); padding: 1px 4px; }
+
+  .meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 16px 0 28px; padding: 16px; background: var(--sf-card); border: 1px solid var(--sf-border); }
+  .meta .label { font-family: 'JetBrains Mono',monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sf-muted); margin-bottom: 2px; }
+  .meta .value { font-size: 13px; font-weight: 600; }
+
+  .callout { margin: 16px 0; padding: 12px 16px; border-left: 3px solid var(--sf-indigo); background: var(--sf-card); border-top: 1px solid var(--sf-border); border-right: 1px solid var(--sf-border); border-bottom: 1px solid var(--sf-border); }
+  .callout.warn { border-left-color: var(--sf-warn); }
+  .callout.ok   { border-left-color: var(--sf-ok); }
+  .callout.info { border-left-color: var(--sf-cool); }
+  .callout-label { font-family: 'JetBrains Mono',monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sf-muted); margin-bottom: 4px; }
+
+  table.data { width: 100%; border-collapse: collapse; margin: 12px 0; background: var(--sf-card); border: 1px solid var(--sf-border); }
+  table.data th, table.data td { padding: 9px 11px; text-align: left; border-bottom: 1px solid var(--sf-border); border-right: 1px solid var(--sf-border); font-size: 12.5px; vertical-align: top; }
+  table.data th:last-child, table.data td:last-child { border-right: none; }
+  table.data th { background: rgba(0,0,0,0.02); font-family: 'JetBrains Mono',monospace; font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--sf-muted); font-weight: 700; }
+
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; font-family: 'JetBrains Mono',monospace; letter-spacing: 0.04em; }
+  .tag.ok   { background: #DCFCE7; color: #166534; }
+  .tag.warn { background: #FEF3C7; color: #92400E; }
+  .tag.out  { background: #E0E7FF; color: #3730A3; }
+  .tag.tbd  { background: #F3F4F6; color: #6B7280; }
+
+  .build { background: var(--sf-card); border: 1px solid var(--sf-border); border-top: 4px solid var(--sf-muted); padding: 16px 18px; margin: 14px 0; }
+  .build.hq  { border-top-color: var(--sf-indigo); }
+  .build.ops { border-top-color: var(--sf-red); }
+  .build.web { border-top-color: var(--sf-cool); }
+  .build.sol { border-top-color: var(--sf-ok); }
+  .build.oth { border-top-color: var(--sf-muted); }
+  .build h3 { margin: 0 0 2px; font-size: 16px; }
+  .build .sub { color: var(--sf-muted); font-size: 12px; margin-bottom: 10px; }
+  .kv { display: grid; grid-template-columns: 130px 1fr; gap: 2px 12px; font-size: 12.5px; }
+  .kv .k { font-family: 'JetBrains Mono',monospace; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--sf-muted); padding-top: 2px; }
+  .kv .v { padding-bottom: 4px; }
+
+  ul li { margin: 4px 0; }
+  hr.section { border: none; border-top: 1px dashed var(--sf-border); margin: 22px 0; }
+  .layer-num { display:inline-block; width:20px; height:20px; line-height:20px; text-align:center; border-radius:50%; background:var(--sf-red); color:#fff; font-size:11px; font-weight:700; font-family:'JetBrains Mono',monospace; margin-right:6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">Streich Force Platform · LIVING REFERENCE · keep current</div>
+  <h1>Build &amp; Storage Map</h1>
+  <p style="color: var(--sf-muted); font-size: 14px; max-width: 80ch;">
+    The canonical answer to "where does each build live, and what backs it up?" One row per build,
+    one clear layer model, and a locked decisions log. This is a <strong>living doc</strong> — update it
+    whenever infrastructure changes (a repo moves, a new build starts, a DB/host changes).
+  </p>
+
+  <div class="meta">
+    <div><div class="label">Version</div><div class="value">v1</div></div>
+    <div><div class="label">Last updated</div><div class="value">2026-05-31</div></div>
+    <div><div class="label">Maintained by</div><div class="value">Sonja + Claude</div></div>
+    <div><div class="label">Home</div><div class="value">HQ repo · docs/specs/</div></div>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-label">How to keep this current</div>
+    <p style="margin:0;">
+      When anything structural changes, edit the relevant build card or the layer table, add a row to the
+      <a href="#changelog">changelog</a>, and bump <code>Last updated</code> (cut a <code>_v2.html</code> only for a
+      large rewrite — small factual updates stay in place since this is a reference, not a frozen decision spec).
+      Canonical copy lives in the HQ repo (<code>~/Projects/sf-sonja-hq/docs/specs/</code>) — out of OneDrive,
+      GitHub-backed. Mirror to HQ Knowledge so it's searchable in-app.
+    </p>
+  </div>
+
+  <!-- ───────────────────── LAYER MODEL ───────────────────── -->
+  <h2>1 · The layer model — what lives where, what backs it up</h2>
+  <p>Five layers. Each has a primary provider and a defined restore path. The rule of thumb:
+    <strong>every layer is recoverable from a provider independent of the one that failed.</strong></p>
+
+  <table class="data">
+    <thead><tr><th style="width:150px">Layer</th><th>Holds</th><th>Primary provider</th><th>If it fails / corrupts → restore from</th></tr></thead>
+    <tbody>
+      <tr><td><span class="layer-num">1</span><strong>Code</strong></td><td>All source + full git history</td><td><strong>GitHub</strong> (canonical)</td><td>Every local clone has full history; re-push. Optional: add a 2nd git mirror for provider redundancy.</td></tr>
+      <tr><td><span class="layer-num">2</span><strong>Hosting</strong></td><td>Running apps / deploys</td><td><strong>Vercel</strong> (apps) · <strong>Netlify</strong> (static)</td><td>Redeploy from GitHub in minutes. Stateless — nothing unique lives here.</td></tr>
+      <tr><td><span class="layer-num">3</span><strong>Data</strong></td><td>Databases + uploaded files</td><td><strong>Supabase</strong> (Postgres + Storage)</td><td>Supabase PITR (paid tier) + Layer 4 off-platform dumps.</td></tr>
+      <tr><td><span class="layer-num">4</span><strong>Off-platform DR</strong></td><td>Daily DB dumps + storage-bucket copies</td><td><strong>Cloudflare R2</strong> (independent of Supabase/Vercel/GitHub)</td><td><em>This IS the restore source for Layer 3.</em> Must be rehearsed (see open actions).</td></tr>
+      <tr><td><span class="layer-num">5</span><strong>Local + personal backup</strong></td><td>Working copies on disk; personal documents</td><td><strong>Local disk</strong> · <strong>OneDrive</strong> (documents only)</td><td>Working copies re-clone from GitHub. <strong>OneDrive is NOT the repo backup</strong> — see §3.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <div class="callout-label">The honest gap</div>
+    <p style="margin:0;">Layer-4 backups exist and run, but a backup you've never restored from isn't proven. <strong>Restore-rehearsal
+      (audit row 16) is still unverified.</strong> That's the real backup risk — not which folder the code sits in.</p>
+  </div>
+
+  <!-- ───────────────────── PER-BUILD INVENTORY ───────────────────── -->
+  <h2>2 · The builds</h2>
+
+  <div class="build hq">
+    <h3>Sonja HQ <span class="tag out">OUT OF ONEDRIVE</span></h3>
+    <div class="sub">Personal PM + Knowledge Hub · the platform's "master of truth."</div>
+    <div class="kv">
+      <div class="k">Purpose</div><div class="v">Tasks, projects, knowledge base, HQ Agent. Canonical home for specs &amp; decisions.</div>
+      <div class="k">Prod URL</div><div class="v"><code>hq.streichforce.com</code> (Vercel; domain via HostGator CNAME)</div>
+      <div class="k">GitHub</div><div class="v"><code>SKStreich/sf-sonja-hq</code></div>
+      <div class="k">Local path</div><div class="v"><code>~/Projects/sf-sonja-hq</code> &nbsp;<span class="tag ok">canonical · 2026-05-31</span></div>
+      <div class="k">Host</div><div class="v">Vercel (project <code>sf-sonja-hq</code>, auto-deploy from <code>main</code>)</div>
+      <div class="k">Database</div><div class="v">Supabase project <code>goxszzjjwpkqwchhfqam</code> · Next.js 14 App Router</div>
+      <div class="k">Storage</div><div class="v">Buckets: <code>knowledge</code>, <code>vault</code>, <code>project-files</code></div>
+      <div class="k">Off-platform DR</div><div class="v"><span class="tag ok">LIVE</span> R2 daily — <code>/api/cron/db-dump</code> (5am) + <code>/api/cron/backup-buckets</code> (4am)</div>
+      <div class="k">OneDrive</div><div class="v"><span class="tag ok">removed</span> relocated to <code>~/Projects</code>; OneDrive copy deleted</div>
+    </div>
+  </div>
+
+  <div class="build ops">
+    <h3>SF Ops <span class="tag warn">STILL IN ONEDRIVE</span></h3>
+    <div class="sub">Streich Force operations platform — work orders, invoicing, parts, field check-in.</div>
+    <div class="kv">
+      <div class="k">Purpose</div><div class="v">WO module, DMG CSV import, quotes/invoices, parts inventory, photo capture, GPS/check-in.</div>
+      <div class="k">Prod URL</div><div class="v"><code>ops.streichforce.com</code> (Vercel)</div>
+      <div class="k">GitHub</div><div class="v"><code>Streich-Force-Enterprises/sf-ops</code></div>
+      <div class="k">Local path</div><div class="v"><code>~/OneDrive/Documents/GitHub/SF/sf-ops</code> &nbsp;<span class="tag warn">relocation candidate</span></div>
+      <div class="k">Host</div><div class="v">Vercel · Next.js + Supabase + Stripe + Claude Vision · branch protection on <code>main</code></div>
+      <div class="k">Database</div><div class="v">Supabase <span class="tag tbd">confirm project ID</span> (separate project from HQ)</div>
+      <div class="k">Storage</div><div class="v">Supabase Storage — customer photos, invoice assets <span class="tag tbd">confirm buckets</span></div>
+      <div class="k">Off-platform DR</div><div class="v"><span class="tag warn">PLANNED</span> lift HQ's R2 DR pattern → SF Ops (audit row 12). Larger DR risk (customer photos/invoices).</div>
+      <div class="k">OneDrive</div><div class="v">still synced — same resurrection/stall trade-offs as HQ had</div>
+    </div>
+  </div>
+
+  <div class="build web">
+    <h3>SF Website <span class="tag warn">STILL IN ONEDRIVE</span></h3>
+    <div class="sub">Marketing site.</div>
+    <div class="kv">
+      <div class="k">Purpose</div><div class="v">Public marketing site; shared brand assets.</div>
+      <div class="k">Prod URL</div><div class="v"><code>streichforce.com</code> (Netlify)</div>
+      <div class="k">GitHub</div><div class="v"><code>Streich-Force-Enterprises/SFWebsite</code></div>
+      <div class="k">Local path</div><div class="v"><code>~/OneDrive/Documents/GitHub/SF/sf-website</code> &nbsp;<span class="tag warn">relocation candidate</span></div>
+      <div class="k">Host</div><div class="v">Netlify · Astro 4</div>
+      <div class="k">Database</div><div class="v">None (static)</div>
+      <div class="k">Off-platform DR</div><div class="v">N/A — fully reproducible from GitHub; brand assets mirrored with SF Ops</div>
+      <div class="k">OneDrive</div><div class="v">still synced — low stakes (static, no DB), but same sync quirks</div>
+    </div>
+  </div>
+
+  <div class="build sol">
+    <h3>SF Solutions <span class="tag warn">STILL IN ONEDRIVE</span></h3>
+    <div class="sub">Managed-services arm — financial integrations, CRM, back-office. Peer to SF Ops + HQ under SF Enterprises.</div>
+    <div class="kv">
+      <div class="k">Purpose</div><div class="v">Customer-facing financial/ops modules (first: <code>cash-exposure</code>). First beta: Loadstar.</div>
+      <div class="k">Prod URL</div><div class="v"><span class="tag tbd">TBD</span> (not yet deployed)</div>
+      <div class="k">GitHub</div><div class="v"><code>Streich-Force-Enterprises/sf-solutions</code></div>
+      <div class="k">Local path</div><div class="v"><code>~/OneDrive/Documents/GitHub/SF/sf-solutions</code> &nbsp;<span class="tag warn">relocation candidate</span></div>
+      <div class="k">Host</div><div class="v"><span class="tag tbd">TBD</span> (Vercel expected) · Next.js / Supabase planned (bootstrap deferred)</div>
+      <div class="k">Database</div><div class="v"><span class="tag tbd">TBD</span> — Supabase planned, not yet stood up</div>
+      <div class="k">Off-platform DR</div><div class="v"><span class="tag tbd">TBD</span> — adopt the R2 pattern when data lands</div>
+      <div class="k">OneDrive</div><div class="v">still synced — cheapest to relocate now while it's a skeleton</div>
+    </div>
+  </div>
+
+  <div class="build oth">
+    <h3>KRC All-Conference Analyzer <span class="tag tbd">separate / personal</span></h3>
+    <div class="sub">Not part of the SF platform — listed for completeness since it's a build you maintain.</div>
+    <div class="kv">
+      <div class="k">Prod URL</div><div class="v"><code>erbbanalyzer.netlify.app</code> (Netlify)</div>
+      <div class="k">Local path</div><div class="v"><code>~/Projects/krc-basketball</code> (already outside OneDrive)</div>
+      <div class="k">Stack</div><div class="v">Vite 6 + React 18 · MaxPreps stat ingestion</div>
+      <div class="k">Data</div><div class="v">Static/CSV-driven; reproducible from GitHub</div>
+    </div>
+  </div>
+
+  <!-- ───────────────────── LOCKED DECISIONS ───────────────────── -->
+  <h2>3 · Locked decisions</h2>
+
+  <h3>D1 · HQ repo relocated out of OneDrive <span class="tag ok">DONE 2026-05-31</span></h3>
+  <p>The HQ working copy moved from <code>~/OneDrive/Documents/GitHub/HQ/sf-sonja-hq</code> to
+    <strong><code>~/Projects/sf-sonja-hq</code></strong>. Fresh clone from GitHub (verified: <code>main</code>, clean,
+    file count matches, <code>git fsck</code> clean); OneDrive copy deleted; stale <code>~/dev/</code> worktrees orphaned.</p>
+
+  <h3>D2 · The backup model is GitHub + R2 — not OneDrive</h3>
+  <ul>
+    <li><strong>Code</strong> is backed up by GitHub (+ every local clone). OneDrive duplicating the working tree added nothing GitHub didn't already cover.</li>
+    <li><strong>Data</strong> (DB + uploaded files) — the genuinely irreplaceable layer — is backed up daily to <strong>Cloudflare R2</strong>, an independent provider. OneDrive never covered this (it's not in the repo).</li>
+    <li><strong>OneDrive's role</strong> is personal/document backup only. Syncing git repos through it caused deleted files to resurrect and made local tooling (<code>tsc</code>/<code>vitest</code>/<code>next dev</code>, even <code>grep</code>) slow via on-demand round-trips. Repos do not belong in OneDrive.</li>
+  </ul>
+
+  <h3>D3 · Remaining repos are relocation candidates</h3>
+  <p>SF Ops, SF Website, and SF Solutions still live under OneDrive and carry the same trade-offs. They are candidates to
+    relocate to <code>~/Projects/</code> on the same pattern (clone fresh → verify → remove OneDrive copy). Not yet done —
+    prioritize SF Ops (active dev + largest DR surface) and SF Solutions (cheapest while still a skeleton).</p>
+
+  <!-- ───────────────────── OPEN ACTIONS ───────────────────── -->
+  <h2>4 · Open actions (feeds Sprint planning)</h2>
+  <table class="data">
+    <thead><tr><th style="width:60px">Ref</th><th>Action</th><th style="width:120px">Status</th></tr></thead>
+    <tbody>
+      <tr><td>—</td><td>Relocate <strong>SF Ops</strong> out of OneDrive (active dev + biggest DR surface)</td><td><span class="tag warn">candidate</span></td></tr>
+      <tr><td>—</td><td>Relocate <strong>SF Solutions</strong> out of OneDrive (cheap now — skeleton)</td><td><span class="tag warn">candidate</span></td></tr>
+      <tr><td>—</td><td>Relocate <strong>SF Website</strong> out of OneDrive (low stakes)</td><td><span class="tag warn">candidate</span></td></tr>
+      <tr><td>—</td><td>Clean up orphaned <code>~/dev/sf-sonja-hq-*</code> worktrees (pointed at deleted OneDrive repo)</td><td><span class="tag warn">candidate</span></td></tr>
+      <tr><td>Row 12</td><td>Lift HQ's R2 DR pattern (<code>r2/client.ts</code> + <code>backup/db-dump.ts</code>) → SF Ops</td><td><span class="tag warn">planned</span></td></tr>
+      <tr><td>Row 16</td><td><strong>Restore-rehearsal cron</strong> — monthly verify R2 → DB restore works (HQ + SF Ops)</td><td><span class="tag warn">planned · highest backup value</span></td></tr>
+      <tr><td>—</td><td>Optional: 2nd git mirror for code-provider redundancy (GitLab/Codeberg or R2 bundle)</td><td><span class="tag tbd">optional</span></td></tr>
+      <tr><td>—</td><td>Confirm SF Ops Supabase project ID + bucket list; fill TBDs above</td><td><span class="tag tbd">confirm</span></td></tr>
+    </tbody>
+  </table>
+
+  <!-- ───────────────────── CHANGELOG ───────────────────── -->
+  <h2 id="changelog">5 · Changelog</h2>
+  <table class="data">
+    <thead><tr><th style="width:80px">Version</th><th style="width:110px">Date</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td><code>v1</code></td><td><code>2026-05-31</code></td><td>Initial map. Records HQ relocation out of OneDrive (D1), the GitHub+R2 backup model (D2), and SF Ops/Website/Solutions as relocation candidates (D3). Inventories all platform builds.</td></tr>
+    </tbody>
+  </table>
+
+  <hr class="section" />
+  <p style="font-size:12px;color:var(--sf-muted);">
+    Streich Force Platform · <code>docs/specs/sf-platform_build-storage-map_v1.html</code> · living reference in the HQ repo.
+    Decisions also locked in memory (<code>cross_project_audit_v2_locked.md</code> / HQ + SF Ops primers). Mirror to HQ Knowledge for in-app search.
+  </p>
+
+</div>
+</body>
+</html>
