@@ -154,17 +154,17 @@
   </div>
 
   <div class="build web">
-    <h3>SF Website <span class="tag warn">STILL IN ONEDRIVE</span></h3>
+    <h3>SF Website <span class="tag out">OUT OF ONEDRIVE</span></h3>
     <div class="sub">Marketing site.</div>
     <div class="kv">
       <div class="k">Purpose</div><div class="v">Public marketing site; shared brand assets.</div>
       <div class="k">Prod URL</div><div class="v"><code>streichforce.com</code> (Netlify)</div>
       <div class="k">GitHub</div><div class="v"><code>Streich-Force-Enterprises/SFWebsite</code></div>
-      <div class="k">Local path</div><div class="v"><code>~/OneDrive/Documents/GitHub/SF/sf-website</code> &nbsp;<span class="tag warn">relocation candidate</span></div>
+      <div class="k">Local path</div><div class="v"><code>~/Projects/sf-website</code> &nbsp;<span class="tag ok">canonical · 2026-06-01</span></div>
       <div class="k">Host</div><div class="v">Netlify · Astro 4</div>
       <div class="k">Database</div><div class="v">None (static)</div>
       <div class="k">Off-platform DR</div><div class="v">N/A — fully reproducible from GitHub; brand assets mirrored with SF Ops</div>
-      <div class="k">OneDrive</div><div class="v">still synced — low stakes (static, no DB), but same sync quirks</div>
+      <div class="k">OneDrive</div><div class="v"><span class="tag ok">removed</span> relocated to <code>~/Projects</code> 2026-06-01; OneDrive copy deleted</div>
     </div>
   </div>
 
@@ -209,18 +209,18 @@
     <li><strong>OneDrive's role</strong> is personal/document backup only. Syncing git repos through it caused deleted files to resurrect and made local tooling (<code>tsc</code>/<code>vitest</code>/<code>next dev</code>, even <code>grep</code>) slow via on-demand round-trips. Repos do not belong in OneDrive.</li>
   </ul>
 
-  <h3>D3 · Repo relocations — SF Ops + SF Solutions done <span class="tag ok">2026-06-01</span></h3>
-  <p><strong>SF Ops</strong> and <strong>SF Solutions</strong> relocated out of OneDrive to <code>~/Projects/sf-ops</code> and
-    <code>~/Projects/sf-solutions</code> (same pattern as HQ; OneDrive local copies removed). SF Ops verified: <code>main</code>
-    at <code>14d2a66</code>, <code>git fsck</code> clean, all working-tree files (incl. 11 untracked + 3 <code>.env</code> files)
-    preserved, <code>node_modules</code> reinstalled. <strong>Only <code>SF Website</code> remains under OneDrive</strong> — last
-    relocation candidate (low stakes: static, no DB).</p>
+  <h3>D3 · Repo relocations — ALL repos out of OneDrive <span class="tag ok">DONE 2026-06-01</span></h3>
+  <p><strong>SF Ops</strong>, <strong>SF Solutions</strong>, and <strong>SF Website</strong> all relocated out of OneDrive to
+    <code>~/Projects/</code> (same pattern as HQ; OneDrive local copies removed). Each verified: correct <code>main</code> HEAD,
+    <code>git fsck</code> clean, all working-tree files (incl. untracked + <code>.env</code> files) preserved,
+    <code>node_modules</code> reinstalled. <strong>OneDrive's <code>GitHub/SF/</code> folder is now repo-free</strong> —
+    every SF platform repo (HQ, Ops, Solutions, Website) lives under <code>~/Projects/</code>, matching D2.</p>
   <div class="callout warn">
-    <div class="callout-label">Relocation gotcha — for the SF Website move</div>
+    <div class="callout-label">Relocation gotcha — for any future repo move out of OneDrive</div>
     <p style="margin:0;">A plain <code>mv</code> of a repo across the OneDrive file-provider boundary <strong>times out / thrashes
-      on large <code>node_modules</code></strong> (sf-ops ballooned mid-move and had to be killed). Pattern that worked:
-      delete <code>node_modules</code> first (it's regenerable), move the small repo, then <code>npm install</code> in the new
-      location. Verify <code>git fsck</code> + HEAD + untracked files after.</p>
+      on large <code>node_modules</code></strong> (sf-ops ballooned mid-move and had to be killed). Pattern that worked for both
+      Ops and Website: delete <code>node_modules</code> first (it's regenerable), move the small repo, then <code>npm install</code>
+      in the new location. Verify <code>git fsck</code> + HEAD + untracked files after.</p>
   </div>
 
   <!-- ───────────────────── OPEN ACTIONS ───────────────────── -->
@@ -230,7 +230,7 @@
     <tbody>
       <tr><td>—</td><td>Relocate <strong>SF Ops</strong> out of OneDrive (active dev + biggest DR surface)</td><td><span class="tag ok">done 2026-06-01</span></td></tr>
       <tr><td>—</td><td>Relocate <strong>SF Solutions</strong> out of OneDrive (cheap now — skeleton)</td><td><span class="tag ok">done 2026-06-01</span></td></tr>
-      <tr><td>—</td><td>Relocate <strong>SF Website</strong> out of OneDrive (low stakes)</td><td><span class="tag warn">candidate</span></td></tr>
+      <tr><td>—</td><td>Relocate <strong>SF Website</strong> out of OneDrive (low stakes)</td><td><span class="tag ok">done 2026-06-01</span></td></tr>
       <tr><td>—</td><td>Clean up orphaned <code>~/dev/sf-sonja-hq-*</code> worktrees (pointed at deleted OneDrive repo)</td><td><span class="tag ok">done — none found</span></td></tr>
       <tr><td>Row 12</td><td>Lift HQ's R2 DR pattern (<code>r2/client.ts</code> + <code>backup/db-dump.ts</code>) → SF Ops</td><td><span class="tag warn">planned</span></td></tr>
       <tr><td>Row 16</td><td><strong>Restore-rehearsal cron</strong> — monthly verify R2 → DB restore works (HQ + SF Ops)</td><td><span class="tag warn">planned · highest backup value</span></td></tr>
@@ -244,6 +244,7 @@
   <table class="data">
     <thead><tr><th style="width:80px">Version</th><th style="width:110px">Date</th><th>Change</th></tr></thead>
     <tbody>
+      <tr><td><code>v1</code></td><td><code>2026-06-01</code></td><td>Relocated <strong>SF Website</strong> out of OneDrive to <code>~/Projects/sf-website</code> (HEAD <code>85796e1</code>, fsck clean, brand assets preserved, deps reinstalled). <strong>OneDrive is now fully repo-free</strong> — D3 closed.</td></tr>
       <tr><td><code>v1</code></td><td><code>2026-06-01</code></td><td>Relocated <strong>SF Ops</strong> + <strong>SF Solutions</strong> out of OneDrive to <code>~/Projects/</code> (D3 updated; build cards + open actions marked done). Confirmed <code>~/dev/</code> worktrees already clean. Added the file-provider <code>mv</code> gotcha for the remaining SF Website move.</td></tr>
       <tr><td><code>v1</code></td><td><code>2026-05-31</code></td><td>Initial map. Records HQ relocation out of OneDrive (D1), the GitHub+R2 backup model (D2), and SF Ops/Website/Solutions as relocation candidates (D3). Inventories all platform builds.</td></tr>
     </tbody>
