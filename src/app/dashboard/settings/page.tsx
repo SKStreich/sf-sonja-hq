@@ -13,7 +13,7 @@ export default async function SettingsPage() {
 
     const { data: profile } = await (supabase as any)
       .from('user_profiles')
-      .select('id, full_name, capture_api_key, role, org_id')
+      .select('id, full_name, capture_api_key, upload_api_key, role, org_id')
       .eq('id', user.id)
       .single()
     if (profile?.role === 'supervisor' || profile?.role === 'member' || profile?.role === 'read_only') redirect('/dashboard/profile')
@@ -49,6 +49,7 @@ export default async function SettingsPage() {
     return (
       <SettingsClient
         captureApiKey={profile?.capture_api_key ?? ''}
+        uploadApiKey={profile?.upload_api_key ?? ''}
         appUrl={appUrl}
         userEmail={user.email ?? ''}
         currentUserId={user.id}
