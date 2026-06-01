@@ -15,9 +15,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   ENTITIES,
+  IngestNotFoundError,
   IngestValidationError,
   ingestKnowledgeFile,
   parseTags,
+  updateKnowledgeEntryFromFile,
 } from '@/lib/knowledge/ingest'
 import { revalidatePath } from 'next/cache'
 
@@ -70,6 +72,54 @@ export async function POST(req: NextRequest) {
   if (!(file instanceof File)) {
     return NextResponse.json({ error: '`file` field is required' }, { status: 400 })
   }
+
+  // Optional: re-mirror into an EXISTING entry, versioning it (Notion-style
+  // history) instead of creating a duplicate. Accepts `entry_id` as a form
+  // field or `?entry_id=` query param.
+  const entryId = (
+    (form.get('entry_id') != null ? String(form.get('entry_id')) : '') ||
+    (req.nextUrl.searchParams.get('entry_id') ?? '')
+  ).trim()
+
+  if (entryId) {
+    try {
+      const result = await updateKnowledgeEntryFromFile({
+        supabase,
+        user_id: profile.id,
+        org_id: profile.org_id,
+        entry_id: entryId,
+        file,
+        // Metadata overrides apply only when sent — absent fields keep current.
+        entity: form.get('entity') != null ? String(form.get('entity')) : undefined,
+        kind: form.get('kind') != null ? String(form.get('kind')) : undefined,
+        tags: form.get('tags') != null ? parseTags(String(form.get('tags'))) : undefined,
+      })
+      revalidatePath('/dashboard/knowledge')
+      revalidatePath(`/dashboard/knowledge/${entryId}`)
+      return NextResponse.json(
+        {
+          id: result.id,
+          title: result.title,
+          body_chars: result.body_chars,
+          storage_path: result.storage_path,
+          version: result.version,
+          versioned: result.versioned,
+          url: `/dashboard/knowledge/${result.id}`,
+        },
+        { status: 200 },
+      )
+    } catch (err: any) {
+      if (err instanceof IngestNotFoundError) {
+        return NextResponse.json({ error: err.message }, { status: 404 })
+      }
+      if (err instanceof IngestValidationError) {
+        return NextResponse.json({ error: err.message }, { status: 400 })
+      }
+      console.error('[api/knowledge/upload] versioned update failed:', err)
+      return NextResponse.json({ error: err?.message ?? 'Update failed' }, { status: 500 })
+    }
+  }
+
   const entity = String(form.get('entity') ?? '')
   const kind = String(form.get('kind') ?? 'doc')
   const tagsRaw = String(form.get('tags') ?? '')
@@ -113,9 +163,10 @@ export async function GET() {
       contentType: 'multipart/form-data',
       fields: {
         file: 'required — the file to ingest',
-        entity: `required — one of: ${ENTITIES.join(', ')}`,
+        entity: `required for new entries — one of: ${ENTITIES.join(', ')}`,
         kind: 'optional — default doc (idea | doc | chat | note | critique)',
         tags: 'optional — comma-separated, max 8',
+        entry_id: 'optional — if set (form field or ?entry_id= query), updates + versions that existing entry instead of creating a new one. entity/kind/tags become optional overrides; absent fields keep current. Returns 200 with {version, versioned}; 404 if not found/owned.',
       },
     },
   })
