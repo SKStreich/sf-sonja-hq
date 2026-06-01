@@ -1,7 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
-import { regenerateCaptureKey } from '@/app/api/captures/actions'
+import { regenerateCaptureKey, regenerateUploadKey } from '@/app/api/captures/actions'
 import { inviteOrgMember, revokeInvitation, resendInvitation, removeMember, updateMemberRole } from '@/app/api/members/actions'
 
 interface Member { id: string; full_name: string | null; email: string; role: string; created_at: string; active: boolean }
@@ -9,6 +9,7 @@ interface Invitation { id: string; email: string; role: string; status: string; 
 
 interface Props {
   captureApiKey: string
+  uploadApiKey: string
   appUrl: string
   userEmail: string
   currentUserId: string
@@ -27,12 +28,19 @@ const ROLE_LABELS: Record<string, string> = {
 
 type AssignableRole = 'org_admin' | 'supervisor' | 'member' | 'read_only'
 
-export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, currentUserId, currentUserRole, members: initialMembers, pendingInvitations: initialInvitations }: Props) {
+export function SettingsClient({ captureApiKey: initialKey, uploadApiKey: initialUploadKey, appUrl, userEmail, currentUserId, currentUserRole, members: initialMembers, pendingInvitations: initialInvitations }: Props) {
   const [apiKey, setApiKey] = useState(initialKey)
   const [revealed, setRevealed] = useState(false)
   const [copied, setCopied] = useState(false)
   const [regenerating, startRegenerate] = useTransition()
   const [confirmRegen, setConfirmRegen] = useState(false)
+
+  // Knowledge upload key (separate blast radius from the capture key)
+  const [uploadKey, setUploadKey] = useState(initialUploadKey)
+  const [uploadRevealed, setUploadRevealed] = useState(false)
+  const [uploadCopied, setUploadCopied] = useState(false)
+  const [uploadRegenerating, startUploadRegenerate] = useTransition()
+  const [confirmUploadRegen, setConfirmUploadRegen] = useState(false)
 
   // Members state
   const [members, setMembers] = useState(initialMembers)
@@ -53,6 +61,7 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   const isAdmin = currentUserRole === 'platform_owner' || currentUserRole === 'org_admin'
 
   const endpoint = `${appUrl}/api/siri`
+  const uploadEndpoint = `${appUrl}/api/knowledge/upload`
 
   const handleInvite = () => {
     if (!inviteEmail.trim()) return
@@ -148,6 +157,24 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   }
 
   const maskedKey = apiKey ? apiKey.slice(0, 8) + '••••••••••••••••••••••••••••' : '—'
+
+  const copyUpload = (text: string) => {
+    navigator.clipboard.writeText(text)
+    setUploadCopied(true)
+    setTimeout(() => setUploadCopied(false), 1500)
+  }
+
+  const regenUpload = () => {
+    if (!confirmUploadRegen) { setConfirmUploadRegen(true); return }
+    startUploadRegenerate(async () => {
+      const newKey = await regenerateUploadKey()
+      setUploadKey(newKey)
+      setConfirmUploadRegen(false)
+      setUploadRevealed(true)
+    })
+  }
+
+  const maskedUploadKey = uploadKey ? uploadKey.slice(0, 8) + '••••••••••••••••••••••••••••' : '—'
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
@@ -263,6 +290,85 @@ export function SettingsClient({ captureApiKey: initialKey, appUrl, userEmail, c
   -H "Content-Type: application/json" \\
   -d '{"text":"Test capture from terminal","type":"task"}'`}
           </pre>
+        </div>
+      </section>
+
+      {/* Knowledge Upload API Key */}
+      <section className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">Knowledge Upload API Key</h2>
+        <p className="text-sm text-gray-500 mb-5">
+          Use this key to push files into your Knowledge Hub from outside the app — CLI scripts, automation, or any HTTP client.
+          It&rsquo;s <strong>separate from your Capture key</strong> so the two have independent blast radius.
+        </p>
+
+        {/* Upload key */}
+        <div className="mb-5">
+          <label className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2 block">Your Upload API Key</label>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 font-mono text-sm text-gray-700">
+              {uploadRevealed ? uploadKey : maskedUploadKey}
+            </div>
+            <button
+              onClick={() => setUploadRevealed(r => !r)}
+              className="rounded-lg border border-gray-300 px-3 py-2.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-600 transition-colors"
+            >
+              {uploadRevealed ? 'Hide' : 'Show'}
+            </button>
+            <button
+              onClick={() => copyUpload(uploadKey)}
+              className="rounded-lg border border-gray-300 px-3 py-2.5 text-xs text-gray-500 hover:text-gray-700 hover:border-gray-600 transition-colors"
+            >
+              {uploadCopied ? '✓ Copied' : 'Copy'}
+            </button>
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            {confirmUploadRegen && (
+              <span className="text-xs text-yellow-500">This will break existing upload scripts. Confirm?</span>
+            )}
+            <button
+              onClick={regenUpload}
+              disabled={uploadRegenerating}
+              className={`text-xs transition-colors ${confirmUploadRegen ? 'text-red-400 hover:text-red-300' : 'text-gray-700 hover:text-gray-500'}`}
+            >
+              {uploadRegenerating ? 'Regenerating…' : confirmUploadRegen ? 'Yes, regenerate' : 'Regenerate key'}
+            </button>
+            {confirmUploadRegen && (
+              <button onClick={() => setConfirmUploadRegen(false)} className="text-xs text-gray-700 hover:text-gray-500 transition-colors">Cancel</button>
+            )}
+          </div>
+        </div>
+
+        {/* Upload endpoint */}
+        <div className="mb-6">
+          <label className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2 block">Upload Endpoint</label>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 rounded-lg border border-gray-300 bg-gray-50 px-4 py-2.5 font-mono text-xs text-gray-700 break-all">
+              {uploadEndpoint}
+            </div>
+            <button
+              onClick={() => copyUpload(uploadEndpoint)}
+              className="rounded-lg border border-gray-300 px-3 py-2.5 text-xs text-gray-500 hover:text-gray-700 transition-colors"
+            >
+              Copy
+            </button>
+          </div>
+        </div>
+
+        {/* Quick test */}
+        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-2">Upload a file with curl</h3>
+          <pre className="text-xs text-gray-500 whitespace-pre-wrap break-all font-mono leading-relaxed">
+{`curl -X POST ${uploadEndpoint} \\
+  -H "Authorization: Bearer ${uploadRevealed ? uploadKey : '<your-upload-key>'}" \\
+  -F "file=@./my-doc.html" \\
+  -F "entity=sfe" \\
+  -F "kind=doc" \\
+  -F "tags=infra,reference"`}
+          </pre>
+          <p className="mt-2 text-xs text-gray-500">
+            <code className="text-indigo-700">entity</code> is one of <code className="text-indigo-700">tm · sf · sfe · personal</code>;
+            <code className="text-indigo-700"> kind</code> defaults to <code className="text-indigo-700">doc</code>.
+          </p>
         </div>
       </section>
 
