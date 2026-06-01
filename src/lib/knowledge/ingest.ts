@@ -135,6 +135,14 @@ export class IngestValidationError extends Error {
   }
 }
 
+/** Thrown when an update targets an entry that doesn't exist or isn't owned by the caller. */
+export class IngestNotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'IngestNotFoundError'
+  }
+}
+
 /**
  * Upload a file to the knowledge bucket and insert a knowledge_entries row.
  * Throws IngestValidationError for client-input issues, plain Error for I/O failures.
@@ -212,5 +220,170 @@ export async function ingestKnowledgeFile(input: IngestInput): Promise<IngestRes
     title,
     body_chars: body.length,
     storage_path,
+  }
+}
+
+export interface UpdateFromFileInput {
+  supabase: any
+  user_id: string
+  org_id: string
+  entry_id: string
+  file: File
+  // Optional metadata overrides — applied only when provided. Absent = keep current.
+  entity?: string
+  kind?: string
+  tags?: string[]
+}
+
+export interface UpdateFromFileResult {
+  id: string
+  title: string
+  body_chars: number
+  storage_path: string | null
+  version: number
+  /** true if content changed and a new version was snapshotted; false on an idempotent no-op. */
+  versioned: boolean
+}
+
+/**
+ * Re-mirror a file into an EXISTING knowledge entry, preserving Notion-style
+ * history: the prior content is snapshotted into knowledge_versions and the
+ * entry's version is bumped — mirroring updateEntry() (actions.ts). This is the
+ * versioning counterpart to ingestKnowledgeFile (which always inserts a NEW row).
+ *
+ * Ownership is enforced by scoping the lookup to (org_id, user_id) — a caller
+ * can only update their own entries even though the admin client bypasses RLS.
+ *
+ * If the new file's extracted content matches the current entry, this is an
+ * idempotent no-op (no version, no storage churn) — same "don't snapshot
+ * unchanged content" rule as updateEntry.
+ */
+export async function updateKnowledgeEntryFromFile(input: UpdateFromFileInput): Promise<UpdateFromFileResult> {
+  const { supabase, user_id, org_id, entry_id, file } = input
+
+  if (file.size === 0) throw new IngestValidationError('File is empty')
+  if (file.size > MAX_BYTES) {
+    throw new IngestValidationError(`File exceeds ${MAX_BYTES / 1024 / 1024}MB limit`)
+  }
+  const mime = file.type || ''
+  if (!SUPPORTED_MIME.has(mime)) {
+    throw new IngestValidationError(
+      `Unsupported file type: ${mime || 'unknown'}. Supported: PDF, DOCX, XLSX, HTML, TXT, Markdown.`,
+    )
+  }
+  if (input.entity !== undefined && !isValidEntity(input.entity)) {
+    throw new IngestValidationError(`Invalid entity: ${input.entity || '(empty)'}. Allowed: ${ENTITIES.join(', ')}`)
+  }
+
+  // Fetch the current entry, scoped to the caller for ownership enforcement.
+  const { data: current, error: fetchErr } = await (supabase as any)
+    .from('knowledge_entries')
+    .select('id, version, title, body, kind, entity, tags, summary, type_hint, idea_status, storage_path')
+    .eq('id', entry_id)
+    .eq('org_id', org_id)
+    .eq('user_id', user_id)
+    .maybeSingle()
+  if (fetchErr) throw new Error('Entry lookup failed: ' + fetchErr.message)
+  if (!current) throw new IngestNotFoundError('Entry not found or not owned by caller')
+
+  let body = ''
+  let rendered_html: string | null = null
+  try {
+    const extracted = await extractContent(file, mime)
+    body = extracted.body
+    rendered_html = extracted.rendered_html
+  } catch (err: any) {
+    throw new Error(`Failed to parse file: ${err?.message ?? 'unknown error'}`)
+  }
+  body = (body ?? '').trim().slice(0, MAX_BODY_CHARS)
+
+  const title = file.name
+  const nextKind = input.kind !== undefined ? resolveKind(input.kind) : current.kind
+  const nextEntity = input.entity !== undefined ? input.entity : current.entity
+  const nextTags = input.tags !== undefined ? input.tags : current.tags
+
+  // Change detection mirrors updateEntry: compare the text body + metadata.
+  // (rendered_html isn't part of the versions snapshot, same as updateEntry, so
+  // a markup-only change with identical text is treated as a no-op.)
+  const norm = (v: any) => JSON.stringify(v ?? null)
+  const contentChanged =
+    norm(body || null) !== norm(current.body) ||
+    norm(title) !== norm(current.title) ||
+    norm(nextKind) !== norm(current.kind) ||
+    norm(nextEntity) !== norm(current.entity) ||
+    norm(nextTags) !== norm(current.tags)
+
+  if (!contentChanged) {
+    return {
+      id: entry_id,
+      title: current.title ?? title,
+      body_chars: (current.body ?? '').length,
+      storage_path: current.storage_path ?? null,
+      version: current.version,
+      versioned: false,
+    }
+  }
+
+  // Upload the new blob first (so a storage failure aborts before any DB write).
+  const safeName = file.name.replace(/[^\w.\-]+/g, '_').slice(0, 120)
+  const storage_path = `${org_id}/${user_id}/${crypto.randomUUID()}-${safeName}`
+  const { error: upErr } = await supabase.storage
+    .from(BUCKET)
+    .upload(storage_path, file, { contentType: mime || 'application/octet-stream', upsert: false })
+  if (upErr) throw new Error('Upload failed: ' + upErr.message)
+
+  // Snapshot the prior content into knowledge_versions, then bump the entry.
+  const { error: versErr } = await (supabase as any)
+    .from('knowledge_versions')
+    .insert({
+      entry_id,
+      version: current.version,
+      title: current.title,
+      body: current.body,
+      kind: current.kind,
+      entity: current.entity,
+      tags: current.tags,
+      summary: current.summary,
+      type_hint: current.type_hint,
+      idea_status: current.idea_status,
+      created_by: user_id,
+    })
+  if (versErr) {
+    await supabase.storage.from(BUCKET).remove([storage_path]).catch(() => {})
+    throw new Error('Failed to snapshot version: ' + versErr.message)
+  }
+
+  const { error: updErr } = await (supabase as any)
+    .from('knowledge_entries')
+    .update({
+      title,
+      body: body || null,
+      rendered_html,
+      kind: nextKind,
+      entity: nextEntity,
+      tags: nextTags,
+      storage_path,
+      mime_type: mime || null,
+      size_bytes: file.size,
+      version: current.version + 1,
+    })
+    .eq('id', entry_id)
+  if (updErr) {
+    await supabase.storage.from(BUCKET).remove([storage_path]).catch(() => {})
+    throw new Error('Failed to update entry: ' + updErr.message)
+  }
+
+  // Best-effort cleanup of the superseded blob (versions store text, not blobs).
+  if (current.storage_path && current.storage_path !== storage_path) {
+    await supabase.storage.from(BUCKET).remove([current.storage_path]).catch(() => {})
+  }
+
+  return {
+    id: entry_id,
+    title,
+    body_chars: body.length,
+    storage_path,
+    version: current.version + 1,
+    versioned: true,
   }
 }
