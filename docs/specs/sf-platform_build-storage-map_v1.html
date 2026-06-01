@@ -114,8 +114,9 @@
 
   <div class="callout warn">
     <div class="callout-label">The honest gap</div>
-    <p style="margin:0;">Layer-4 backups exist and run, but a backup you've never restored from isn't proven. <strong>Restore-rehearsal
-      (audit row 16) is still unverified.</strong> That's the real backup risk — not which folder the code sits in.</p>
+    <p style="margin:0;">Layer-4 backups exist and run, but a backup you've never <em>restored</em> from isn't fully proven. A monthly
+      health-check rehearsal (row 16 tier-1) now verifies dumps are fresh / intact / restorable, but a <strong>full restore into a
+      live DB (tier-2) is still un-exercised.</strong> That's the remaining backup risk — not which folder the code sits in.</p>
   </div>
 
   <!-- ───────────────────── PER-BUILD INVENTORY ───────────────────── -->
@@ -146,9 +147,9 @@
       <div class="k">GitHub</div><div class="v"><code>Streich-Force-Enterprises/sf-ops</code></div>
       <div class="k">Local path</div><div class="v"><code>~/Projects/sf-ops</code> &nbsp;<span class="tag ok">canonical · 2026-06-01</span></div>
       <div class="k">Host</div><div class="v">Vercel · Next.js + Supabase + Stripe + Claude Vision · branch protection on <code>main</code></div>
-      <div class="k">Database</div><div class="v">Supabase <span class="tag tbd">confirm project ID</span> (separate project from HQ)</div>
-      <div class="k">Storage</div><div class="v">Supabase Storage — customer photos, invoice assets <span class="tag tbd">confirm buckets</span></div>
-      <div class="k">Off-platform DR</div><div class="v"><span class="tag warn">PLANNED</span> lift HQ's R2 DR pattern → SF Ops (audit row 12). Larger DR risk (customer photos/invoices).</div>
+      <div class="k">Database</div><div class="v">Supabase project <code>ehvfukilzulmyyszmjiy</code> (name <code>sf-platform</code>, Postgres 17) — separate project from HQ</div>
+      <div class="k">Storage</div><div class="v">Buckets: <code>work-order-photos</code>, <code>parts-receipts</code>, <code>invoice-pdfs</code> (no vault — so no client-side encryption layer)</div>
+      <div class="k">Off-platform DR</div><div class="v"><span class="tag warn">IN PR · pending activation</span> R2 DR lifted from HQ — <code>/api/cron/db-dump</code> (5am) + <code>/api/cron/backup-buckets</code> (4am) + monthly <code>/api/cron/restore-rehearsal</code>. <a href="https://github.com/Streich-Force-Enterprises/sf-ops/pull/41">sf-ops#41</a> (row 12) + <a href="https://github.com/Streich-Force-Enterprises/sf-ops/pull/42">#42</a> (row 16 tier-1). Activation: create R2 bucket, set <code>R2_*</code>+<code>CRON_SECRET</code> in Vercel, apply migrations.</div>
       <div class="k">OneDrive</div><div class="v"><span class="tag ok">removed</span> relocated to <code>~/Projects</code> 2026-06-01; OneDrive copy deleted</div>
     </div>
   </div>
@@ -232,10 +233,10 @@
       <tr><td>—</td><td>Relocate <strong>SF Solutions</strong> out of OneDrive (cheap now — skeleton)</td><td><span class="tag ok">done 2026-06-01</span></td></tr>
       <tr><td>—</td><td>Relocate <strong>SF Website</strong> out of OneDrive (low stakes)</td><td><span class="tag ok">done 2026-06-01</span></td></tr>
       <tr><td>—</td><td>Clean up orphaned <code>~/dev/sf-sonja-hq-*</code> worktrees (pointed at deleted OneDrive repo)</td><td><span class="tag ok">done — none found</span></td></tr>
-      <tr><td>Row 12</td><td>Lift HQ's R2 DR pattern (<code>r2/client.ts</code> + <code>backup/db-dump.ts</code>) → SF Ops</td><td><span class="tag warn">planned</span></td></tr>
-      <tr><td>Row 16</td><td><strong>Restore-rehearsal cron</strong> — monthly verify R2 → DB restore works (HQ + SF Ops)</td><td><span class="tag warn">planned · highest backup value</span></td></tr>
+      <tr><td>Row 12</td><td>Lift HQ's R2 DR pattern (<code>r2/client.ts</code> + <code>backup/db-dump.ts</code>) → SF Ops</td><td><span class="tag ok">in PR sf-ops#41 · pending activation</span></td></tr>
+      <tr><td>Row 16</td><td><strong>Restore-rehearsal cron</strong> — tier 1 (monthly health check: fresh / intact / drift / restorable, no scratch DB) in PR for SF Ops; tier 2 (full restore into an ephemeral Supabase branch) opt-in/deferred for cost; HQ port still to do</td><td><span class="tag ok">tier-1 in PR sf-ops#42</span></td></tr>
       <tr><td>—</td><td>Optional: 2nd git mirror for code-provider redundancy (GitLab/Codeberg or R2 bundle)</td><td><span class="tag tbd">optional</span></td></tr>
-      <tr><td>—</td><td>Confirm SF Ops Supabase project ID + bucket list; fill TBDs above</td><td><span class="tag tbd">confirm</span></td></tr>
+      <tr><td>—</td><td>Confirm SF Ops Supabase project ID + bucket list; fill TBDs above</td><td><span class="tag ok">done 2026-06-01</span></td></tr>
     </tbody>
   </table>
 
@@ -244,6 +245,7 @@
   <table class="data">
     <thead><tr><th style="width:80px">Version</th><th style="width:110px">Date</th><th>Change</th></tr></thead>
     <tbody>
+      <tr><td><code>v1</code></td><td><code>2026-06-01</code></td><td><strong>SF Ops off-platform DR.</strong> Lifted HQ's R2 DR pattern to SF Ops (audit row 12, <a href="https://github.com/Streich-Force-Enterprises/sf-ops/pull/41">sf-ops#41</a>): daily <code>db-dump</code> (5am) + bucket mirror (4am) of <code>work-order-photos</code>/<code>parts-receipts</code>/<code>invoice-pdfs</code> (no vault, so HQ's encryption layer dropped). Added a monthly restore-rehearsal health-check cron (row 16 tier-1, <a href="https://github.com/Streich-Force-Enterprises/sf-ops/pull/42">#42</a>). Confirmed SF Ops Supabase project = <code>ehvfukilzulmyyszmjiy</code> (<code>sf-platform</code>, PG 17) + bucket list — TBDs filled. Both pending activation (R2 bucket + Vercel env vars + migrations). Also cleared 12 dead untracked WIP orphans from the SF Ops working tree.</td></tr>
       <tr><td><code>v1</code></td><td><code>2026-06-01</code></td><td>Relocated <strong>SF Website</strong> out of OneDrive to <code>~/Projects/sf-website</code> (HEAD <code>85796e1</code>, fsck clean, brand assets preserved, deps reinstalled). <strong>OneDrive is now fully repo-free</strong> — D3 closed.</td></tr>
       <tr><td><code>v1</code></td><td><code>2026-06-01</code></td><td>Relocated <strong>SF Ops</strong> + <strong>SF Solutions</strong> out of OneDrive to <code>~/Projects/</code> (D3 updated; build cards + open actions marked done). Confirmed <code>~/dev/</code> worktrees already clean. Added the file-provider <code>mv</code> gotcha for the remaining SF Website move.</td></tr>
       <tr><td><code>v1</code></td><td><code>2026-05-31</code></td><td>Initial map. Records HQ relocation out of OneDrive (D1), the GitHub+R2 backup model (D2), and SF Ops/Website/Solutions as relocation candidates (D3). Inventories all platform builds.</td></tr>
