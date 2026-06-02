@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sonja HQ · Master Outline (living)</title>
+<style>
+  :root {
+    --sf-red: #C0392B; --sf-ink: #1F1F1F; --sf-muted: #5C5550; --sf-border: #D8D4CD;
+    --sf-canvas: #F5F3EF; --sf-card: #FFFFFF; --sf-ok: #3FA66C; --sf-warn: #C09F2B;
+    --sf-info: #2E6DA4; --sf-hq: #6366F1; --sf-hq-deep: #4338CA; --sf-muted-bg: rgba(92,85,80,0.06);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px 24px 64px; background: var(--sf-canvas); color: var(--sf-ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 14px; line-height: 1.55; }
+  .wrap { max-width: 1100px; margin: 0 auto; }
+  header.doc { border-bottom: 2px solid var(--sf-hq); padding-bottom: 18px; margin-bottom: 24px; }
+  .eyebrow { font-family: 'JetBrains Mono','SF Mono',Menlo,monospace; font-size: 11px; letter-spacing: 2px;
+    color: var(--sf-muted); text-transform: uppercase; margin-bottom: 6px; }
+  header.doc h1 { margin: 0; color: var(--sf-hq-deep); font-size: 28px; font-weight: 700; }
+  header.doc p.lede { margin: 10px 0 0; font-size: 14px; color: var(--sf-muted); max-width: 80ch; }
+  .updated { margin: 12px 0 0; padding: 10px 14px; background: rgba(99,102,241,0.06);
+    border-left: 3px solid var(--sf-hq); font-size: 12.5px; font-family: 'JetBrains Mono',monospace; }
+  .meta { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 14px;
+    font-family: 'JetBrains Mono',monospace; font-size: 11px; color: var(--sf-muted); }
+  .meta strong { color: var(--sf-ink); font-weight: 600; }
+  nav.toc { background: var(--sf-card); border: 1px solid var(--sf-border); padding: 12px 16px;
+    margin-bottom: 28px; font-family: 'JetBrains Mono',monospace; font-size: 11px; }
+  nav.toc a { color: var(--sf-muted); text-decoration: none; margin-right: 16px; line-height: 1.9; }
+  nav.toc a:hover { color: var(--sf-hq); }
+  section { margin-bottom: 40px; scroll-margin-top: 16px; }
+  section h2 { font-size: 18px; margin: 0 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--sf-border); }
+  section p.intro { color: var(--sf-muted); margin: 0 0 14px; }
+  .glance { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px;
+    border: 1px solid var(--sf-border); background: var(--sf-border); margin-bottom: 6px; }
+  .glance .stat { background: var(--sf-card); padding: 12px 14px; }
+  .glance .stat-label { font-family: 'JetBrains Mono',monospace; font-size: 9px; letter-spacing: 1.2px;
+    text-transform: uppercase; color: var(--sf-muted); margin-bottom: 3px; }
+  .glance .stat-value { font-family: 'JetBrains Mono',monospace; font-size: 22px; font-weight: 700; color: var(--sf-ink); }
+  .glance .stat-sub { font-family: 'JetBrains Mono',monospace; font-size: 9px; color: var(--sf-muted); margin-top: 2px; }
+  .phase { background: var(--sf-card); border: 1px solid var(--sf-border); border-left: 4px solid var(--sf-border);
+    padding: 14px 16px; margin-bottom: 10px; }
+  .phase.done { border-left-color: var(--sf-ok); }
+  .phase.wip  { border-left-color: var(--sf-warn); background: rgba(192,159,43,0.03); }
+  .phase-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  .phase-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
+  .phase-head .dates { font-family: 'JetBrains Mono',monospace; font-size: 10.5px; color: var(--sf-muted); margin-left: auto; }
+  .badge { display: inline-block; padding: 1px 8px; font-family: 'JetBrains Mono',monospace; font-size: 10px;
+    letter-spacing: 1px; text-transform: uppercase; border: 1px solid var(--sf-border); }
+  .badge.done { background: rgba(63,166,108,0.10); color: var(--sf-ok); border-color: rgba(63,166,108,0.4); }
+  .badge.wip  { background: rgba(192,159,43,0.12); color: var(--sf-warn); border-color: rgba(192,159,43,0.4); }
+  .phase ul { margin: 6px 0 0; padding-left: 18px; }
+  .phase li { margin: 3px 0; font-size: 13px; }
+  .phase li .pr { font-family: 'JetBrains Mono',monospace; font-size: 11px; color: var(--sf-info); }
+  .item { background: var(--sf-card); border: 1px solid var(--sf-border); border-left: 4px solid var(--sf-info);
+    padding: 12px 14px; margin-bottom: 8px; }
+  .item.idea { border-left-color: var(--sf-hq); }
+  .item h4 { margin: 0 0 5px; font-size: 13.5px; font-weight: 700; }
+  .item .body { font-size: 12.5px; color: var(--sf-ink); }
+  .item .tag { font-family: 'JetBrains Mono',monospace; font-size: 9.5px; letter-spacing: 1px;
+    text-transform: uppercase; color: var(--sf-muted); }
+  .module-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+  .module-box { background: var(--sf-card); border: 1px solid var(--sf-border); padding: 9px 11px; font-size: 12px; }
+  .module-box .name { font-weight: 600; font-size: 12px; margin-bottom: 3px; }
+  .module-box .desc { font-size: 10.5px; color: var(--sf-muted); font-family: 'JetBrains Mono',monospace; line-height: 1.4; }
+  .module-box.mature { border-left: 4px solid var(--sf-ok); }
+  .module-box.scaffolded { border-left: 4px solid var(--sf-warn); background: rgba(192,159,43,0.03); }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 8px;
+    font-family: 'JetBrains Mono',monospace; font-size: 11px; color: var(--sf-muted); }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; background: var(--sf-card);
+    border: 1px solid var(--sf-border); font-size: 12.5px; }
+  th, td { text-align: left; padding: 8px 11px; border-bottom: 1px solid var(--sf-border); vertical-align: top; }
+  th { background: var(--sf-canvas); font-family: 'JetBrains Mono',monospace; font-size: 10px;
+    letter-spacing: 1.4px; text-transform: uppercase; color: var(--sf-muted); font-weight: 600; }
+  tr:last-child td { border-bottom: none; }
+  td.mono { font-family: 'JetBrains Mono',monospace; font-size: 11.5px; }
+  code { font-family: 'JetBrains Mono',monospace; font-size: 12px; background: rgba(0,0,0,0.04); padding: 1px 4px; }
+  .callout { border-left: 3px solid var(--sf-info); padding: 10px 14px; margin: 12px 0;
+    background: rgba(46,109,164,0.06); font-size: 12.5px; }
+  footer.doc { margin-top: 44px; padding-top: 16px; border-top: 1px solid var(--sf-border);
+    font-family: 'JetBrains Mono',monospace; font-size: 11px; color: var(--sf-muted); }
+  footer.doc p { margin: 4px 0; }
+  @media (max-width: 860px) { .glance { grid-template-columns: repeat(2,1fr); } .module-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <div class="eyebrow">Streich Force Enterprises · Personal PM &amp; Knowledge Hub</div>
+  <h1>Sonja HQ — Master Outline</h1>
+  <p class="lede">The living scope-of-record for Sonja HQ: every sprint completed and still open, the tasks under each,
+    the modules in production today, and the ideas queued for future builds. Updated in place each working session —
+    the latest version always carries the full history <em>and</em> shows what just shipped. Git history is the audit trail.</p>
+  <div class="updated">Last updated: 2026-06-02 · Sprint 12 in flight (multi-entity foundation shipped #37; Build &amp; Storage Map living doc tracking SF Ops DR). First edition of the living master outline.</div>
+  <div class="meta">
+    <span><strong>Prod:</strong> hq.streichforce.com</span>
+    <span><strong>HEAD:</strong> 38e22e7 (PR #44)</span>
+    <span><strong>Migrations:</strong> 39</span>
+    <span><strong>Tests:</strong> 213 passing (19 files, local)</span>
+    <span><strong>Repo:</strong> SKStreich/sf-sonja-hq · ~/Projects/sf-sonja-hq</span>
+  </div>
+</header>
+
+<nav class="toc">
+  <strong>JUMP →</strong>
+  <a href="#glance">Status at a glance</a>
+  <a href="#timeline">Sprint timeline</a>
+  <a href="#open">Open · Next · Deferred</a>
+  <a href="#ideas">Future ideas</a>
+  <a href="#modules">Module inventory</a>
+  <a href="#changelog">Changelog</a>
+</nav>
+
+<section id="glance">
+  <h2>Status at a glance</h2>
+  <div class="glance">
+    <div class="stat"><div class="stat-label">Sprints done</div><div class="stat-value">11</div><div class="stat-sub">S1 → S11</div></div>
+    <div class="stat"><div class="stat-label">In progress</div><div class="stat-value">1</div><div class="stat-sub">S12 multi-entity</div></div>
+    <div class="stat"><div class="stat-label">Open items</div><div class="stat-value">5</div><div class="stat-sub">UI · doc-link · pages · DR · gates</div></div>
+    <div class="stat"><div class="stat-label">Modules live</div><div class="stat-value">14</div></div>
+    <div class="stat"><div class="stat-label">Tests green</div><div class="stat-value">213</div><div class="stat-sub">39 migrations</div></div>
+  </div>
+  <p class="intro" style="margin-top:14px">HQ is the master source of truth for the platform (Notion is being fully retired). It shipped to production in late April and has been hardened + extended continuously since. Current focus: the multi-entity + doc-linking workstream (a doc/project can belong to ≥1 entity, and Knowledge docs can be tied to projects).</p>
+</section>
+
+<section id="timeline">
+  <h2>Sprint timeline</h2>
+  <p class="intro">Chronological. ✅ done · 🟡 in progress. PR numbers cite the merged work.</p>
+
+  <div class="phase done">
+    <div class="phase-head"><span class="badge done">✅ done</span><h3>Sprint 1–2 — Foundation, auth &amp; capture</h3><span class="dates">Apr 16–17 2026</span></div>
+    <ul>
+      <li>Core schema (orgs, entities, users, projects, tasks, captures, knowledge), RLS policies, auth trigger, Next.js App Router scaffold</li>
+      <li>Magic-link auth; mobile/Siri capture UI + voice-to-text webhook; focus notes; dashboard scaffold</li>
+    </ul>
+  </div>
+
+  <div class="phase done">
+    <div class="phase-head"><span class="badge done">✅ done</span><h3>Sprint 3 — Project Tracker &amp; Task Manager</h3><span class="dates">Apr 18 2026</span></div>
+    <ul>
+      <li>Project Tracker (list/card/create/filters) + project detail with inline tasks, log, files, calendar, phases, next-action</li>
+      <li>GTD Task Manager — Today / This Week / Backlog / Someday buckets; status filter; cancelled status</li>
+      <li>Global search (⌘K); export/print for tasks &amp; projects; navigation overhaul (export + profile dropdowns)</li>
+    </ul>
+  </div>
+
+  <div class="phase done">
+    <div class="phase-head"><span class="badge done">✅ done</span><h3>Sprint 4–5 — Cost dashboard &amp; multi-user collaboration</h3><span class="dates">Apr 18–22 2026</span></div>
+    <ul>
+      <li>Cost &amp; Usage Dashboard (manual entry, OpenAI sync, auto-logging) + service management UI + per-entity attribution</li>
+      <li>Org invites, roles, member profiles; branded invite email (Resend, verified domain); invite revocation (UPDATE-based); optimistic UI</li>
+    </ul>
+  </div>
+
+  <div class="phase done">
+    <div class="phase-head"><span class="badge done">✅ done</span><h3>Sprint 6 — Knowledge Hub rewrite</h3><span class="dates">Apr 24–25 2026 · PR #2</span></div>
+    <ul>
+      <li>Replaced 4 legacy tables with a single <code>knowledge_entries</code> model (filter by kind: workspace, idea, note, critique, chat, code-snippet…)</li>
+      <li>Upload pipeline (PDF/DOCX/XLSX/HTML/TXT/MD body extraction) + rendered-HTML sandboxed viewer + versioning + author attribution</li>
+      <li>Secure <code>/share/[token]</code> — read-only viewer, copy/print disabled, watermark, expiring + revocable links</li>
+      <li>Contacts module + "stay in touch" consent + forward-request approval; Vault (AES-256-GCM encrypted, Tier-2)</li>
+    </ul>
+  </div>
+
+  <div class="phase done">
+    <div class="phase-head"><span class="badge done">✅ done</span><h3>Sprint 7 — Platform dashboard + HQ Agent</h3><span class="dates">Apr 2026</span></div>
+    <ul>
+      <li>Platform dashboard: insight chips, entity cards, project timeline (TimelineView)</li>
+      <li>HQ Agent drawer with 7 tools (search_knowledge, read_knowledge_entry, create_task, update_project, reassign…), full knowledge-store context, chat auto-save to workspace</li>
+    </ul>
+  </div>
+
+  <div class="phase done">
+    <div class="phase-head"><span class="badge done">✅ done</span><h3>Sprint 8–9 — Integrations, security &amp; production deploy</h3><span class="dates">Apr 2026</span></div>
+    <ul>
+      <li>GitHub integration + Integrations Hub; security audit; test suite; multi-user assignment UI</li>
+      <li>Production deployment to <code>hq.streichforce.com</code></li>
+    </ul>
+  </div>
+
+  <div class="phase done">
+    <div class="phase-head"><span class="badge done">✅ done</span><h3>Sprint 10a–c — Claude integration, share lockdown &amp; workspace pages</h3><span class="dates">Apr 26 – May 22 2026 · PRs #3–#23</span></div>
+    <ul>
+      <li>Claude reads entry bodies via API (Vault-protected); "Discuss with HQ Agent" on EntryDetail</li>
+      <li>Workspace pages — Notion-style hierarchy + Markdown editor + breadcrumbs; wiki <code>[[…]]</code> links + backlinks</li>
+      <li>Slash commands: <code>/task</code> <span class="pr">(#17)</span>, <code>/embed-entry</code> + <code>/embed-project</code> <span class="pr">(#21)</span>, <code>/task-create</code> + task pills + task detail page <span class="pr">(#22)</span></li>
+      <li>Cost sync cron (08:00 UTC) + 90-day history chart; DR Standard — R2 daily bucket backup <span class="pr">(#11)</span> + DB-dump cron <span class="pr">(#13)</span> (30/12/24 retention)</li>
+      <li>Save chat / code-snippet to workspace; Anthropic API resilience + error surfacing; prod/dev key split; vitest fixes <span class="pr">(#18, #23)</span></li>
+    </ul>
+  </div>
+
+  <div class="phase done">
+    <div class="phase-head"><span class="badge done">✅ done</span><h3>Sprint 11 — HQ alignment (cross-project audit actions)</h3><span class="dates">May 23–29 2026 · PRs #24–#35</span></div>
+    <ul>
+      <li>docs/specs scaffold + HTML-spec convention <span class="pr">(#24)</span>; SF brand port to HQ login <span class="pr">(#25)</span>; programmatic <code>/api/knowledge/upload</code> endpoint <span class="pr">(#26)</span></li>
+      <li>Auth + roles spec (v1/v2) + canonical 5-role spine; password login + set-password page <span class="pr">(#27, #28, #29)</span></li>
+      <li>Author attribution + current-version marker <span class="pr">(#30)</span>; storage map in CLAUDE.md <span class="pr">(#31)</span></li>
+      <li>Contacts personal-CRM reframe (v1/v2) <span class="pr">(#32, #33)</span>; History UI phase 2 + field-change capture + activity feed <span class="pr">(#34)</span></li>
+      <li>Retire Sprint-4 Notion integration surface <span class="pr">(#35)</span></li>
+    </ul>
+  </div>
+
+  <div class="phase wip">
+    <div class="phase-head"><span class="badge wip">🟡 in progress</span><h3>Sprint 12 — Multi-entity, doc-linking &amp; platform infra</h3><span class="dates">May 31 2026 – ongoing · PRs #36–#44</span></div>
+    <ul>
+      <li><code>knowledge_versions</code> → user_profiles FK fix (PostgREST embedded-join) <span class="pr">(#36)</span></li>
+      <li><strong>Multi-entity junction foundation</strong> — flat M2M junctions + backfill + mirror triggers (PR 1 of the workstream) <span class="pr">(#37)</span></li>
+      <li>Living <strong>Build &amp; Storage Map</strong> doc + version-on-re-upload to HQ Knowledge <span class="pr">(#38, #42)</span>; relocation records + upload-key Settings tile <span class="pr">(#39, #40, #41)</span>; DR-status updates <span class="pr">(#43, #44)</span></li>
+      <li><em>Still open in this sprint:</em> multi-entity UI (PR 2), doc-link relation + UI (PRs 3/4), final cutover (drop legacy entity cols)</li>
+    </ul>
+  </div>
+</section>
+
+<section id="open">
+  <h2>Open · Next · Deferred</h2>
+  <p class="intro">Explicitly tracked work not yet shipped.</p>
+
+  <div class="item"><span class="tag">NEXT · S12 PR 2</span><h4>Multi-entity UI</h4>
+    <div class="body">Surface the ≥1-entity relation across the app (~30-file blast radius): entity pickers on docs/projects, OR-filtering, link-from-both-sides, app-layer ≥1 guard. Foundation (junctions + triggers) already merged in #37.</div></div>
+
+  <div class="item"><span class="tag">NEXT · S12 PR 3/4</span><h4>Doc-linking — relation + UI</h4>
+    <div class="body">Tie Knowledge docs to projects (the <code>attached</code> relation + actions, then the attach-picker UI). Vault docs allowed in pickers. Docs+projects only (not tasks) per locked decisions.</div></div>
+
+  <div class="item"><span class="tag">OPEN · S12 cutover</span><h4>Final cutover + Notion retirement</h4>
+    <div class="body">Drop legacy <code>entity</code>/<code>entity_id</code> columns + mirror triggers once UI is live. Retire the broken Sprint-4 Notion sync (<code>src/app/api/documents/actions.ts</code> writes to a non-existent table).</div></div>
+
+  <div class="item"><span class="tag">OPEN · audit row 6</span><h4>Page migration</h4>
+    <div class="body">Migrate remaining Notion-style content into workspace pages. Stretch within Sprint 12.</div></div>
+
+  <div class="item"><span class="tag">GATE</span><h4>Pre-prod gates — dev Supabase + RLS integration CI</h4>
+    <div class="body">Once HQ has external users, every change must pass dev-environment-backed CI incl. RLS integration tests. Mirrors the SF Ops Sprint 12 gate.</div></div>
+
+  <div class="callout"><strong>Cross-project port available:</strong> SF Ops now has a monthly restore-rehearsal cron (DR tier-1). Port it back to HQ; consider DR tier-2 (full restore into an ephemeral Supabase branch) for both.</div>
+</section>
+
+<section id="ideas">
+  <h2>💡 Future ideas / backlog</h2>
+  <p class="intro">The accrual zone. New ideas land here with a date stamp; promoted into the timeline when they become a committed sprint.</p>
+  <div class="item idea"><span class="tag">2026-06-02</span><h4>Granola transcript auto-ingest</h4><div class="body">Auto-import meeting transcripts into HQ Knowledge vs. keeping them external — open question carried from the audit.</div></div>
+  <div class="item idea"><span class="tag">2026-06-02</span><h4>Client project module</h4><div class="body">Stubbed in <code>docs/project-module-stub.md</code>; depends on the multi-entity foundation now landing.</div></div>
+  <div class="item idea"><span class="tag">2026-06-02</span><h4>HQ port of the restore-rehearsal cron</h4><div class="body">SF Ops shipped tier-1 DR rehearsal; bring the same monthly freshness/intact/restorable check to HQ's R2 dumps.</div></div>
+  <div class="item idea"><span class="tag">2026-06-02</span><h4>Auto-ingest Action (audit 11-followup)</h4><div class="body">Make finalized specs auto-promote from repo → HQ Knowledge on merge, version-forwarding instead of duplicating.</div></div>
+</section>
+
+<section id="modules">
+  <h2>Module inventory — what's in production today</h2>
+  <div class="module-grid">
+    <div class="module-box mature"><div class="name">Auth &amp; Roles</div><div class="desc">magic-link + password, 5-role spine</div></div>
+    <div class="module-box mature"><div class="name">Orgs / Multi-tenancy</div><div class="desc">workspace isolation, invites, members</div></div>
+    <div class="module-box mature"><div class="name">Projects</div><div class="desc">list/card/detail, log, files, phases</div></div>
+    <div class="module-box mature"><div class="name">Tasks</div><div class="desc">GTD buckets, detail page, export/print</div></div>
+    <div class="module-box mature"><div class="name">Captures</div><div class="desc">mobile/Siri webhook, voice-to-text</div></div>
+    <div class="module-box mature"><div class="name">Knowledge Hub</div><div class="desc">uploads, rendered viewer, versions, shares</div></div>
+    <div class="module-box mature"><div class="name">Workspace Pages</div><div class="desc">hierarchy, Markdown, [[wiki]] + backlinks</div></div>
+    <div class="module-box mature"><div class="name">Cost Dashboard</div><div class="desc">daily sync cron, per-entity, 90-day chart</div></div>
+    <div class="module-box mature"><div class="name">Contacts</div><div class="desc">org CRUD, personal-CRM framing</div></div>
+    <div class="module-box mature"><div class="name">HQ Agent</div><div class="desc">embedded Claude, 7 tools, chat auto-save</div></div>
+    <div class="module-box mature"><div class="name">Platform Dashboard</div><div class="desc">entity cards, insight chips, timeline</div></div>
+    <div class="module-box mature"><div class="name">Settings</div><div class="desc">profile, members, connections, upload key</div></div>
+    <div class="module-box mature"><div class="name">DR Standard</div><div class="desc">R2 daily bucket + DB-dump, 30/12/24</div></div>
+    <div class="module-box scaffolded"><div class="name">Integrations Hub</div><div class="desc">OpenAI cost sync live; GitHub pipeline ready</div></div>
+    <div class="module-box scaffolded"><div class="name">Multi-entity / Doc-linking</div><div class="desc">junctions landed; UI in progress</div></div>
+  </div>
+  <div class="legend"><span><span style="color:var(--sf-ok)">■</span> mature (production use)</span><span><span style="color:var(--sf-warn)">■</span> scaffolded / in progress</span></div>
+</section>
+
+<section id="changelog">
+  <h2>Changelog — this document</h2>
+  <p class="intro">In-doc trail of how this outline has been maintained. Git history holds the full audit trail.</p>
+  <table>
+    <thead><tr><th>Date</th><th>What changed in this doc / what shipped</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">2026-06-02</td><td>Created the living master outline. Captured the full sprint history (S1 → S11 done, S12 in progress), open multi-entity/doc-linking workstream, module inventory (213 tests / 39 migrations), and the first batch of future ideas. Corrected stale HEAD references (now 38e22e7 / PR #44).</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<footer class="doc">
+  <p>Sonja HQ master outline · living document · update in place each session (see SessionStart hook).</p>
+  <p>Companion docs: <code>cross-project_audit.html</code> (HQ ↔ Ops) · <code>sf-platform_build-storage-map_v1.html</code> (infra).</p>
+</footer>
+
+</div>
+</body>
+</html>
