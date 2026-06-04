@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './ProjectStatusBadge'
 import { ProjectCreateDialog } from './ProjectCreateDialog'
+import { ProjectEntityChips } from './ProjectEntityChips'
 import { createTask, updateTask, deleteTask } from '@/app/api/tasks/actions'
 import { archiveProject, addProjectUpdate, deleteProjectUpdate, saveProjectFile, deleteProjectFile } from '@/app/api/projects/actions'
 import { saveGitHubUrl, type GitHubCommit } from '@/app/api/integrations/actions'
@@ -37,13 +38,6 @@ interface ProjectFile {
   file_size: number | null
   content_type: string | null
   created_at: string
-}
-
-const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter',
-  sf: 'SF Solutions',
-  sfe: 'SF Enterprises',
-  personal: 'Personal',
 }
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
@@ -80,14 +74,15 @@ interface Props {
   tasks: Task[]
   updates: ProjectUpdate[]
   files: ProjectFile[]
-  entity?: Entity
+  /** Full multi-entity set for the project (from the project_entities junction). */
+  projectEntities: Entity[]
   entities: Entity[]
   initialCommits?: GitHubCommit[]
   initialGithubUrl?: string | null
   members?: OrgMember[]
 }
 
-export function ProjectDetail({ project, tasks: initialTasks, updates: initialUpdates, files: initialFiles, entity, entities, initialCommits = [], initialGithubUrl = null, members = [] }: Props) {
+export function ProjectDetail({ project, tasks: initialTasks, updates: initialUpdates, files: initialFiles, projectEntities, entities, initialCommits = [], initialGithubUrl = null, members = [] }: Props) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [tasks, setTasks] = useState(initialTasks)
@@ -257,12 +252,7 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
         <div className="flex items-start justify-between gap-4 mb-2">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-2">
-              {entity && (
-                <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                  <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entity.color ?? '#6366f1' }} />
-                  {ENTITY_LABELS[entity.type] ?? entity.name}
-                </span>
-              )}
+              <ProjectEntityChips entities={projectEntities} />
               <ProjectStatusBadge status={project.status} />
               <ProjectPriorityBadge priority={project.priority} />
               {project.phase && (

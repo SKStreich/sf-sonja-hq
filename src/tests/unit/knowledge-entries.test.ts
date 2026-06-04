@@ -94,17 +94,24 @@ describe('listEntries', () => {
     await expect(listEntries()).rejects.toThrow('No profile')
   })
 
-  it('returns rows with default filters (active, non-critique)', async () => {
+  it('returns rows with default filters (active, non-critique) and attaches entities[] from the junction', async () => {
     wireAuth()
     const rows = [
-      { id: 'e1', kind: 'doc', title: 'A', status: 'active' },
-      { id: 'e2', kind: 'note', title: 'B', status: 'active' },
+      { id: 'e1', kind: 'doc', title: 'A', status: 'active', entity: 'sf' },
+      { id: 'e2', kind: 'note', title: 'B', status: 'active', entity: 'tm' },
     ]
     const seenEq: Array<[string, any]> = []
     const seenNeq: Array<[string, any]> = []
     mockFrom.mockImplementation((table: string) => {
       if (table === 'user_profiles') {
         return makeChain({ single: { data: MOCK_PROFILE, error: null } })
+      }
+      if (table === 'knowledge_entry_entities') {
+        // Junction read for entities[] attachment.
+        return makeChain({ default: { data: [
+          { entry_id: 'e1', entity: 'sf' },
+          { entry_id: 'e2', entity: 'tm' },
+        ], error: null } })
       }
       return makeChain({
         default: { data: rows, error: null },
@@ -113,14 +120,17 @@ describe('listEntries', () => {
       })
     })
     const out = await listEntries()
-    expect(out).toEqual(rows)
+    expect(out).toEqual([
+      { ...rows[0], entities: ['sf'] },
+      { ...rows[1], entities: ['tm'] },
+    ])
     // Default: scoped to standard access + active + non-critique.
     expect(seenEq).toContainEqual(['access', 'standard'])
     expect(seenEq).toContainEqual(['status', 'active'])
     expect(seenNeq).toContainEqual(['kind', 'critique'])
   })
 
-  it('forwards explicit kind + entity + query into the query builder', async () => {
+  it('forwards kind + query, and resolves the entity filter through the junction (OR-semantics)', async () => {
     wireAuth()
     const seenEq: Array<[string, any]> = []
     let seenOr: string | undefined
@@ -128,15 +138,25 @@ describe('listEntries', () => {
       if (table === 'user_profiles') {
         return makeChain({ single: { data: MOCK_PROFILE, error: null } })
       }
+      if (table === 'knowledge_entry_entities') {
+        // The entity filter no longer hits knowledge_entries.entity directly —
+        // it looks up matching entry ids in the junction (then .in('id', …)).
+        return makeChain({
+          default: { data: [{ entry_id: 'e9', entity: 'sf' }], error: null },
+          onEq: (col, val) => seenEq.push([col, val]),
+        })
+      }
       return makeChain({
-        default: { data: [], error: null },
+        default: { data: [{ id: 'e9', entity: 'sf' }], error: null },
         onEq: (col, val) => seenEq.push([col, val]),
         onOr: (expr) => { seenOr = expr },
       })
     })
     await listEntries({ kind: 'idea', entity: 'sf', query: 'hello' })
     expect(seenEq).toContainEqual(['kind', 'idea'])
+    // Entity filter resolved via the junction, not the legacy column.
     expect(seenEq).toContainEqual(['entity', 'sf'])
+    // Non-empty junction match means the main query still runs (no early return).
     expect(seenOr).toBe('title.ilike.%hello%,body.ilike.%hello%')
   })
 

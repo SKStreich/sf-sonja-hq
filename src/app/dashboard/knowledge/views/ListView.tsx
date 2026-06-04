@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import type { KnowledgeEntry } from '@/app/api/knowledge/actions'
+import { EntityChips } from '@/components/shared/EntityChips'
 
 interface Props {
   entries: KnowledgeEntry[]
@@ -106,7 +107,7 @@ export function ListView({ entries, onDelete, pendingForwards = {} }: Props) {
                 </Link>
               </td>
               <td className="px-3 py-2.5 text-xs uppercase tracking-wide text-gray-600">{e.kind}</td>
-              <td className="px-3 py-2.5 text-xs uppercase tracking-wide text-gray-600">{e.entity}</td>
+              <td className="px-3 py-2.5"><EntityChips entities={e.entities ?? [e.entity]} variant="plain" /></td>
               <td className="px-3 py-2.5 text-xs text-gray-500">
                 {e.tags.slice(0, 3).join(', ')}
               </td>

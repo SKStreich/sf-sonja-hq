@@ -1,6 +1,7 @@
 'use client'
 import { useState, useTransition } from 'react'
 import type { VaultEntry } from '@/app/api/knowledge/vault'
+import { EntityChips } from '@/components/shared/EntityChips'
 
 const ENTITIES = ['personal', 'tm', 'sf', 'sfe'] as const
 type Entity = typeof ENTITIES[number]
@@ -108,7 +109,7 @@ export function VaultView({ entries, onDownload, onDelete, onUpload }: Props) {
                     <p className="font-medium text-gray-900 line-clamp-1">{e.title ?? '(unnamed)'}</p>
                     {e.summary && <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{e.summary}</p>}
                   </td>
-                  <td className="px-3 py-2.5 text-xs uppercase tracking-wide text-gray-600">{e.entity}</td>
+                  <td className="px-3 py-2.5"><EntityChips entities={e.entities ?? [e.entity]} variant="plain" /></td>
                   <td className="px-3 py-2.5 text-xs tabular-nums text-gray-500">{formatBytes(e.size_bytes)}</td>
                   <td className="px-3 py-2.5 text-xs text-gray-500">{new Date(e.created_at).toLocaleDateString()}</td>
                   <td className="px-3 py-2.5 text-right">

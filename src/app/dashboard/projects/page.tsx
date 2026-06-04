@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ProjectsClient } from '@/components/projects/ProjectsClient'
+import { fetchProjectEntityMap } from '@/lib/entities/multi-entity'
 
 export default async function ProjectsPage() {
   const supabase = createClient()
@@ -12,5 +13,8 @@ export default async function ProjectsPage() {
     supabase.from('entities').select('*').eq('active', true).order('name'),
   ])
 
-  return <ProjectsClient projects={projectsResult.data ?? []} entities={entitiesResult.data ?? []} />
+  const projects = projectsResult.data ?? []
+  const projectEntities = await fetchProjectEntityMap(supabase, projects.map((p: { id: string }) => p.id))
+
+  return <ProjectsClient projects={projects} entities={entitiesResult.data ?? []} projectEntities={projectEntities} />
 }

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import { ProjectDetail } from '@/components/projects/ProjectDetail'
 import { fetchGitHubCommits } from '@/app/api/integrations/actions'
+import { fetchProjectEntityMap } from '@/lib/entities/multi-entity'
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -24,6 +25,10 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
   if (!projectResult.data) notFound()
 
   const entityMap = Object.fromEntries((entitiesResult.data ?? []).map((e: any) => [e.id, e]))
+  const projectEntityMap = await fetchProjectEntityMap(supabase, [projectResult.data.id])
+  const projectEntityIds = projectEntityMap[projectResult.data.id]
+    ?? (projectResult.data.entity_id ? [projectResult.data.entity_id] : [])
+  const projectEntityRows = projectEntityIds.map((id: string) => entityMap[id]).filter(Boolean)
   const githubUrl: string | null = (projectResult.data as any).github_url ?? null
   const commits = githubUrl ? await fetchGitHubCommits(githubUrl, 20).catch(() => []) : []
 
@@ -33,7 +38,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
       tasks={tasksResult.data ?? []}
       updates={updatesResult.data ?? []}
       files={filesResult.data ?? []}
-      entity={entityMap[projectResult.data.entity_id]}
+      projectEntities={projectEntityRows}
       entities={entitiesResult.data ?? []}
       initialCommits={commits}
       initialGithubUrl={githubUrl}

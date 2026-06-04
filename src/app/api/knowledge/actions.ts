@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropicApiKey } from '@/lib/anthropic-key'
+import { fetchEntryEntityMap, fetchEntryIdsForEntity } from '@/lib/entities/multi-entity'
 
 const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
@@ -26,7 +27,10 @@ export interface KnowledgeEntry {
   id: string
   kind: Kind | 'vault'
   access: 'standard' | 'vault'
+  /** Legacy single-entity column. Kept populated during the dual-write window. */
   entity: Entity
+  /** Full multi-entity membership from the junction (≥1; defaults to [entity]). */
+  entities: Entity[]
   title: string | null
   body: string | null
   summary: string | null
@@ -76,21 +80,34 @@ export async function listEntries(opts: {
 
   if (opts.kind) q = q.eq('kind', opts.kind)
   else q = q.neq('kind', 'critique')
-  if (opts.entity) q = q.eq('entity', opts.entity)
+  // Entity filter routes through the junction (OR-semantics): an entry matches
+  // if it is tagged with the selected entity, regardless of its other entities.
+  if (opts.entity) {
+    const entryIds = await fetchEntryIdsForEntity(supabase, opts.entity)
+    if (entryIds.length === 0) return []
+    q = q.in('id', entryIds)
+  }
   if (opts.query && opts.query.trim()) {
     const needle = `%${opts.query.trim()}%`
     q = q.or(`title.ilike.${needle},body.ilike.${needle}`)
   }
   const { data, error } = await q
   if (error) throw new Error('Failed to list entries: ' + error.message)
-  return (data ?? []) as KnowledgeEntry[]
+  const rows = (data ?? []) as KnowledgeEntry[]
+  const entityMap = await fetchEntryEntityMap(supabase, rows.map(r => r.id))
+  return rows.map(r => ({
+    ...r,
+    entities: (entityMap[r.id] ?? [r.entity]) as Entity[],
+  }))
 }
 
 export async function getEntry(id: string): Promise<KnowledgeEntry | null> {
   const { supabase } = await getCtx()
   const { data } = await (supabase as any)
     .from('knowledge_entries').select('*').eq('id', id).maybeSingle()
-  return (data ?? null) as KnowledgeEntry | null
+  if (!data) return null
+  const entityMap = await fetchEntryEntityMap(supabase, [id])
+  return { ...data, entities: entityMap[id] ?? [data.entity] } as KnowledgeEntry
 }
 
 async function classify(body: string, entityHint: Entity): Promise<{

@@ -21,7 +21,8 @@ export function InsightsView({ entries }: Props) {
     let rawIdeas = 0
     entries.forEach(e => {
       if (e.type_hint) byType[e.type_hint] = (byType[e.type_hint] ?? 0) + 1
-      byEntity[e.entity] = (byEntity[e.entity] ?? 0) + 1
+      // Multi-entity: an entry counts once per entity it belongs to.
+      for (const ent of e.entities ?? [e.entity]) byEntity[ent] = (byEntity[ent] ?? 0) + 1
       if (e.kind === 'idea' && e.idea_status === 'raw') rawIdeas++
       e.tags.forEach(t => { tagCounts[t] = (tagCounts[t] ?? 0) + 1 })
     })
