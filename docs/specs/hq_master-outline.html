@@ -96,8 +96,8 @@
   <div class="updated">Last updated: 2026-06-02 · Sprint 12 in flight (multi-entity foundation shipped #37; Build &amp; Storage Map living doc tracking SF Ops DR). First edition of the living master outline.</div>
   <div class="meta">
     <span><strong>Prod:</strong> hq.streichforce.com</span>
-    <span><strong>HEAD:</strong> 38e22e7 (PR #44)</span>
-    <span><strong>Migrations:</strong> 39</span>
+    <span><strong>HEAD:</strong> bb79412 (PR #46)</span>
+    <span><strong>Migrations:</strong> 40</span>
     <span><strong>Tests:</strong> 213 passing (19 files, local)</span>
     <span><strong>Repo:</strong> SKStreich/sf-sonja-hq · ~/Projects/sf-sonja-hq</span>
   </div>
@@ -118,9 +118,9 @@
   <div class="glance">
     <div class="stat"><div class="stat-label">Sprints done</div><div class="stat-value">11</div><div class="stat-sub">S1 → S11</div></div>
     <div class="stat"><div class="stat-label">In progress</div><div class="stat-value">1</div><div class="stat-sub">S12 multi-entity</div></div>
-    <div class="stat"><div class="stat-label">Open items</div><div class="stat-value">5</div><div class="stat-sub">UI · doc-link · pages · DR · gates</div></div>
+    <div class="stat"><div class="stat-label">Open items</div><div class="stat-value">5</div><div class="stat-sub">UI · task-attach · pages · DR · gates</div></div>
     <div class="stat"><div class="stat-label">Modules live</div><div class="stat-value">14</div></div>
-    <div class="stat"><div class="stat-label">Tests green</div><div class="stat-value">213</div><div class="stat-sub">39 migrations</div></div>
+    <div class="stat"><div class="stat-label">Tests green</div><div class="stat-value">227</div><div class="stat-sub">40 migrations</div></div>
   </div>
   <p class="intro" style="margin-top:14px">HQ is the master source of truth for the platform (Notion is being fully retired). It shipped to production in late April and has been hardened + extended continuously since. Current focus: the multi-entity + doc-linking workstream (a doc/project can belong to ≥1 entity, and Knowledge docs can be tied to projects).</p>
 </section>
@@ -203,12 +203,13 @@
   </div>
 
   <div class="phase wip">
-    <div class="phase-head"><span class="badge wip">🟡 in progress</span><h3>Sprint 12 — Multi-entity, doc-linking &amp; platform infra</h3><span class="dates">May 31 2026 – ongoing · PRs #36–#44</span></div>
+    <div class="phase-head"><span class="badge wip">🟡 in progress</span><h3>Sprint 12 — Multi-entity, doc-linking &amp; platform infra</h3><span class="dates">May 31 2026 – ongoing · PRs #36–#46</span></div>
     <ul>
       <li><code>knowledge_versions</code> → user_profiles FK fix (PostgREST embedded-join) <span class="pr">(#36)</span></li>
       <li><strong>Multi-entity junction foundation</strong> — flat M2M junctions + backfill + mirror triggers (PR 1 of the workstream) <span class="pr">(#37)</span></li>
+      <li><strong>Doc-linking — attach Knowledge docs to projects</strong> — <code>attached</code> relation + actions + Linked-tab attach picker + reverse "Linked to" on the doc. Closed the gap from the Loadstar/SF Solutions engagement (specs had to be dumped into Notes/Files). Projects-only slice; vault docs allowed (OQ6) <span class="pr">(#46)</span></li>
       <li>Living <strong>Build &amp; Storage Map</strong> doc + version-on-re-upload to HQ Knowledge <span class="pr">(#38, #42)</span>; relocation records + upload-key Settings tile <span class="pr">(#39, #40, #41)</span>; DR-status updates <span class="pr">(#43, #44)</span></li>
-      <li><em>Still open in this sprint:</em> multi-entity UI (PR 2), doc-link relation + UI (PRs 3/4), final cutover (drop legacy entity cols)</li>
+      <li><em>Still open in this sprint:</em> multi-entity UI (PR 2), task-side doc-attach + final cutover (drop legacy entity cols)</li>
     </ul>
   </div>
 </section>
@@ -220,8 +221,11 @@
   <div class="item"><span class="tag">NEXT · S12 PR 2</span><h4>Multi-entity UI</h4>
     <div class="body">Surface the ≥1-entity relation across the app (~30-file blast radius): entity pickers on docs/projects, OR-filtering, link-from-both-sides, app-layer ≥1 guard. Foundation (junctions + triggers) already merged in #37.</div></div>
 
-  <div class="item"><span class="tag">NEXT · S12 PR 3/4</span><h4>Doc-linking — relation + UI</h4>
-    <div class="body">Tie Knowledge docs to projects (the <code>attached</code> relation + actions, then the attach-picker UI). Vault docs allowed in pickers. Docs+projects only (not tasks) per locked decisions.</div></div>
+  <div class="item"><span class="tag">✅ DONE · S12 #46</span><h4>Doc-linking — attach docs to projects</h4>
+    <div class="body">Shipped 2026-06-04. The <code>attached</code> relation + 5 server actions + ProjectDetail "Attached documents" attach picker/detach + reverse "Linked to" on the doc. Vault docs allowed (OQ6). Verified end-to-end on the preview deploy. <em>Task-side attach (TaskDetailPanel) deferred</em> — see below.</div></div>
+
+  <div class="item"><span class="tag">DEFERRED · doc-link</span><h4>Task-side doc-attach</h4>
+    <div class="body">Extend the attach picker to the task detail panel (TaskDetailPanel). The <code>knowledge_links.to_task</code> substrate already exists; only the UI + a task-scoped action are missing.</div></div>
 
   <div class="item"><span class="tag">OPEN · S12 cutover</span><h4>Final cutover + Notion retirement</h4>
     <div class="body">Drop legacy <code>entity</code>/<code>entity_id</code> columns + mirror triggers once UI is live. Retire the broken Sprint-4 Notion sync (<code>src/app/api/documents/actions.ts</code> writes to a non-existent table).</div></div>
@@ -272,6 +276,7 @@
   <table>
     <thead><tr><th>Date</th><th>What changed in this doc / what shipped</th></tr></thead>
     <tbody>
+      <tr><td class="mono">2026-06-04</td><td>Doc-linking shipped <span class="pr">(#46)</span> — attach Knowledge docs to projects (<code>attached</code> relation + actions + Linked-tab picker/detach + reverse "Linked to"), closing the gap from the Loadstar/SF Solutions engagement. Verified end-to-end on the preview deploy. Moved doc-linking open→done; added task-side attach as deferred. Updated HEAD (bb79412 / #46), migrations (40), tests (227).</td></tr>
       <tr><td class="mono">2026-06-02</td><td>Created the living master outline. Captured the full sprint history (S1 → S11 done, S12 in progress), open multi-entity/doc-linking workstream, module inventory (213 tests / 39 migrations), and the first batch of future ideas. Corrected stale HEAD references (now 38e22e7 / PR #44).</td></tr>
     </tbody>
   </table>
