@@ -19,6 +19,7 @@ import {
 } from '@/app/api/knowledge/workspace'
 import {
   searchLinkTargets, resolveMentionsForRender, getEntryBacklinks,
+  getEntryAttachments, type EntryAttachment,
   type LinkTarget, type LinkTargetKind, type Backlink,
 } from '@/app/api/knowledge/links'
 import {
@@ -247,6 +248,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
               <span className="font-bold uppercase tracking-widest text-gray-400">Summary: </span>{entry.summary}
             </div>
           )}
+          <EntryAttachments entryId={entry.id} reloadKey={reloadKey} />
         </div>
       )}
 
@@ -1840,6 +1842,44 @@ function WorkspaceSiblings({ entryId }: { entryId: string }) {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+/**
+ * "Linked to" — the projects this doc has been deliberately attached to (from
+ * a project's Linked tab). Read-only here; detach lives on the project side.
+ * Renders for any entry kind (a plain doc is the common attach target).
+ */
+function EntryAttachments({ entryId, reloadKey }: { entryId: string; reloadKey: number }) {
+  const [links, setLinks] = useState<EntryAttachment[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getEntryAttachments(entryId)
+      .then(a => { if (!cancelled) setLinks(a) })
+      .catch(() => { if (!cancelled) setLinks([]) })
+    return () => { cancelled = true }
+  }, [entryId, reloadKey])
+
+  if (!links || links.length === 0) return null
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">
+        Linked to <span className="text-gray-400">({links.length})</span>
+      </h3>
+      <ul className="divide-y divide-gray-100">
+        {links.map(l => (
+          <li key={l.linkId} className="py-2">
+            <Link href={`/dashboard/projects/${l.projectId}`}
+              className="flex items-center gap-2 text-sm text-gray-900 hover:text-indigo-700">
+              <span className="text-gray-400">📁</span>
+              <span className="flex-1 truncate">{l.name}</span>
+              <span className="text-[10px] uppercase tracking-wider text-gray-400">project</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }
