@@ -1,19 +1,13 @@
 import Link from 'next/link'
 import type { Database } from '@/types/supabase'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './ProjectStatusBadge'
+import { ProjectEntityChips } from './ProjectEntityChips'
 
 type Project = Database['public']['Tables']['projects']['Row'] & {
   next_action_type?: string | null
   next_action_due?: string | null
 }
 type Entity = Database['public']['Tables']['entities']['Row']
-
-const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter',
-  sf: 'SF Solutions',
-  sfe: 'SF Enterprises',
-  personal: 'Personal',
-}
 
 const ACTION_TYPE_LABELS: Record<string, string> = {
   meeting: 'Meeting', call: 'Call', email: 'Email', create_file: 'Create File',
@@ -22,10 +16,10 @@ const ACTION_TYPE_LABELS: Record<string, string> = {
 
 interface ProjectCardProps {
   project: Project
-  entity?: Entity
+  entities?: Entity[]
 }
 
-export function ProjectCard({ project, entity }: ProjectCardProps) {
+export function ProjectCard({ project, entities = [] }: ProjectCardProps) {
   const isOverdue = project.due_date && new Date(project.due_date + 'T23:59:59') < new Date() && project.status !== 'complete'
   const nextActionOverdue = (project as any).next_action_due &&
     new Date((project as any).next_action_due + 'T23:59:59') < new Date() &&
@@ -66,12 +60,7 @@ export function ProjectCard({ project, entity }: ProjectCardProps) {
       {/* Footer */}
       <div className="flex items-center justify-between gap-2 mt-auto pt-1">
         <div className="flex items-center gap-2">
-          {entity && (
-            <span className="flex items-center gap-1 text-xs text-gray-500">
-              <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entity.color ?? '#6366f1' }} />
-              {ENTITY_LABELS[entity.type] ?? entity.name}
-            </span>
-          )}
+          <ProjectEntityChips entities={entities} />
           <ProjectPriorityBadge priority={project.priority} />
         </div>
         {project.due_date && (

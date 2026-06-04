@@ -11,6 +11,7 @@
  */
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
+import { fetchEntryEntityMap } from '@/lib/entities/multi-entity'
 
 const BUCKET = 'vault'
 const MAX_BYTES = 50 * 1024 * 1024
@@ -22,7 +23,10 @@ export interface VaultEntry {
   title: string | null
   mime_type: string | null
   size_bytes: number | null
+  /** Legacy single-entity column, kept populated during the dual-write window. */
   entity: Entity
+  /** Full multi-entity membership from the junction (≥1; defaults to [entity]). */
+  entities: Entity[]
   tags: string[]
   summary: string | null
   created_at: string
@@ -48,7 +52,12 @@ export async function listVaultEntries(): Promise<VaultEntry[]> {
     .eq('status', 'active')
     .order('created_at', { ascending: false })
   if (error) throw new Error('Failed to list vault: ' + error.message)
-  return (data ?? []) as VaultEntry[]
+  const rows = (data ?? []) as VaultEntry[]
+  const entityMap = await fetchEntryEntityMap(supabase, rows.map(r => r.id))
+  return rows.map(r => ({
+    ...r,
+    entities: (entityMap[r.id] ?? [r.entity]) as Entity[],
+  }))
 }
 
 export async function uploadVaultFile(formData: FormData): Promise<{ id: string }> {

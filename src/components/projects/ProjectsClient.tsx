@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { ProjectCard } from './ProjectCard'
 import { ProjectCreateDialog } from './ProjectCreateDialog'
+import { ProjectEntityChips } from './ProjectEntityChips'
 import { TimelineView } from '@/components/shared/TimelineView'
 import type { Database, ProjectStatus, ProjectPriority, EntityType } from '@/types/supabase'
 
@@ -14,9 +15,11 @@ const STATUS_LABELS: Record<ProjectStatus, string> = { planning: 'Planning', act
 interface Props {
   projects: Project[]
   entities: Entity[]
+  /** project_id → entity_id[] from the project_entities junction (multi-entity). */
+  projectEntities?: Record<string, string[]>
 }
 
-export function ProjectsClient({ projects, entities }: Props) {
+export function ProjectsClient({ projects, entities, projectEntities = {} }: Props) {
   const [view, setView] = useState<'card' | 'list' | 'timeline'>('card')
   const [filterEntity, setFilterEntity] = useState<EntityType | 'all'>('all')
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all')
@@ -25,8 +28,16 @@ export function ProjectsClient({ projects, entities }: Props) {
 
   const entityMap = Object.fromEntries(entities.map(e => [e.id, e]))
 
+  // Resolve a project's full entity set from the junction, falling back to the
+  // legacy single entity_id during the dual-write window.
+  const entitiesOf = (p: Project): Entity[] => {
+    const ids = projectEntities[p.id] ?? (p.entity_id ? [p.entity_id] : [])
+    return ids.map(id => entityMap[id]).filter(Boolean) as Entity[]
+  }
+
   const filtered = projects.filter(p => {
-    if (filterEntity !== 'all' && entityMap[p.entity_id]?.type !== filterEntity) return false
+    // OR-semantics: a project matches the entity filter if ANY of its entities matches.
+    if (filterEntity !== 'all' && !entitiesOf(p).some(e => e.type === filterEntity)) return false
     if (filterStatus !== 'all' && p.status !== filterStatus) return false
     if (filterPriority !== 'all' && p.priority !== filterPriority) return false
     return true
@@ -120,7 +131,7 @@ export function ProjectsClient({ projects, entities }: Props) {
         {/* Card view */}
         {view === 'card' && filtered.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(p => <ProjectCard key={p.id} project={p} entity={entityMap[p.entity_id]} />)}
+            {filtered.map(p => <ProjectCard key={p.id} project={p} entities={entitiesOf(p)} />)}
           </div>
         )}
 
@@ -140,19 +151,13 @@ export function ProjectsClient({ projects, entities }: Props) {
               </thead>
               <tbody>
                 {filtered.map(p => {
-                  const entity = entityMap[p.entity_id]
                   const isOverdue = p.due_date && new Date(p.due_date) < new Date() && p.status !== 'complete'
                   return (
                     <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors cursor-pointer"
                       onClick={() => window.location.href = `/dashboard/projects/${p.id}`}>
                       <td className="px-4 py-3 text-gray-900 font-medium">{p.name}</td>
                       <td className="px-4 py-3 hidden sm:table-cell">
-                        {entity && (
-                          <span className="flex items-center gap-1.5 text-gray-500 text-xs">
-                            <span className="inline-block w-2 h-2 rounded-full" style={{ backgroundColor: entity.color ?? undefined }} />
-                            {ENTITY_LABELS[entity.type] ?? entity.name}
-                          </span>
-                        )}
+                        <ProjectEntityChips entities={entitiesOf(p)} />
                       </td>
                       <td className="px-4 py-3">
                         <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -182,15 +187,19 @@ export function ProjectsClient({ projects, entities }: Props) {
         {/* Timeline view */}
         {view === 'timeline' && filtered.length > 0 && (
           <TimelineView
-            items={filtered.map(p => ({
-              id: p.id,
-              name: p.name,
-              startDate: p.created_at ? p.created_at.slice(0, 10) : null,
-              endDate: p.due_date ?? null,
-              entityType: entityMap[p.entity_id]?.type,
-              entityName: ENTITY_LABELS[entityMap[p.entity_id]?.type] ?? entityMap[p.entity_id]?.name,
-              href: `/dashboard/projects/${p.id}`,
-            }))}
+            items={filtered.map(p => {
+              // Timeline rows carry a single colour/label; use the primary (first) entity.
+              const primary = entitiesOf(p)[0]
+              return {
+                id: p.id,
+                name: p.name,
+                startDate: p.created_at ? p.created_at.slice(0, 10) : null,
+                endDate: p.due_date ?? null,
+                entityType: primary?.type,
+                entityName: primary ? (ENTITY_LABELS[primary.type] ?? primary.name) : undefined,
+                href: `/dashboard/projects/${p.id}`,
+              }
+            })}
             emptyLabel="No projects to display"
           />
         )}

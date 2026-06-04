@@ -1,6 +1,7 @@
 'use client'
 import Link from 'next/link'
 import type { KnowledgeEntry } from '@/app/api/knowledge/actions'
+import { EntityChips } from '@/components/shared/EntityChips'
 
 const KIND_STYLES: Record<string, string> = {
   idea: 'bg-amber-100 text-amber-800',
@@ -10,14 +11,6 @@ const KIND_STYLES: Record<string, string> = {
   critique: 'bg-indigo-100 text-indigo-800',
   workspace: 'bg-teal-100 text-teal-800',
   vault: 'bg-red-100 text-red-800',
-}
-
-const ENTITY_STYLES: Record<string, string> = {
-  tm: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  sf: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  sfe: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
-  sfc: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  personal: 'bg-gray-50 text-gray-700 border-gray-200',
 }
 
 interface Props {
@@ -50,9 +43,7 @@ export function CardView({ entries, onDelete, onChat, pendingForwards = {} }: Pr
             <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_STYLES[e.kind] ?? KIND_STYLES.note}`}>
               {e.kind}
             </span>
-            <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${ENTITY_STYLES[e.entity] ?? ENTITY_STYLES.personal}`}>
-              {e.entity}
-            </span>
+            <EntityChips entities={e.entities ?? [e.entity]} />
             {e.idea_status && e.idea_status !== 'raw' && (
               <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">{e.idea_status}</span>
             )}
