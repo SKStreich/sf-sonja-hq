@@ -360,3 +360,160 @@ export async function resolveMentionsForRender(body: string): Promise<Record<str
   })
   return out
 }
+
+// ── Deliberate attachments (relation='attached') ───────────────────────────
+//
+// Distinct from 'mentions' (incidental [[Project: Name]] references that the
+// body scanner writes). An *attachment* is the explicit "pin this doc to this
+// project" action taken from a project's Linked tab — the thing that was
+// missing during the Loadstar / SF Solutions engagement. Vault docs ARE
+// allowed as attach targets (locked decision OQ6); the UI badges them.
+
+export interface AttachTarget {
+  id: string
+  title: string
+  kind: string
+  entity: string
+  vault: boolean
+}
+
+/**
+ * Up to 8 attachable knowledge entries for the project's attach picker, newest
+ * first. Empty `query` returns recent entries. Unlike `searchLinkTargets`,
+ * this INCLUDES vault entries (OQ6) — each is flagged so the UI can badge it.
+ */
+export async function searchAttachableEntries(query: string): Promise<AttachTarget[]> {
+  const { supabase, org_id } = await getCtx()
+  const q = query.trim()
+  let qb = (supabase as any)
+    .from('knowledge_entries')
+    .select('id, title, kind, entity, access')
+    .eq('org_id', org_id)
+    .eq('status', 'active')
+    .not('title', 'is', null)
+    .order('updated_at', { ascending: false })
+    .limit(8)
+  if (q) qb = qb.ilike('title', `%${q}%`)
+  const { data } = await qb
+  return (data ?? []).map((e: any) => ({
+    id: e.id, title: e.title, kind: e.kind, entity: e.entity,
+    vault: e.access === 'vault',
+  }))
+}
+
+/**
+ * Pins knowledge entry `entryId` to project `projectId` (relation='attached').
+ * Both must be in the caller's org. A duplicate attach (partial-unique on
+ * from_entry/to_project/relation) is swallowed as a safe no-op.
+ */
+export async function attachEntryToProject(entryId: string, projectId: string): Promise<void> {
+  const { supabase, user, org_id } = await getCtx()
+
+  const { data: entry } = await (supabase as any)
+    .from('knowledge_entries')
+    .select('id, org_id')
+    .eq('id', entryId)
+    .maybeSingle()
+  if (!entry) throw new Error('Entry not found')
+  if (entry.org_id !== org_id) throw new Error('Entry in different org')
+
+  const { data: project } = await (supabase as any)
+    .from('projects')
+    .select('id, org_id')
+    .eq('id', projectId)
+    .maybeSingle()
+  if (!project) throw new Error('Project not found')
+  if (project.org_id !== org_id) throw new Error('Project in different org')
+
+  const { error } = await (supabase as any).from('knowledge_links').insert({
+    from_entry: entryId, to_entry: null, to_project: projectId, to_task: null,
+    relation: 'attached', created_by: user.id,
+  })
+  // 23505 = unique_violation — already attached. Safe no-op.
+  if (error && error.code !== '23505') {
+    throw new Error('Failed to attach document: ' + error.message)
+  }
+}
+
+/**
+ * Removes an attachment by its knowledge_links row id. The `relation` guard
+ * keeps this from ever deleting a 'mentions' or other link. RLS (kl_delete)
+ * enforces that the caller owns the from_entry.
+ */
+export async function detachEntry(linkId: string): Promise<void> {
+  const { supabase } = await getCtx()
+  const { error } = await (supabase as any)
+    .from('knowledge_links')
+    .delete()
+    .eq('id', linkId)
+    .eq('relation', 'attached')
+  if (error) throw new Error('Failed to detach document: ' + error.message)
+}
+
+export interface ProjectAttachment {
+  linkId: string             // knowledge_links row id (for detach)
+  id: string                 // from_entry id (a knowledge_entries row)
+  title: string | null
+  kind: string
+  entity: string
+  vault: boolean
+  updated_at: string
+}
+
+/**
+ * Knowledge entries deliberately attached to `projectId`. Org-scoped, active
+ * entries only. Vault entries ARE returned (OQ6) and flagged.
+ */
+export async function getProjectAttachments(projectId: string): Promise<ProjectAttachment[]> {
+  const { supabase, org_id } = await getCtx()
+  const { data, error } = await (supabase as any)
+    .from('knowledge_links')
+    .select('id, from_entry, knowledge_entries!knowledge_links_from_entry_fkey(id, title, kind, entity, updated_at, org_id, access, status)')
+    .eq('to_project', projectId)
+    .eq('relation', 'attached')
+  if (error) throw new Error('Failed to load attachments: ' + error.message)
+  const out: ProjectAttachment[] = []
+  ;(data ?? []).forEach((row: any) => {
+    const e = row.knowledge_entries
+    if (!e) return
+    if (e.org_id !== org_id) return
+    if (e.status !== 'active') return
+    out.push({
+      linkId: row.id, id: e.id, title: e.title, kind: e.kind,
+      entity: e.entity, vault: e.access === 'vault', updated_at: e.updated_at,
+    })
+  })
+  out.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+  return out
+}
+
+export interface EntryAttachment {
+  linkId: string
+  projectId: string
+  name: string
+}
+
+/**
+ * The reverse direction: projects that entry `entryId` is attached to, for the
+ * "Linked to" block on the doc's own page. Org-scoped, non-archived projects.
+ */
+export async function getEntryAttachments(entryId: string): Promise<EntryAttachment[]> {
+  const { supabase, org_id } = await getCtx()
+  const { data, error } = await (supabase as any)
+    .from('knowledge_links')
+    .select('id, to_project, projects:to_project(id, name, org_id, archived)')
+    .eq('from_entry', entryId)
+    .eq('relation', 'attached')
+    .not('to_project', 'is', null)
+  if (error) throw new Error('Failed to load entry attachments: ' + error.message)
+  const out: EntryAttachment[] = []
+  ;(data ?? []).forEach((row: any) => {
+    const p = row.projects
+    if (!p) return
+    if (p.org_id !== org_id) return
+    if (p.archived) return
+    out.push({ linkId: row.id, projectId: p.id, name: p.name })
+  })
+  out.sort((a, b) => a.name.localeCompare(b.name))
+  return out
+}

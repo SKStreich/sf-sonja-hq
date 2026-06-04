@@ -7,7 +7,11 @@ import { ProjectCreateDialog } from './ProjectCreateDialog'
 import { createTask, updateTask, deleteTask } from '@/app/api/tasks/actions'
 import { archiveProject, addProjectUpdate, deleteProjectUpdate, saveProjectFile, deleteProjectFile } from '@/app/api/projects/actions'
 import { saveGitHubUrl, type GitHubCommit } from '@/app/api/integrations/actions'
-import { getProjectBacklinks, type Backlink } from '@/app/api/knowledge/links'
+import {
+  getProjectBacklinks, type Backlink,
+  searchAttachableEntries, attachEntryToProject, detachEntry, getProjectAttachments,
+  type AttachTarget, type ProjectAttachment,
+} from '@/app/api/knowledge/links'
 import { createClient } from '@/lib/supabase/client'
 import type { Database, TaskStatus } from '@/types/supabase'
 
@@ -94,12 +98,16 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
   const [updateType, setUpdateType] = useState('note')
   const [activeTab, setActiveTab] = useState<'tasks' | 'log' | 'files' | 'github' | 'linked'>('tasks')
   const [backlinks, setBacklinks] = useState<Backlink[] | null>(null)
+  const [attachments, setAttachments] = useState<ProjectAttachment[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
     getProjectBacklinks(project.id)
       .then(b => { if (!cancelled) setBacklinks(b) })
       .catch(() => { if (!cancelled) setBacklinks([]) })
+    getProjectAttachments(project.id)
+      .then(a => { if (!cancelled) setAttachments(a) })
+      .catch(() => { if (!cancelled) setAttachments([]) })
     return () => { cancelled = true }
   }, [project.id])
   const [isPending, startTransition] = useTransition()
@@ -331,7 +339,10 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
             GitHub {commits.length > 0 && <span className="ml-1 text-gray-400">{commits.length}</span>}
           </button>
           <button className={tabCls('linked')} onClick={() => setActiveTab('linked')}>
-            Linked {backlinks && backlinks.length > 0 && <span className="ml-1 text-gray-400">{backlinks.length}</span>}
+            Linked {(() => {
+              const n = (attachments?.length ?? 0) + (backlinks?.length ?? 0)
+              return n > 0 ? <span className="ml-1 text-gray-400">{n}</span> : null
+            })()}
           </button>
         </div>
 
@@ -586,33 +597,157 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
 
         {/* ── LINKED TAB ── */}
         {activeTab === 'linked' && (
-          <div>
-            {backlinks === null ? (
-              <p className="text-sm text-gray-400">Loading…</p>
-            ) : backlinks.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-12">
-                <p className="text-sm text-gray-500">No workspace pages mention this project yet</p>
-                <p className="mt-1 text-xs text-gray-400">Inside a workspace page, type <code className="rounded bg-gray-100 px-1">[[Project: {project.name}]]</code> to create a backlink.</p>
-              </div>
-            ) : (
-              <ul className="divide-y divide-gray-100">
-                {backlinks.map(b => (
-                  <li key={b.id} className="py-2">
-                    <Link href={`/dashboard/knowledge/${b.id}`}
-                      className="flex items-center gap-2 text-sm text-gray-900 hover:text-indigo-700">
-                      <span className="text-gray-400">{b.kind === 'workspace' ? '📄' : '🔗'}</span>
-                      <span className="flex-1 truncate">{b.title || 'Untitled'}</span>
-                      <span className="text-[10px] uppercase tracking-wider text-gray-400">{b.kind} · {b.entity}</span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
+          <div className="space-y-8">
+            {/* Attached documents — deliberate pins, managed here */}
+            <AttachDocsBlock
+              projectId={project.id}
+              attachments={attachments}
+              setAttachments={setAttachments}
+            />
+
+            {/* Mentioned by — incidental [[Project: …]] backlinks from workspace pages */}
+            <div>
+              <p className={SECTION_LABEL}>Mentioned by</p>
+              {backlinks === null ? (
+                <p className="text-sm text-gray-400">Loading…</p>
+              ) : backlinks.length === 0 ? (
+                <p className="text-xs text-gray-400">
+                  No workspace pages mention this project yet. Inside a workspace page, type{' '}
+                  <code className="rounded bg-gray-100 px-1">[[Project: {project.name}]]</code> to create a backlink.
+                </p>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {backlinks.map(b => (
+                    <li key={b.id} className="py-2">
+                      <Link href={`/dashboard/knowledge/${b.id}`}
+                        className="flex items-center gap-2 text-sm text-gray-900 hover:text-indigo-700">
+                        <span className="text-gray-400">{b.kind === 'workspace' ? '📄' : '🔗'}</span>
+                        <span className="flex-1 truncate">{b.title || 'Untitled'}</span>
+                        <span className="text-[10px] uppercase tracking-wider text-gray-400">{b.kind} · {b.entity}</span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
       </div>
 
       <ProjectCreateDialog open={editOpen} onClose={() => setEditOpen(false)} entities={entities} project={project} />
     </>
+  )
+}
+
+/**
+ * "Attached documents" — deliberately pin knowledge docs to this project (and
+ * unpin them). Distinct from the "Mentioned by" backlinks, which come from
+ * incidental [[Project: …]] references inside workspace pages. Vault docs are
+ * allowed as attach targets and badged.
+ */
+function AttachDocsBlock({ projectId, attachments, setAttachments }: {
+  projectId: string
+  attachments: ProjectAttachment[] | null
+  setAttachments: React.Dispatch<React.SetStateAction<ProjectAttachment[] | null>>
+}) {
+  const [picking, setPicking] = useState(false)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<AttachTarget[]>([])
+  const [busy, startBusy] = useTransition()
+
+  // Debounced search while the picker is open. Empty query returns recent docs.
+  useEffect(() => {
+    if (!picking) return
+    const t = setTimeout(() => {
+      searchAttachableEntries(query).then(setResults).catch(() => setResults([]))
+    }, 250)
+    return () => clearTimeout(t)
+  }, [query, picking])
+
+  const attachedIds = new Set((attachments ?? []).map(a => a.id))
+
+  const attach = (t: AttachTarget) => {
+    if (attachedIds.has(t.id)) { setPicking(false); setQuery('') ; return }
+    startBusy(async () => {
+      await attachEntryToProject(t.id, projectId)
+      const fresh = await getProjectAttachments(projectId)
+      setAttachments(fresh)
+      setQuery(''); setResults([]); setPicking(false)
+    })
+  }
+
+  const detach = (linkId: string) => {
+    setAttachments(a => a?.filter(x => x.linkId !== linkId) ?? null)
+    startBusy(async () => { await detachEntry(linkId) })
+  }
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <p className={SECTION_LABEL + ' mb-0'}>Attached documents</p>
+        {!picking && (
+          <button onClick={() => { setPicking(true); setResults([]) }}
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-500">
+            + Attach a document
+          </button>
+        )}
+      </div>
+
+      {picking && (
+        <div className="mb-4 rounded-lg border border-gray-200 bg-white p-2">
+          <div className="flex items-center gap-2">
+            <input autoFocus value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="Search knowledge docs by title…"
+              onKeyDown={e => { if (e.key === 'Escape') { setPicking(false); setQuery('') } }}
+              className="flex-1 rounded-md border border-gray-200 px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-indigo-400" />
+            <button onClick={() => { setPicking(false); setQuery('') }}
+              className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+          </div>
+          <ul className="mt-2 max-h-64 overflow-y-auto">
+            {results.length === 0 ? (
+              <li className="px-2 py-2 text-xs text-gray-400">No matching documents</li>
+            ) : results.map(r => {
+              const already = attachedIds.has(r.id)
+              return (
+                <li key={r.id}>
+                  <button onClick={() => attach(r)} disabled={busy || already}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-50">
+                    <span className="flex-1 truncate text-gray-900">{r.title}</span>
+                    {r.vault && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700">Vault</span>}
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">{r.kind} · {r.entity}</span>
+                    {already && <span className="text-[10px] text-gray-400">attached</span>}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
+      {attachments === null ? (
+        <p className="text-sm text-gray-400">Loading…</p>
+      ) : attachments.length === 0 ? (
+        <p className="text-xs text-gray-400">No documents attached yet — use “+ Attach a document” to pin a knowledge doc to this project.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {attachments.map(a => (
+            <li key={a.linkId} className="group flex items-center gap-2 py-2">
+              <Link href={`/dashboard/knowledge/${a.id}`}
+                className="flex flex-1 items-center gap-2 truncate text-sm text-gray-900 hover:text-indigo-700">
+                <span className="text-gray-400">📌</span>
+                <span className="flex-1 truncate">{a.title || 'Untitled'}</span>
+                {a.vault && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700">Vault</span>}
+                <span className="text-[10px] uppercase tracking-wider text-gray-400">{a.kind} · {a.entity}</span>
+              </Link>
+              <button onClick={() => detach(a.linkId)} disabled={busy}
+                title="Detach"
+                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-base leading-none shrink-0">
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
