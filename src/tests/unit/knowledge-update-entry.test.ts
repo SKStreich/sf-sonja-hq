@@ -26,7 +26,7 @@ function makeChain(opts: {
   onUpdate?: (p: any) => void
 } = {}) {
   const chain: any = {}
-  ;['select', 'eq', 'neq', 'in', 'order', 'limit', 'delete', 'or', 'gte'].forEach(m => {
+  ;['select', 'eq', 'neq', 'in', 'order', 'limit', 'delete', 'or', 'gte', 'upsert', 'not'].forEach(m => {
     chain[m] = vi.fn(() => chain)
   })
   chain.insert = vi.fn((p: any) => { opts.onInsert?.(p); return chain })

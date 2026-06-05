@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropicApiKey } from '@/lib/anthropic-key'
-import { fetchEntryEntityMap, fetchEntryIdsForEntity } from '@/lib/entities/multi-entity'
+import { fetchEntryEntityMap, fetchEntryIdsForEntity, setEntryEntities, sortEntitySlugs } from '@/lib/entities/multi-entity'
 
 const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
@@ -169,7 +169,10 @@ ${body.slice(0, 4000)}`,
 
 export async function createEntry(input: {
   body: string
-  entity: Entity
+  /** Legacy single-entity input (back-compat). Prefer `entities`. */
+  entity?: Entity
+  /** Multi-entity set. ≥1 required (combined with `entity`). */
+  entities?: Entity[]
   kind?: Kind
   title?: string
   type_hint?: TypeHint
@@ -178,13 +181,19 @@ export async function createEntry(input: {
   const { supabase, user, org_id } = await getCtx()
   const body = input.body?.trim()
   if (!body) throw new Error('Body is required')
-  if (!(ENTITIES_CONST as readonly string[]).includes(input.entity)) throw new Error('Invalid entity')
+
+  // Combine single + set inputs, validate, and pick a primary for the legacy col.
+  const requested = input.entities ?? (input.entity ? [input.entity] : [])
+  if (requested.length === 0) throw new Error('At least one entity is required')
+  if (!requested.every(e => (ENTITIES_CONST as readonly string[]).includes(e))) throw new Error('Invalid entity')
+  const entitySet = sortEntitySlugs(requested) as Entity[]
+  const primary = entitySet[0]
 
   const kind: Kind = input.kind ?? 'note'
 
   let classified = { title: '', type_hint: 'strategy' as TypeHint, tags: [] as string[], confidence: 0.5, summary: null as string | null }
   if (!input.title || !input.type_hint) {
-    classified = await classify(body, input.entity)
+    classified = await classify(body, primary)
   }
 
   const title = input.title?.trim() || classified.title
@@ -200,7 +209,7 @@ export async function createEntry(input: {
     .insert({
       org_id, user_id: user.id,
       kind, access: 'standard',
-      entity: input.entity,
+      entity: primary, // legacy column = primary, kept during dual-write window
       title, body, summary,
       type_hint, idea_status,
       tags, confidence,
@@ -209,6 +218,7 @@ export async function createEntry(input: {
     .select('id')
     .single()
   if (error) throw new Error('Failed to create entry: ' + error.message)
+  await setEntryEntities(supabase, data.id as string, org_id, entitySet)
   revalidatePath('/dashboard/knowledge')
   return { id: data.id as string }
 }
@@ -220,12 +230,24 @@ export async function updateEntry(id: string, patch: {
   type_hint?: TypeHint | null
   idea_status?: IdeaStatus | null
   tags?: string[]
+  /** Legacy single-entity input (back-compat). Prefer `entities`. */
   entity?: Entity
+  /** Multi-entity set. When provided, reconciles the junction (≥1 required). */
+  entities?: Entity[]
   status?: 'active' | 'archived'
 }) {
-  const { supabase, user } = await getCtx()
+  const { supabase, user, org_id } = await getCtx()
   const current = await getEntry(id)
   if (!current) throw new Error('Entry not found')
+
+  // Resolve a desired entity set from either input. primary feeds the legacy col.
+  let entitySet: Entity[] | undefined
+  if (patch.entities !== undefined) entitySet = sortEntitySlugs(patch.entities) as Entity[]
+  else if (patch.entity !== undefined) entitySet = [patch.entity]
+  if (entitySet !== undefined && entitySet.length === 0) throw new Error('At least one entity is required')
+  if (entitySet && !entitySet.every(e => (ENTITIES_CONST as readonly string[]).includes(e))) throw new Error('Invalid entity')
+  const entitiesChanged =
+    entitySet !== undefined && JSON.stringify(entitySet) !== JSON.stringify(sortEntitySlugs(current.entities))
 
   const changed = (field: keyof typeof patch, cur: any) =>
     patch[field] !== undefined && JSON.stringify(patch[field]) !== JSON.stringify(cur)
@@ -234,7 +256,7 @@ export async function updateEntry(id: string, patch: {
     changed('title', current.title) ||
     changed('body', current.body) ||
     changed('kind', current.kind) ||
-    changed('entity', current.entity) ||
+    entitiesChanged ||
     changed('tags', current.tags) ||
     changed('type_hint', current.type_hint) ||
     changed('idea_status', current.idea_status)
@@ -266,12 +288,14 @@ export async function updateEntry(id: string, patch: {
   }
   if (patch.idea_status !== undefined) update.idea_status = patch.idea_status
   if (patch.tags !== undefined) update.tags = patch.tags
-  if (patch.entity !== undefined) update.entity = patch.entity
+  // Legacy column tracks the primary entity during the dual-write window.
+  if (entitySet !== undefined) update.entity = entitySet[0]
   if (patch.status !== undefined) update.status = patch.status
 
   const { error } = await (supabase as any)
     .from('knowledge_entries').update(update).eq('id', id)
   if (error) throw new Error('Failed to update: ' + error.message)
+  if (entitySet !== undefined) await setEntryEntities(supabase, id, org_id, entitySet)
   revalidatePath('/dashboard/knowledge')
   revalidatePath(`/dashboard/knowledge/${id}`)
 }

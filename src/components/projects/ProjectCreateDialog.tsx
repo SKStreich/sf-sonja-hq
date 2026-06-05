@@ -12,6 +12,8 @@ interface Props {
   onClose: () => void
   entities: Entity[]
   project?: Project & { next_action_type?: string | null; next_action_due?: string | null }
+  /** Full entity-id set for the project being edited (multi-entity pre-selection). */
+  initialEntityIds?: string[]
 }
 
 const ENTITY_LABELS: Record<string, string> = {
@@ -50,13 +52,28 @@ const ACTION_TYPES = [
   { value: 'other', label: 'Other' },
 ]
 
-export function ProjectCreateDialog({ open, onClose, entities, project }: Props) {
+export function ProjectCreateDialog({ open, onClose, entities, project, initialEntityIds }: Props) {
   const isEdit = !!project
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
 
+  const [entityIds, setEntityIds] = useState<string[]>(
+    initialEntityIds?.length
+      ? initialEntityIds
+      : project?.entity_id
+        ? [project.entity_id]
+        : entities[0]?.id
+          ? [entities[0].id]
+          : [],
+  )
+  const toggleEntity = (id: string) => {
+    setEntityIds(ids => {
+      if (ids.includes(id)) return ids.length === 1 ? ids : ids.filter(x => x !== id) // keep ≥1
+      return [...ids, id]
+    })
+  }
+
   const [form, setForm] = useState({
-    entity_id: project?.entity_id ?? entities[0]?.id ?? '',
     name: project?.name ?? '',
     description: project?.description ?? '',
     status: (project?.status ?? 'planning') as ProjectStatus,
@@ -74,12 +91,13 @@ export function ProjectCreateDialog({ open, onClose, entities, project }: Props)
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!form.name.trim() || !form.entity_id) return
+    if (!form.name.trim() || entityIds.length === 0) return
     setError(null)
     startTransition(async () => {
       try {
         const payload = {
-          entity_id: form.entity_id,
+          entity_id: entityIds[0],
+          entity_ids: entityIds,
           name: form.name.trim(),
           description: form.description.trim() || null,
           status: form.status,
@@ -124,22 +142,32 @@ export function ProjectCreateDialog({ open, onClose, entities, project }: Props)
               placeholder="e.g. Sonja HQ Sprint 3" className={inputCls} />
           </div>
 
-          {/* Entity + Status */}
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelCls}>Entity *</label>
-              <select value={form.entity_id} onChange={set('entity_id')} className={inputCls}>
-                {entities.map(e => (
-                  <option key={e.id} value={e.id}>{ENTITY_LABELS[e.type] ?? e.name}</option>
-                ))}
-              </select>
+          {/* Entities (multi-select) */}
+          <div>
+            <label className={labelCls}>Entities * <span className="normal-case text-gray-400 font-normal">(one or more)</span></label>
+            <div className="flex flex-wrap gap-1.5">
+              {entities.map(e => {
+                const on = entityIds.includes(e.id)
+                return (
+                  <button key={e.id} type="button" aria-pressed={on}
+                    onClick={() => toggleEntity(e.id)}
+                    className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                      on ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.color ?? '#6366f1' }} />
+                    {ENTITY_LABELS[e.type] ?? e.name}
+                  </button>
+                )
+              })}
             </div>
-            <div>
-              <label className={labelCls}>Status</label>
-              <select value={form.status} onChange={set('status')} className={inputCls}>
-                {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
-              </select>
-            </div>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className={labelCls}>Status</label>
+            <select value={form.status} onChange={set('status')} className={inputCls}>
+              {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </select>
           </div>
 
           {/* Priority + Phase */}
@@ -200,7 +228,7 @@ export function ProjectCreateDialog({ open, onClose, entities, project }: Props)
               className="text-sm text-gray-500 hover:text-gray-700 transition-colors">
               Cancel
             </button>
-            <button type="submit" disabled={!form.name.trim() || isPending}
+            <button type="submit" disabled={!form.name.trim() || entityIds.length === 0 || isPending}
               className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-500 disabled:opacity-40 transition-all">
               {isPending ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Project'}
             </button>

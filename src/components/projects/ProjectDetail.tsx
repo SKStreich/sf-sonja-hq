@@ -624,7 +624,7 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
         )}
       </div>
 
-      <ProjectCreateDialog open={editOpen} onClose={() => setEditOpen(false)} entities={entities} project={project} />
+      <ProjectCreateDialog open={editOpen} onClose={() => setEditOpen(false)} entities={entities} project={project} initialEntityIds={projectEntities.map(e => e.id)} />
     </>
   )
 }
