@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { TimelineView } from '@/components/shared/TimelineView'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 import type { ActivityRow } from '@/lib/activity-feed'
-import { ENTITY_CARD_CLASS, ENTITY_CARD_TEXT, type EntitySlug } from '@/lib/entities/config'
+import { ENTITY_CARD_CLASS, ENTITY_CARD_TEXT, entityShort, type EntitySlug } from '@/lib/entities/config'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -351,6 +351,65 @@ export function DashboardHome({
               </div>
             </section>
           )}
+          {/* Recent Knowledge — sits beside Assigned/Activity to fill the left column */}
+          <section className="rounded-xl border border-gray-200 bg-white p-4">
+            <button
+              type="button"
+              onClick={() => setKnowledgeOpen((o) => !o)}
+              className="flex w-full items-center justify-between"
+            >
+              <div className="flex items-center gap-2">
+                <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Recent Knowledge</h2>
+                {recentKnowledge.length > 0 && (
+                  <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
+                    {recentKnowledge.length}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-gray-400">{knowledgeOpen ? '▲' : '▼'}</span>
+            </button>
+
+            {knowledgeOpen && (
+              <div className="mt-4">
+                {recentKnowledge.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-gray-500">Nothing here yet — capture an idea, doc, or note.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {recentKnowledge.map((item) => {
+                      const kindStyle: Record<string, string> = {
+                        idea: 'bg-amber-100 text-amber-800',
+                        doc: 'bg-blue-100 text-blue-800',
+                        chat: 'bg-purple-100 text-purple-800',
+                        note: 'bg-gray-100 text-gray-700',
+                      }
+                      const preview = item.summary ?? item.body?.slice(0, 120) ?? ''
+                      return (
+                        <li key={item.id} className="flex items-start gap-3">
+                          <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${kindStyle[item.kind] ?? kindStyle.note}`}>
+                            {item.kind}
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-gray-800">{item.title ?? '(untitled)'}</p>
+                            {preview && <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{preview}</p>}
+                            <div className="mt-0.5 flex items-center gap-2">
+                              <span className="text-xs uppercase tracking-wide text-gray-400">{entityShort(item.entity)}</span>
+                              <span className="text-xs text-gray-400">{relativeTime(item.created_at)}</span>
+                            </div>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+
+                <div className="mt-4 border-t border-gray-100 pt-3">
+                  <Link href="/dashboard/knowledge" className="text-xs text-gray-400 hover:text-gray-600">
+                    Open Knowledge Hub →
+                  </Link>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
 
         {/* Right column */}
@@ -472,66 +531,6 @@ export function DashboardHome({
           </div>
         </div>
       </div>
-
-      {/* ── Recent Knowledge ───────────────────────────────────────────────── */}
-      <section className="rounded-xl border border-gray-200 bg-white p-4">
-        <button
-          type="button"
-          onClick={() => setKnowledgeOpen((o) => !o)}
-          className="flex w-full items-center justify-between"
-        >
-          <div className="flex items-center gap-2">
-            <h2 className="text-xs font-bold uppercase tracking-widest text-gray-500">Recent Knowledge</h2>
-            {recentKnowledge.length > 0 && (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600">
-                {recentKnowledge.length}
-              </span>
-            )}
-          </div>
-          <span className="text-xs text-gray-400">{knowledgeOpen ? '▲' : '▼'}</span>
-        </button>
-
-        {knowledgeOpen && (
-          <div className="mt-4">
-            {recentKnowledge.length === 0 ? (
-              <p className="py-4 text-center text-sm text-gray-500">Nothing here yet — capture an idea, doc, or note.</p>
-            ) : (
-              <ul className="space-y-3">
-                {recentKnowledge.map((item) => {
-                  const kindStyle: Record<string, string> = {
-                    idea: 'bg-amber-100 text-amber-800',
-                    doc: 'bg-blue-100 text-blue-800',
-                    chat: 'bg-purple-100 text-purple-800',
-                    note: 'bg-gray-100 text-gray-700',
-                  }
-                  const preview = item.summary ?? item.body?.slice(0, 120) ?? ''
-                  return (
-                    <li key={item.id} className="flex items-start gap-3">
-                      <span className={`flex-shrink-0 rounded px-1.5 py-0.5 text-xs font-semibold ${kindStyle[item.kind] ?? kindStyle.note}`}>
-                        {item.kind}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-gray-800">{item.title ?? '(untitled)'}</p>
-                        {preview && <p className="mt-0.5 line-clamp-1 text-xs text-gray-500">{preview}</p>}
-                        <div className="mt-0.5 flex items-center gap-2">
-                          <span className="text-xs uppercase tracking-wide text-gray-400">{item.entity}</span>
-                          <span className="text-xs text-gray-400">{relativeTime(item.created_at)}</span>
-                        </div>
-                      </div>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-
-            <div className="mt-4 border-t border-gray-100 pt-3">
-              <Link href="/dashboard/knowledge" className="text-xs text-gray-400 hover:text-gray-600">
-                Open Knowledge Hub →
-              </Link>
-            </div>
-          </div>
-        )}
-      </section>
     </div>
   )
 }
