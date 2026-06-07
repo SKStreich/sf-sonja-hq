@@ -6,6 +6,7 @@ import {
   type GtdBucket,
 } from '@/app/api/tasks/actions'
 import { TaskDetailPanel } from './TaskDetailPanel'
+import { entityLabel } from '@/lib/entities/config'
 import { TimelineView } from '@/components/shared/TimelineView'
 
 type Task = any
@@ -23,12 +24,6 @@ const PRIORITY_COLORS: Record<string, string> = {
   high: 'bg-red-500', medium: 'bg-orange-400', low: 'bg-gray-400',
 }
 
-const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter',
-  sf: 'SF Solutions',
-  sfe: 'SF Enterprises',
-  personal: 'Personal',
-}
 
 function isOverdue(dueDate: string | null): boolean {
   if (!dueDate) return false
@@ -223,7 +218,7 @@ function TaskRow({ task, statusFilter, members, onOpenDetail }: TaskRowProps) {
           )}
           {!task.projects && task.entities && (
             <span className="text-xs text-gray-400">
-              {ENTITY_LABELS[task.entities.type] ?? task.entities.name}
+              {entityLabel(task.entities.type)}
             </span>
           )}
           {task.due_date && (
@@ -464,7 +459,7 @@ export function TaskManager({ tasks, projects, entities, members = [], currentUs
               className={`whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${filterEntity === e.type ? btnActive : btnInactive}`}
             >
               <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: e.color ?? undefined }} />
-              {ENTITY_LABELS[e.type] ?? e.name}
+              {entityLabel(e.type)}
             </button>
           ))}
         </div>
@@ -526,7 +521,7 @@ export function TaskManager({ tasks, projects, entities, members = [], currentUs
               startDate: t.created_at ? t.created_at.slice(0, 10) : null,
               endDate: t.due_date ?? null,
               entityType: t.entities?.type,
-              entityName: ENTITY_LABELS[t.entities?.type] ?? t.entities?.name,
+              entityName: t.entities?.type ? entityLabel(t.entities.type) : t.entities?.name,
             }))}
           emptyLabel="No open tasks to display on timeline"
         />

@@ -3,15 +3,9 @@ import { useState, useTransition } from 'react'
 import type { VaultEntry } from '@/app/api/knowledge/vault'
 import { EntityChips } from '@/components/shared/EntityChips'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
+import { ENTITY_SELECT_OPTIONS, type EntitySlug } from '@/lib/entities/config'
 
-const ENTITIES = ['personal', 'tm', 'sf', 'sfe'] as const
-type Entity = typeof ENTITIES[number]
-const ENTITY_OPTIONS: { value: Entity; label: string }[] = [
-  { value: 'tm', label: 'TM' },
-  { value: 'sf', label: 'SF' },
-  { value: 'sfe', label: 'SFE' },
-  { value: 'personal', label: 'Personal' },
-]
+type Entity = EntitySlug
 
 interface Props {
   entries: VaultEntry[]
@@ -65,7 +59,7 @@ export function VaultView({ entries, onDownload, onDelete, onUpload }: Props) {
             className="block w-full text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-gray-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-gray-700"
           />
           <div className="flex flex-wrap items-center gap-3">
-            <EntityMultiSelect options={ENTITY_OPTIONS} selected={entities} onChange={v => setEntities(v as Entity[])} />
+            <EntityMultiSelect options={ENTITY_SELECT_OPTIONS} selected={entities} onChange={v => setEntities(v as Entity[])} />
             <input
               value={tags}
               onChange={e => setTags(e.target.value)}

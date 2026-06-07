@@ -683,7 +683,7 @@ export type Database = {
     }
     Enums: {
       confidentiality_tier: "private" | "team" | "shared" | "public"
-      entity_type: "tm" | "sf" | "personal"
+      entity_type: "tm" | "cthq" | "sfe" | "sfo" | "sfs" | "sfc" | "personal"
       idea_source: "typed" | "voice" | "chat"
       idea_status: "raw" | "developing" | "parked" | "shipped"
       integration_status: "active" | "error" | "disconnected"

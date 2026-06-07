@@ -2,6 +2,7 @@
 import { useState, useTransition } from 'react'
 import { createProject, updateProject } from '@/app/api/projects/actions'
 import { DatePicker } from './DatePicker'
+import { entityLabel } from '@/lib/entities/config'
 import type { Database, ProjectStatus, ProjectPriority } from '@/types/supabase'
 
 type Entity = Database['public']['Tables']['entities']['Row']
@@ -16,12 +17,6 @@ interface Props {
   initialEntityIds?: string[]
 }
 
-const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter',
-  sf: 'SF Solutions',
-  sfe: 'SF Enterprises',
-  personal: 'Personal',
-}
 
 const STATUSES: { value: ProjectStatus; label: string }[] = [
   { value: 'planning', label: 'Planning' },
@@ -155,7 +150,7 @@ export function ProjectCreateDialog({ open, onClose, entities, project, initialE
                       on ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
                     }`}>
                     <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: e.color ?? '#6366f1' }} />
-                    {ENTITY_LABELS[e.type] ?? e.name}
+                    {entityLabel(e.type)}
                   </button>
                 )
               })}

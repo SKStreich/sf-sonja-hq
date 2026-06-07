@@ -1,19 +1,11 @@
 import type { Database } from '@/types/supabase'
+import { ENTITY_ORDER, entityLabel } from '@/lib/entities/config'
 
 type Entity = Database['public']['Tables']['entities']['Row']
 
-const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter',
-  sf: 'SF Solutions',
-  sfe: 'SF Enterprises',
-  personal: 'Personal',
-}
-
-// Canonical display order by entity type/slug.
-const TYPE_ORDER = ['tm', 'sf', 'sfe', 'sfc', 'personal']
 function rank(type: string) {
-  const i = TYPE_ORDER.indexOf(type)
-  return i === -1 ? TYPE_ORDER.length : i
+  const i = ENTITY_ORDER.indexOf(type)
+  return i === -1 ? ENTITY_ORDER.length : i
 }
 
 /**
@@ -29,7 +21,7 @@ export function ProjectEntityChips({ entities, className = '' }: { entities: Ent
       {sorted.map(entity => (
         <span key={entity.id} className="flex items-center gap-1 text-xs text-gray-500">
           <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: entity.color ?? '#6366f1' }} />
-          {ENTITY_LABELS[entity.type] ?? entity.name}
+          {entityLabel(entity.type)}
         </span>
       ))}
     </span>

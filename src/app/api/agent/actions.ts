@@ -37,7 +37,7 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
       type: 'object' as const,
       properties: {
         query: { type: 'string', description: 'Search keyword' },
-        entity_type: { type: 'string', description: 'Optional entity filter: tm, sf, sfe, personal' },
+        entity_type: { type: 'string', description: 'Optional entity filter: tm, cthq, sfe, sfo, sfs, sfc, personal' },
       },
       required: ['query'],
     },
@@ -50,7 +50,7 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
       properties: {
         query: { type: 'string', description: 'Search keyword' },
         status: { type: 'string', description: 'Optional status filter: planning, active, on-hold, complete' },
-        entity_type: { type: 'string', description: 'Optional entity filter: tm, sf, sfe, personal' },
+        entity_type: { type: 'string', description: 'Optional entity filter: tm, cthq, sfe, sfo, sfs, sfc, personal' },
       },
       required: ['query'],
     },
@@ -63,7 +63,7 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
       properties: {
         title: { type: 'string', description: 'Task title' },
         priority: { type: 'string', description: 'high, medium, or low' },
-        entity_type: { type: 'string', description: 'Entity: tm, sf, sfe, personal' },
+        entity_type: { type: 'string', description: 'Entity: tm, cthq, sfe, sfo, sfs, sfc, personal' },
         due_date: { type: 'string', description: 'ISO date string YYYY-MM-DD, optional' },
       },
       required: ['title'],
@@ -102,7 +102,7 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
       properties: {
         query: { type: 'string', description: 'Search keyword (matches title and body)' },
         kind: { type: 'string', description: 'Optional: idea | doc | chat | note | critique' },
-        entity_type: { type: 'string', description: 'Optional entity filter: tm, sf, sfe, personal' },
+        entity_type: { type: 'string', description: 'Optional entity filter: tm, cthq, sfe, sfo, sfs, sfc, personal' },
         limit: { type: 'number', description: 'Max results, default 10' },
       },
       required: ['query'],

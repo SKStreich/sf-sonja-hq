@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { TimelineView } from '@/components/shared/TimelineView'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
 import type { ActivityRow } from '@/lib/activity-feed'
+import { ENTITY_CARD_CLASS, ENTITY_CARD_TEXT, type EntitySlug } from '@/lib/entities/config'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -87,20 +88,7 @@ interface Props {
   assignedTasks: any[]
 }
 
-// ── Entity styles ─────────────────────────────────────────────────────────────
-
-const ENTITY_COLORS: Record<string, string> = {
-  tm: 'border-blue-200 bg-blue-50',
-  sf: 'border-indigo-200 bg-indigo-50',
-  sfe: 'border-purple-200 bg-purple-50',
-  personal: 'border-green-200 bg-green-50',
-}
-const ENTITY_TEXT: Record<string, string> = {
-  tm: 'text-blue-700',
-  sf: 'text-indigo-700',
-  sfe: 'text-purple-700',
-  personal: 'text-green-700',
-}
+// ── Entity card colours come from the canonical registry (imported up top) ──
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -195,8 +183,8 @@ export function DashboardHome({
       {entityBreakdown.length > 0 && (
         <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
           {entityBreakdown.map(e => (
-            <div key={e.id} className={`rounded-xl border p-3 ${ENTITY_COLORS[e.type] ?? 'border-gray-200 bg-gray-50'}`}>
-              <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${ENTITY_TEXT[e.type] ?? 'text-gray-500'}`}>{e.name}</p>
+            <div key={e.id} className={`rounded-xl border p-3 ${ENTITY_CARD_CLASS[e.type as EntitySlug] ?? 'border-gray-200 bg-gray-50'}`}>
+              <p className={`text-xs font-bold uppercase tracking-widest mb-2 ${ENTITY_CARD_TEXT[e.type as EntitySlug] ?? 'text-gray-500'}`}>{e.name}</p>
               <div className="flex items-center gap-3">
                 <Link href={`/dashboard/projects?entity=${e.type}`} className="text-center">
                   <p className="text-lg font-bold text-gray-900">{e.projectCount}</p>

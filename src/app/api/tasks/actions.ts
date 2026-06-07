@@ -2,6 +2,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { TaskStatus, ProjectPriority } from '@/types/supabase'
+import type { EntitySlug } from '@/lib/entities/config'
 
 async function getContext() {
   const supabase = createClient()
@@ -131,7 +132,7 @@ export async function createManagerTask(payload: {
  */
 export async function createTaskFromWorkspace(payload: {
   title: string
-  entity_slug: 'tm' | 'sf' | 'sfe' | 'sfc' | 'personal'
+  entity_slug: EntitySlug
   project_id?: string | null
 }): Promise<{ id: string; title: string }> {
   const { supabase, user, org_id } = await getContext()

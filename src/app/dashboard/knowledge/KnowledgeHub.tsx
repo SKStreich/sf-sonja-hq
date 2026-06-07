@@ -14,6 +14,7 @@ import { VaultView } from './views/VaultView'
 import { WorkspaceView } from './views/WorkspaceView'
 import { ChatDrawer } from './ChatDrawer'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
+import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 
 type ViewMode = 'card' | 'list' | 'insights' | 'vault' | 'pages'
 
@@ -27,11 +28,7 @@ const KINDS: { value: Kind | null; label: string }[] = [
 
 const ENTITIES: { value: Entity | null; label: string }[] = [
   { value: null, label: 'All' },
-  { value: 'tm', label: 'TM' },
-  { value: 'sf', label: 'SF' },
-  { value: 'sfe', label: 'SFE' },
-  { value: 'sfc', label: 'SFC' },
-  { value: 'personal', label: 'Personal' },
+  ...ENTITY_SELECT_OPTIONS,
 ]
 
 const VIEW_MODES: { value: ViewMode; label: string; icon: string }[] = [
@@ -235,14 +232,6 @@ function Metric({ label, value, hint, tone }: { label: string; value: number; hi
   )
 }
 
-const ENTITY_OPTIONS: { value: Entity; label: string }[] = [
-  { value: 'tm', label: 'TM' },
-  { value: 'sf', label: 'SF' },
-  { value: 'sfe', label: 'SFE' },
-  { value: 'sfc', label: 'SFC' },
-  { value: 'personal', label: 'Personal' },
-]
-
 function Composer({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [body, setBody] = useState('')
   const [entities, setEntities] = useState<Entity[]>(['personal'])
@@ -354,7 +343,7 @@ function Composer({ onClose, onCreated }: { onClose: () => void; onCreated: () =
               <option value="idea">Idea</option>
               <option value="doc">Doc</option>
             </select>
-            <EntityMultiSelect options={ENTITY_OPTIONS} selected={entities} onChange={v => setEntities(v as Entity[])} />
+            <EntityMultiSelect options={ENTITY_SELECT_OPTIONS} selected={entities} onChange={v => setEntities(v as Entity[])} />
             {error && <span className="text-xs text-red-600">{error}</span>}
             <button onClick={handleSubmit} disabled={busy || !body.trim() || !!uploading}
               className="ml-auto rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40">

@@ -13,10 +13,12 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { fetchEntryEntityMap, setEntryEntities, sortEntitySlugs } from '@/lib/entities/multi-entity'
 
+import { ENTITY_SLUGS } from '@/lib/entities/config'
+
 const BUCKET = 'vault'
 const MAX_BYTES = 50 * 1024 * 1024
-const ENTITIES = ['tm', 'sf', 'sfe', 'personal'] as const
-type Entity = typeof ENTITIES[number]
+const ENTITIES = ENTITY_SLUGS
+type Entity = typeof ENTITY_SLUGS[number]
 
 export interface VaultEntry {
   id: string

@@ -35,15 +35,9 @@ import {
 } from '@/app/api/knowledge/shares'
 import { createTaskFromWorkspace } from '@/app/api/tasks/actions'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
+import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 
 const KINDS: Kind[] = ['idea', 'doc', 'chat', 'note', 'critique']
-const ENTITY_OPTIONS: { value: Entity; label: string }[] = [
-  { value: 'tm', label: 'TM' },
-  { value: 'sf', label: 'SF' },
-  { value: 'sfe', label: 'SFE' },
-  { value: 'sfc', label: 'SFC' },
-  { value: 'personal', label: 'Personal' },
-]
 
 interface Props {
   entry: KnowledgeEntry
@@ -206,7 +200,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
             </Field>
             <Field label="Entities">
               <EntityMultiSelect
-                options={ENTITY_OPTIONS}
+                options={ENTITY_SELECT_OPTIONS}
                 selected={entities}
                 onChange={v => { setEntities(v as Entity[]); markDirty() }}
               />
@@ -1419,7 +1413,7 @@ function SlashPopup({ query, results, hover, onPick, onHover }: {
 // editor can embed `[[Task: title|<id>]]` immediately. Entity defaults to the
 // hosting workspace page's entity (UX-wise: tasks from the SF Solutions page
 // belong to SF Solutions unless you change it).
-const TASK_ENTITIES: Entity[] = ['tm', 'sf', 'sfe', 'sfc', 'personal']
+const TASK_ENTITIES: Entity[] = [...ENTITY_SELECT_OPTIONS.map(o => o.value)]
 
 function TaskCreatePopup({ defaultEntity, onCancel, onCreated }: {
   defaultEntity: Entity

@@ -6,13 +6,9 @@
  * the last chip (the server also guards, OQ2='app').
  */
 
-const ENTITY_STYLES: Record<string, { on: string; off: string }> = {
-  tm: { on: 'bg-emerald-600 text-white border-emerald-600', off: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  sf: { on: 'bg-indigo-600 text-white border-indigo-600', off: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
-  sfe: { on: 'bg-fuchsia-600 text-white border-fuchsia-600', off: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200' },
-  sfc: { on: 'bg-cyan-600 text-white border-cyan-600', off: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
-  personal: { on: 'bg-gray-700 text-white border-gray-700', off: 'bg-gray-50 text-gray-700 border-gray-200' },
-}
+import { ENTITY_TOGGLE_CLASS, type EntitySlug } from '@/lib/entities/config'
+
+const FALLBACK = { on: 'bg-gray-700 text-white border-gray-700', off: 'bg-gray-50 text-gray-700 border-gray-200' }
 
 interface Option { value: string; label: string }
 
@@ -36,7 +32,7 @@ export function EntityMultiSelect({ options, selected, onChange, className = '' 
     <span className={`inline-flex flex-wrap items-center gap-1.5 ${className}`}>
       {options.map(opt => {
         const isOn = selected.includes(opt.value)
-        const style = ENTITY_STYLES[opt.value] ?? ENTITY_STYLES.personal
+        const style = ENTITY_TOGGLE_CLASS[opt.value as EntitySlug] ?? FALLBACK
         return (
           <button
             key={opt.value}

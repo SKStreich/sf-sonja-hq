@@ -206,7 +206,7 @@ describe('createEntry', () => {
   it('happy path: inserts with sensible defaults when no title/type_hint given', async () => {
     const cap = { inserts: [] as any[] }
     wire(cap)
-    const out = await createEntry({ body: 'first line of body\nsecond line', entity: 'sf' })
+    const out = await createEntry({ body: 'first line of body\nsecond line', entity: 'sfs' })
     expect(out).toEqual({ id: 'new-id' })
     expect(cap.inserts).toHaveLength(1)
     const row = cap.inserts[0]
@@ -214,7 +214,7 @@ describe('createEntry', () => {
       org_id: 'org-1',
       user_id: 'user-1',
       access: 'standard',
-      entity: 'sf',
+      entity: 'sfs',            // legacy column = primary entity
       kind: 'note',             // default kind
       idea_status: null,        // only set for 'idea'
       source: 'manual',
@@ -251,6 +251,6 @@ describe('createEntry', () => {
   it('wraps a Postgres insert error in a clear message', async () => {
     const cap = { inserts: [] as any[] }
     wire(cap, { data: null, error: { message: 'duplicate key value' } })
-    await expect(createEntry({ body: 'x', entity: 'sf' })).rejects.toThrow(/Failed to create entry.*duplicate key/)
+    await expect(createEntry({ body: 'x', entity: 'sfs' })).rejects.toThrow(/Failed to create entry.*duplicate key/)
   })
 })
