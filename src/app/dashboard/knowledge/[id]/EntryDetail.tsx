@@ -19,7 +19,7 @@ import {
 } from '@/app/api/knowledge/workspace'
 import {
   searchLinkTargets, resolveMentionsForRender, getEntryBacklinks,
-  getEntryAttachments, type EntryAttachment,
+  getEntryAttachments, attachEntryToProject, detachEntry, type EntryAttachment,
   type LinkTarget, type LinkTargetKind, type Backlink,
 } from '@/app/api/knowledge/links'
 import {
@@ -1849,39 +1849,134 @@ function WorkspaceSiblings({ entryId }: { entryId: string }) {
 }
 
 /**
- * "Linked to" — the projects this doc has been deliberately attached to (from
- * a project's Linked tab). Read-only here; detach lives on the project side.
- * Renders for any entry kind (a plain doc is the common attach target).
+ * "Linked to" — the projects this doc is deliberately attached to. Interactive
+ * on the doc side: search + attach to MULTIPLE projects, and detach. The
+ * project's own Linked tab is the mirror of this. Always renders (even with
+ * zero links) so the attach control is reachable from the doc.
  */
 function EntryAttachments({ entryId, reloadKey }: { entryId: string; reloadKey: number }) {
   const [links, setLinks] = useState<EntryAttachment[] | null>(null)
+  const [bump, setBump] = useState(0)
+  const [adding, setAdding] = useState(false)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<LinkTarget[]>([])
+  const [searching, startSearch] = useTransition()
+  const [busyId, setBusyId] = useState<string | null>(null)
+
   useEffect(() => {
     let cancelled = false
     getEntryAttachments(entryId)
       .then(a => { if (!cancelled) setLinks(a) })
       .catch(() => { if (!cancelled) setLinks([]) })
     return () => { cancelled = true }
-  }, [entryId, reloadKey])
+  }, [entryId, reloadKey, bump])
 
-  if (!links || links.length === 0) return null
+  // Search projects as you type (only the 'project' kind).
+  useEffect(() => {
+    if (!adding) return
+    let cancelled = false
+    startSearch(async () => {
+      const r = await searchLinkTargets(query, 'project').catch(() => [])
+      if (!cancelled) setResults(r)
+    })
+    return () => { cancelled = true }
+  }, [query, adding])
+
+  const attachedIds = new Set((links ?? []).map(l => l.projectId))
+  const candidates = results.filter(r => !attachedIds.has(r.id))
+
+  const attach = async (projectId: string) => {
+    setBusyId(projectId)
+    try {
+      await attachEntryToProject(entryId, projectId)
+      setQuery('')
+      setBump(b => b + 1)
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  const detach = async (linkId: string) => {
+    setBusyId(linkId)
+    try {
+      await detachEntry(linkId)
+      setBump(b => b + 1)
+    } finally {
+      setBusyId(null)
+    }
+  }
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-gray-500">
-        Linked to <span className="text-gray-400">({links.length})</span>
-      </h3>
-      <ul className="divide-y divide-gray-100">
-        {links.map(l => (
-          <li key={l.linkId} className="py-2">
-            <Link href={`/dashboard/projects/${l.projectId}`}
-              className="flex items-center gap-2 text-sm text-gray-900 hover:text-indigo-700">
-              <span className="text-gray-400">📁</span>
-              <span className="flex-1 truncate">{l.name}</span>
-              <span className="text-[10px] uppercase tracking-wider text-gray-400">project</span>
-            </Link>
-          </li>
-        ))}
-      </ul>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+          Linked to <span className="text-gray-400">({links?.length ?? 0})</span>
+        </h3>
+        <button
+          onClick={() => { setAdding(a => !a); setQuery('') }}
+          className="text-xs font-medium text-indigo-600 hover:text-indigo-500"
+        >
+          {adding ? 'Done' : '+ Attach project'}
+        </button>
+      </div>
+
+      {adding && (
+        <div className="mb-3">
+          <input
+            autoFocus
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            placeholder="Search projects to attach…"
+            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400"
+          />
+          <ul className="mt-1 max-h-56 overflow-y-auto rounded-md border border-gray-100">
+            {searching && candidates.length === 0 && (
+              <li className="px-3 py-2 text-xs text-gray-400">Searching…</li>
+            )}
+            {!searching && candidates.length === 0 && (
+              <li className="px-3 py-2 text-xs text-gray-400">No matching projects.</li>
+            )}
+            {candidates.map(c => (
+              <li key={c.id}>
+                <button
+                  onClick={() => attach(c.id)}
+                  disabled={busyId === c.id}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-800 hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  <span className="text-gray-400">📁</span>
+                  <span className="flex-1 truncate">{c.label}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-indigo-500">attach</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {(links?.length ?? 0) === 0 ? (
+        !adding && <p className="text-xs text-gray-400">Not attached to any project yet.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {links!.map(l => (
+            <li key={l.linkId} className="group flex items-center gap-2 py-2">
+              <Link href={`/dashboard/projects/${l.projectId}`}
+                className="flex flex-1 items-center gap-2 text-sm text-gray-900 hover:text-indigo-700">
+                <span className="text-gray-400">📁</span>
+                <span className="flex-1 truncate">{l.name}</span>
+                <span className="text-[10px] uppercase tracking-wider text-gray-400">project</span>
+              </Link>
+              <button
+                onClick={() => detach(l.linkId)}
+                disabled={busyId === l.linkId}
+                title="Detach"
+                className="text-gray-300 opacity-0 transition-opacity hover:text-red-600 group-hover:opacity-100 disabled:opacity-50"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   )
 }
