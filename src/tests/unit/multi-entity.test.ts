@@ -35,10 +35,10 @@ describe('sortEntitySlugs()', () => {
     expect(sortEntitySlugs(['personal', 'sfe', 'tm'])).toEqual(['tm', 'sfe', 'personal'])
   })
   it('de-dupes', () => {
-    expect(sortEntitySlugs(['sf', 'sf', 'tm'])).toEqual(['tm', 'sf'])
+    expect(sortEntitySlugs(['sfs', 'sfs', 'tm'])).toEqual(['tm', 'sfs'])
   })
   it('puts unknown slugs last but keeps known order', () => {
-    expect(sortEntitySlugs(['mystery', 'sf', 'tm'])).toEqual(['tm', 'sf', 'mystery'])
+    expect(sortEntitySlugs(['mystery', 'sfs', 'tm'])).toEqual(['tm', 'sfs', 'mystery'])
   })
   it('handles empty input', () => {
     expect(sortEntitySlugs([])).toEqual([])

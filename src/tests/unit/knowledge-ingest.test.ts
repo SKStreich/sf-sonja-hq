@@ -66,7 +66,7 @@ describe('resolveKind', () => {
 })
 
 describe('isValidEntity', () => {
-  it('accepts the four canonical entities', () => {
+  it('accepts all canonical entities', () => {
     for (const entity of ENTITIES) {
       expect(isValidEntity(entity)).toBe(true)
     }
@@ -75,7 +75,7 @@ describe('isValidEntity', () => {
   it('rejects anything else', () => {
     expect(isValidEntity('')).toBe(false)
     expect(isValidEntity('TM')).toBe(false) // case-sensitive
-    expect(isValidEntity('sfc')).toBe(false) // sfc isn't in the Server Action's allowed set yet
+    expect(isValidEntity('sf')).toBe(false) // 'sf' was renamed to 'sfs'
   })
 })
 

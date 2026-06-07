@@ -2,15 +2,13 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { PrintButton } from '@/components/print/PrintButton'
+import { entityLabel } from '@/lib/entities/config'
 
 const STATUS_LABELS: Record<string, string> = {
   planning: 'Planning', active: 'Active', on_hold: 'On Hold', complete: 'Complete',
 }
 const PRIORITY_LABELS: Record<string, string> = {
   high: 'High', medium: 'Medium', low: 'Low',
-}
-const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter', sf: 'SF Solutions', sfe: 'SF Enterprises', personal: 'Personal',
 }
 
 // print view
@@ -36,7 +34,7 @@ export default async function ProjectsPrintPage() {
 
   const grouped = Object.entries(
     (projects ?? []).reduce((acc: Record<string, any[]>, p: any) => {
-      const label = ENTITY_LABELS[p.entities?.type] ?? p.entities?.name ?? 'Other'
+      const label = p.entities?.type ? entityLabel(p.entities.type) : (p.entities?.name ?? 'Other')
       if (!acc[label]) acc[label] = []
       acc[label].push(p)
       return acc

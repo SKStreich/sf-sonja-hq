@@ -6,12 +6,14 @@
  * Callers supply the Supabase client (session or admin) and the authenticated
  * user/org context. No auth code lives here.
  */
+import { ENTITY_SLUGS } from '@/lib/entities/config'
+
 export const BUCKET = 'knowledge'
 export const MAX_BYTES = 25 * 1024 * 1024
 export const MAX_BODY_CHARS = 50_000
 
-export const ENTITIES = ['tm', 'sf', 'sfe', 'personal'] as const
-export type Entity = typeof ENTITIES[number]
+export const ENTITIES = ENTITY_SLUGS
+export type Entity = typeof ENTITY_SLUGS[number]
 
 export const KINDS = ['idea', 'doc', 'chat', 'note', 'critique'] as const
 export type Kind = typeof KINDS[number]

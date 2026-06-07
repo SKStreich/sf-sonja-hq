@@ -15,18 +15,10 @@
  * junctions populated). PR 2b switches writes to the junction directly.
  */
 
-// Canonical display order for the knowledge entity slugs. Anything not listed
-// (shouldn't happen) sorts to the end.
-const ENTITY_SLUG_ORDER = ['tm', 'sf', 'sfe', 'sfc', 'personal'] as const
-
-/** De-dupe + sort entity slugs into the canonical display order. */
-export function sortEntitySlugs(slugs: string[]): string[] {
-  const rank = (s: string) => {
-    const i = ENTITY_SLUG_ORDER.indexOf(s as (typeof ENTITY_SLUG_ORDER)[number])
-    return i === -1 ? ENTITY_SLUG_ORDER.length : i
-  }
-  return Array.from(new Set(slugs)).sort((a, b) => rank(a) - rank(b))
-}
+// Canonical slug order + sort live in the entity registry (config.ts), the
+// single source of truth. Re-exported here so existing importers are unaffected.
+import { sortEntitySlugs } from './config'
+export { sortEntitySlugs }
 
 /**
  * Map of entry_id → sorted entity slugs, read from knowledge_entry_entities.

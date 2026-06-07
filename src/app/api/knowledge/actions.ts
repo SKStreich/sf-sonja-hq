@@ -10,12 +10,13 @@ import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropicApiKey } from '@/lib/anthropic-key'
 import { fetchEntryEntityMap, fetchEntryIdsForEntity, setEntryEntities, sortEntitySlugs } from '@/lib/entities/multi-entity'
+import { ENTITY_SLUGS } from '@/lib/entities/config'
 
 const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
 
-const ENTITIES_CONST = ['tm', 'sf', 'sfe', 'sfc', 'personal'] as const
-export type Entity = typeof ENTITIES_CONST[number]
+const ENTITIES_CONST = ENTITY_SLUGS
+export type Entity = typeof ENTITY_SLUGS[number]
 
 const TYPE_HINTS_CONST = ['decision', 'strategy', 'primer', 'brand', 'marketing', 'business', 'idea'] as const
 export type TypeHint = typeof TYPE_HINTS_CONST[number]

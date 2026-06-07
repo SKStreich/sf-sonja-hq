@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/client'
 import { addTaskNote, deleteTaskNote, saveTaskFile, deleteTaskFile, completeTask, cancelTask, reopenTask, reassignTaskProject } from '@/app/api/tasks/actions'
 import { assignTask } from '@/app/api/members/actions'
 import { createProject } from '@/app/api/projects/actions'
+import { entityLabel } from '@/lib/entities/config'
 
 interface TaskNote {
   id: string
@@ -36,9 +37,6 @@ interface OrgMember { id: string; full_name: string | null; email: string }
 interface ProjectOption { id: string; name: string }
 interface EntityOption { id: string; name: string; type: string }
 
-const ENTITY_LABELS: Record<string, string> = {
-  tm: 'Triplemeter', sf: 'SF Solutions', sfe: 'SF Enterprises', personal: 'Personal',
-}
 
 interface Props {
   task: Task
@@ -278,7 +276,7 @@ export function TaskDetailPanel({ task, onClose, members = [], projects = [], en
                   className="w-full rounded border border-gray-200 bg-white px-2 py-1.5 text-xs text-gray-700 outline-none"
                 >
                   {entities.map(e => (
-                    <option key={e.id} value={e.id}>{ENTITY_LABELS[e.type] ?? e.name}</option>
+                    <option key={e.id} value={e.id}>{entityLabel(e.type)}</option>
                   ))}
                 </select>
               )}

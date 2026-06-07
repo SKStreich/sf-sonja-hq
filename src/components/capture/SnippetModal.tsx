@@ -8,6 +8,7 @@ import {
   type ProjectChoice,
 } from '@/app/api/knowledge/snippets'
 import { defaultSnippetTitle } from '@/lib/knowledge/snippet-body'
+import { ENTITY_SELECT_OPTIONS, type EntitySlug } from '@/lib/entities/config'
 
 interface Props {
   open: boolean
@@ -27,13 +28,7 @@ const LANGUAGES = [
   'go', 'rs', 'rb', 'php', 'java', 'kt', 'swift', 'c', 'cpp', 'md', 'text',
 ]
 
-const ENTITY_OPTIONS: Array<{ value: 'tm' | 'sf' | 'sfe' | 'sfc' | 'personal'; label: string }> = [
-  { value: 'personal', label: 'Personal' },
-  { value: 'sfe',      label: 'SF Enterprises' },
-  { value: 'sf',       label: 'SF Solutions' },
-  { value: 'sfc',      label: 'SF Construction' },
-  { value: 'tm',       label: 'Triplemeter' },
-]
+const ENTITY_OPTIONS = ENTITY_SELECT_OPTIONS
 
 export function SnippetModal({ open, onClose }: Props) {
   const router = useRouter()
@@ -41,7 +36,7 @@ export function SnippetModal({ open, onClose }: Props) {
   const [titleEdited, setTitleEdited] = useState(false)
   const [language, setLanguage] = useState('ts')
   const [code, setCode] = useState('')
-  const [entity, setEntity] = useState<typeof ENTITY_OPTIONS[number]['value']>('personal')
+  const [entity, setEntity] = useState<EntitySlug>('personal')
   const [projects, setProjects] = useState<ProjectChoice[]>([])
   const [projectId, setProjectId] = useState<string>('')
   const [commits, setCommits] = useState<Commit[] | null>(null)

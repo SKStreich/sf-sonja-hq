@@ -3,6 +3,7 @@ import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { saveChatToWorkspace } from '@/app/api/agent/save-chat'
 import { defaultChatTitle, type AgentMessageLike } from '@/lib/agent/chat-to-markdown'
+import { ENTITY_SELECT_OPTIONS, type EntitySlug } from '@/lib/entities/config'
 
 interface Props {
   open: boolean
@@ -10,18 +11,12 @@ interface Props {
   messages: AgentMessageLike[]
 }
 
-const ENTITY_OPTIONS: Array<{ value: 'tm' | 'sf' | 'sfe' | 'sfc' | 'personal'; label: string }> = [
-  { value: 'personal', label: 'Personal' },
-  { value: 'sfe',      label: 'SF Enterprises' },
-  { value: 'sf',       label: 'SF Solutions' },
-  { value: 'sfc',      label: 'SF Construction' },
-  { value: 'tm',       label: 'Triplemeter' },
-]
+const ENTITY_OPTIONS = ENTITY_SELECT_OPTIONS
 
 export function SaveChatModal({ open, onClose, messages }: Props) {
   const router = useRouter()
   const [title, setTitle] = useState('')
-  const [entity, setEntity] = useState<typeof ENTITY_OPTIONS[number]['value']>('personal')
+  const [entity, setEntity] = useState<EntitySlug>('personal')
   const [busy, startBusy] = useTransition()
   const [err, setErr] = useState('')
 

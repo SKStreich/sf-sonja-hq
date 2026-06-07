@@ -4,12 +4,12 @@ import { ProjectCard } from './ProjectCard'
 import { ProjectCreateDialog } from './ProjectCreateDialog'
 import { ProjectEntityChips } from './ProjectEntityChips'
 import { TimelineView } from '@/components/shared/TimelineView'
+import { entityLabel } from '@/lib/entities/config'
 import type { Database, ProjectStatus, ProjectPriority, EntityType } from '@/types/supabase'
 
 type Project = Database['public']['Tables']['projects']['Row']
 type Entity = Database['public']['Tables']['entities']['Row']
 
-const ENTITY_LABELS: Record<string, string> = { tm: 'Triplemeter', sf: 'SF Solutions', sfe: 'SF Enterprises', personal: 'Personal' }
 const STATUS_LABELS: Record<ProjectStatus, string> = { planning: 'Planning', active: 'Active', on_hold: 'On Hold', complete: 'Complete' }
 
 interface Props {
@@ -84,7 +84,7 @@ export function ProjectsClient({ projects, entities, projectEntities = {} }: Pro
             {entities.map(e => (
               <button key={e.id} className={btnCls(filterEntity === e.type as EntityType)} onClick={() => setFilterEntity(e.type as EntityType)}>
                 <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: e.color ?? undefined }} />
-                {ENTITY_LABELS[e.type] ?? e.name}
+                {entityLabel(e.type)}
               </button>
             ))}
           </div>
@@ -196,7 +196,7 @@ export function ProjectsClient({ projects, entities, projectEntities = {} }: Pro
                 startDate: p.created_at ? p.created_at.slice(0, 10) : null,
                 endDate: p.due_date ?? null,
                 entityType: primary?.type,
-                entityName: primary ? (ENTITY_LABELS[primary.type] ?? primary.name) : undefined,
+                entityName: primary ? entityLabel(primary.type) : undefined,
                 href: `/dashboard/projects/${p.id}`,
               }
             })}

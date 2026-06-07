@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardHome } from '@/components/dashboard/DashboardHome'
 import { loadInitialActivity } from '@/lib/activity-feed.server'
+import { ENTITY_ORDER } from '@/lib/entities/config'
 
 export default async function DashboardPage() {
   const supabase = createClient()
@@ -26,6 +27,7 @@ export default async function DashboardPage() {
     { data: allOpenTasks },
     { data: allActiveProjects },
     { data: assignedTasks },
+    { data: allEntities },
   ] = await Promise.all([
     (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
       .eq('gtd_bucket', 'today').eq('archived', false)
@@ -60,10 +62,16 @@ export default async function DashboardPage() {
       .eq('assignee_id', user.id).eq('archived', false)
       .not('status', 'in', '("done","cancelled")')
       .order('due_date', { ascending: true, nullsFirst: false }).limit(10),
+    // All active entities — seed a card for every entity, even with zero activity.
+    supabase.from('entities').select('id,name,type').eq('active', true),
   ])
 
-  // Build per-entity breakdown
+  // Build per-entity breakdown — seed EVERY active entity (so empty entities
+  // still get a tally card), then count open tasks + active projects.
   const entityMap: Record<string, { id: string; name: string; type: string; taskCount: number; projectCount: number }> = {}
+  ;(allEntities ?? []).forEach((e: any) => {
+    if (e?.id) entityMap[e.id] = { id: e.id, name: e.name, type: e.type, taskCount: 0, projectCount: 0 }
+  })
   const addEntity = (e: any) => {
     if (!e) return
     const ent = Array.isArray(e) ? e[0] : e
@@ -72,7 +80,11 @@ export default async function DashboardPage() {
   }
   ;(allOpenTasks ?? []).forEach((t: any) => { addEntity(t.entities); if (t.entities) { const id = Array.isArray(t.entities) ? t.entities[0]?.id : t.entities?.id; if (id && entityMap[id]) entityMap[id].taskCount++ } })
   ;(allActiveProjects ?? []).forEach((p: any) => { addEntity(p.entities); if (p.entities) { const id = Array.isArray(p.entities) ? p.entities[0]?.id : p.entities?.id; if (id && entityMap[id]) entityMap[id].projectCount++ } })
-  const entityBreakdown = Object.values(entityMap).sort((a, b) => (b.taskCount + b.projectCount) - (a.taskCount + a.projectCount))
+  const entityBreakdown = Object.values(entityMap).sort((a, b) => {
+    const byActivity = (b.taskCount + b.projectCount) - (a.taskCount + a.projectCount)
+    if (byActivity !== 0) return byActivity
+    return ENTITY_ORDER.indexOf(a.type) - ENTITY_ORDER.indexOf(b.type)
+  })
 
   const insights = {
     overdueTaskCount: overdueTaskCount ?? 0,

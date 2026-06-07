@@ -6,13 +6,9 @@
  * chip. Slugs are the TEXT enum values tm/sf/sfe/sfc/personal.
  */
 
-const ENTITY_STYLES: Record<string, string> = {
-  tm: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  sf: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  sfe: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200',
-  sfc: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  personal: 'bg-gray-50 text-gray-700 border-gray-200',
-}
+import { ENTITY_BADGE_CLASS, entityShort, type EntitySlug } from '@/lib/entities/config'
+
+const FALLBACK = 'bg-gray-50 text-gray-700 border-gray-200'
 
 interface Props {
   entities: string[]
@@ -28,7 +24,7 @@ export function EntityChips({ entities, variant = 'badge', className = '' }: Pro
       <span className={`inline-flex flex-wrap gap-1 ${className}`}>
         {slugs.map(s => (
           <span key={s} className="text-xs uppercase tracking-wide text-gray-600">
-            {s}
+            {entityShort(s)}
           </span>
         ))}
       </span>
@@ -39,9 +35,9 @@ export function EntityChips({ entities, variant = 'badge', className = '' }: Pro
       {slugs.map(s => (
         <span
           key={s}
-          className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${ENTITY_STYLES[s] ?? ENTITY_STYLES.personal}`}
+          className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${ENTITY_BADGE_CLASS[s as EntitySlug] ?? FALLBACK}`}
         >
-          {s}
+          {entityShort(s)}
         </span>
       ))}
     </span>
