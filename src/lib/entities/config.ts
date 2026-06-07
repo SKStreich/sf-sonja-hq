@@ -30,7 +30,7 @@ export interface EntityMeta {
 
 export const ENTITY_META: Record<EntitySlug, EntityMeta> = {
   tm:       { slug: 'tm',       label: 'Triplemeter',               short: 'TM',       color: '#3B82F6' },
-  cthq:     { slug: 'cthq',     label: 'CTHQ',                      short: 'CTHQ',     color: '#6366F1' },
+  cthq:     { slug: 'cthq',     label: 'Container Trade HQ',        short: 'CTHQ',     color: '#6366F1' },
   sfe:      { slug: 'sfe',      label: 'Streich Force Enterprises', short: 'SFE',      color: '#F59E0B' },
   sfo:      { slug: 'sfo',      label: 'Streich Force Operations',  short: 'SFO',      color: '#F43F5E' },
   sfs:      { slug: 'sfs',      label: 'Streich Force Solutions',   short: 'SFS',      color: '#8B5CF6' },
