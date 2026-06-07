@@ -11,7 +11,7 @@
  */
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import { fetchEntryEntityMap } from '@/lib/entities/multi-entity'
+import { fetchEntryEntityMap, setEntryEntities, sortEntitySlugs } from '@/lib/entities/multi-entity'
 
 const BUCKET = 'vault'
 const MAX_BYTES = 50 * 1024 * 1024
@@ -65,15 +65,25 @@ export async function uploadVaultFile(formData: FormData): Promise<{ id: string 
 
   const file = formData.get('file')
   const entity = formData.get('entity')
+  const entitiesRaw = formData.get('entities') // JSON array (multi-entity); falls back to `entity`
   const note = formData.get('note')
   const tagsRaw = formData.get('tags')
 
   if (!(file instanceof File)) throw new Error('File is required')
   if (file.size === 0) throw new Error('File is empty')
   if (file.size > MAX_BYTES) throw new Error(`File exceeds ${MAX_BYTES / 1024 / 1024}MB limit`)
-  if (typeof entity !== 'string' || !(ENTITIES as readonly string[]).includes(entity)) {
-    throw new Error('Invalid entity')
+
+  // Resolve the entity set from `entities` (JSON) or the legacy single `entity`.
+  let requested: string[] = []
+  if (typeof entitiesRaw === 'string' && entitiesRaw.trim()) {
+    try { const parsed = JSON.parse(entitiesRaw); if (Array.isArray(parsed)) requested = parsed.map(String) } catch { /* ignore */ }
+  } else if (typeof entity === 'string') {
+    requested = [entity]
   }
+  if (requested.length === 0) throw new Error('At least one entity is required')
+  if (!requested.every(e => (ENTITIES as readonly string[]).includes(e))) throw new Error('Invalid entity')
+  const entitySet = sortEntitySlugs(requested) as Entity[]
+  const primary = entitySet[0]
   const tags: string[] = typeof tagsRaw === 'string' && tagsRaw.trim()
     ? tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean).slice(0, 8)
     : []
@@ -96,7 +106,7 @@ export async function uploadVaultFile(formData: FormData): Promise<{ id: string 
     .insert({
       org_id, user_id: user.id,
       kind: 'vault', access: 'vault',
-      entity: entity as Entity,
+      entity: primary, // legacy column = primary during dual-write window
       title: file.name,
       body: null,
       summary,
@@ -113,6 +123,7 @@ export async function uploadVaultFile(formData: FormData): Promise<{ id: string 
     throw new Error('Failed to record vault file: ' + error.message)
   }
 
+  await setEntryEntities(supabase, data.id as string, org_id, entitySet)
   revalidatePath('/dashboard/knowledge')
   return { id: data.id as string }
 }

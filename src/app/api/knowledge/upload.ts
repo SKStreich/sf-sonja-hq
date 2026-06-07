@@ -18,6 +18,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import { BUCKET, ingestKnowledgeFile, parseTags } from '@/lib/knowledge/ingest'
+import { setEntryEntities, sortEntitySlugs } from '@/lib/entities/multi-entity'
 
 async function getCtx() {
   const supabase = createClient()
@@ -33,22 +34,34 @@ export async function uploadKnowledgeFile(form: FormData): Promise<{ id: string 
   const { supabase, user, org_id } = await getCtx()
 
   const file = form.get('file')
-  const entity = String(form.get('entity') ?? '')
+  const entityRaw = String(form.get('entity') ?? '')
+  const entitiesRaw = String(form.get('entities') ?? '') // JSON array (multi-entity)
   const kind = String(form.get('kind') ?? 'doc')
   const tagsRaw = String(form.get('tags') ?? '')
 
   if (!(file instanceof File)) throw new Error('File is required')
+
+  // Resolve the entity set; primary feeds ingest's legacy column, full set the junction.
+  let requested: string[] = []
+  if (entitiesRaw.trim()) {
+    try { const parsed = JSON.parse(entitiesRaw); if (Array.isArray(parsed)) requested = parsed.map(String) } catch { /* ignore */ }
+  } else if (entityRaw) {
+    requested = [entityRaw]
+  }
+  if (requested.length === 0) throw new Error('At least one entity is required')
+  const entitySet = sortEntitySlugs(requested)
 
   const result = await ingestKnowledgeFile({
     supabase,
     user_id: user.id,
     org_id,
     file,
-    entity,
+    entity: entitySet[0], // primary; ingest validates the value
     kind,
     tags: parseTags(tagsRaw),
   })
 
+  await setEntryEntities(supabase, result.id, org_id, entitySet)
   revalidatePath('/dashboard/knowledge')
   return { id: result.id }
 }

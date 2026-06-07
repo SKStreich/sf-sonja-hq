@@ -2,9 +2,16 @@
 import { useState, useTransition } from 'react'
 import type { VaultEntry } from '@/app/api/knowledge/vault'
 import { EntityChips } from '@/components/shared/EntityChips'
+import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 
 const ENTITIES = ['personal', 'tm', 'sf', 'sfe'] as const
 type Entity = typeof ENTITIES[number]
+const ENTITY_OPTIONS: { value: Entity; label: string }[] = [
+  { value: 'tm', label: 'TM' },
+  { value: 'sf', label: 'SF' },
+  { value: 'sfe', label: 'SFE' },
+  { value: 'personal', label: 'Personal' },
+]
 
 interface Props {
   entries: VaultEntry[]
@@ -15,7 +22,7 @@ interface Props {
 
 export function VaultView({ entries, onDownload, onDelete, onUpload }: Props) {
   const [file, setFile] = useState<File | null>(null)
-  const [entity, setEntity] = useState<Entity>('personal')
+  const [entities, setEntities] = useState<Entity[]>(['personal'])
   const [note, setNote] = useState('')
   const [tags, setTags] = useState('')
   const [error, setError] = useState('')
@@ -26,7 +33,7 @@ export function VaultView({ entries, onDownload, onDelete, onUpload }: Props) {
     setError('')
     const fd = new FormData()
     fd.set('file', file)
-    fd.set('entity', entity)
+    fd.set('entities', JSON.stringify(entities))
     fd.set('note', note)
     fd.set('tags', tags)
     startUpload(async () => {
@@ -58,10 +65,7 @@ export function VaultView({ entries, onDownload, onDelete, onUpload }: Props) {
             className="block w-full text-sm text-gray-700 file:mr-3 file:rounded-md file:border-0 file:bg-gray-900 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-white hover:file:bg-gray-700"
           />
           <div className="flex flex-wrap items-center gap-3">
-            <select value={entity} onChange={e => setEntity(e.target.value as Entity)}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-900">
-              {ENTITIES.map(x => <option key={x} value={x}>{x.toUpperCase()}</option>)}
-            </select>
+            <EntityMultiSelect options={ENTITY_OPTIONS} selected={entities} onChange={v => setEntities(v as Entity[])} />
             <input
               value={tags}
               onChange={e => setTags(e.target.value)}

@@ -89,3 +89,67 @@ export async function fetchProjectEntityMap(
   }
   return map
 }
+
+// ── writes ───────────────────────────────────────────────────────────────────
+// PR 2b: writes go to the junction directly (reconcile = upsert desired set +
+// delete removed). The caller ALSO keeps the legacy column = primary entity for
+// back-compat during the dual-write window. The app-layer "≥1 entity" guard
+// (OQ2='app') lives here: an empty set throws.
+
+/**
+ * Reconcile a knowledge entry's entity set in knowledge_entry_entities to
+ * exactly `entities`. Upserts the desired rows (idempotent vs the mirror
+ * trigger) and removes any no-longer-wanted rows. Throws if the set is empty.
+ */
+export async function setEntryEntities(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  entryId: string,
+  orgId: string,
+  entities: string[],
+): Promise<void> {
+  const desired = sortEntitySlugs(entities)
+  if (desired.length === 0) throw new Error('At least one entity is required')
+  const { error: upErr } = await supabase
+    .from('knowledge_entry_entities')
+    .upsert(
+      desired.map(entity => ({ entry_id: entryId, entity, org_id: orgId })),
+      { onConflict: 'entry_id,entity', ignoreDuplicates: true },
+    )
+  if (upErr) throw new Error('Failed to set entry entities: ' + upErr.message)
+  const { error: delErr } = await supabase
+    .from('knowledge_entry_entities')
+    .delete()
+    .eq('entry_id', entryId)
+    .not('entity', 'in', `(${desired.join(',')})`)
+  if (delErr) throw new Error('Failed to prune entry entities: ' + delErr.message)
+}
+
+/**
+ * Reconcile a project's entity set in project_entities to exactly `entityIds`
+ * (UUIDs → entities.id). Same upsert-desired + delete-removed shape. Throws if
+ * the set is empty.
+ */
+export async function setProjectEntities(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  projectId: string,
+  orgId: string,
+  entityIds: string[],
+): Promise<void> {
+  const desired = Array.from(new Set(entityIds.filter(Boolean)))
+  if (desired.length === 0) throw new Error('At least one entity is required')
+  const { error: upErr } = await supabase
+    .from('project_entities')
+    .upsert(
+      desired.map(entity_id => ({ project_id: projectId, entity_id, org_id: orgId })),
+      { onConflict: 'project_id,entity_id', ignoreDuplicates: true },
+    )
+  if (upErr) throw new Error('Failed to set project entities: ' + upErr.message)
+  const { error: delErr } = await supabase
+    .from('project_entities')
+    .delete()
+    .eq('project_id', projectId)
+    .not('entity_id', 'in', `(${desired.join(',')})`)
+  if (delErr) throw new Error('Failed to prune project entities: ' + delErr.message)
+}

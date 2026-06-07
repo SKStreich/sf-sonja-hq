@@ -34,9 +34,16 @@ import {
   type Share, type ForwardRequest,
 } from '@/app/api/knowledge/shares'
 import { createTaskFromWorkspace } from '@/app/api/tasks/actions'
+import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 
 const KINDS: Kind[] = ['idea', 'doc', 'chat', 'note', 'critique']
-const ENTITIES: Entity[] = ['tm', 'sf', 'sfe', 'personal']
+const ENTITY_OPTIONS: { value: Entity; label: string }[] = [
+  { value: 'tm', label: 'TM' },
+  { value: 'sf', label: 'SF' },
+  { value: 'sfe', label: 'SFE' },
+  { value: 'sfc', label: 'SFC' },
+  { value: 'personal', label: 'Personal' },
+]
 
 interface Props {
   entry: KnowledgeEntry
@@ -57,7 +64,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
   const [title, setTitle] = useState(entry.title ?? '')
   const [body, setBody] = useState(entry.body ?? '')
   const [kind, setKind] = useState<Kind>(entry.kind as Kind)
-  const [entity, setEntity] = useState<Entity>(entry.entity)
+  const [entities, setEntities] = useState<Entity[]>(entry.entities ?? [entry.entity])
   const [tagsInput, setTagsInput] = useState((entry.tags ?? []).join(', '))
   const [dirty, setDirty] = useState(false)
   const [saving, startSave] = useTransition()
@@ -91,7 +98,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
           title: title.trim() || null,
           body: body || null,
           kind,
-          entity,
+          entities,
           tags,
         })
         setDirty(false)
@@ -197,11 +204,12 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
                 {KINDS.map(k => <option key={k} value={k}>{k}</option>)}
               </select>
             </Field>
-            <Field label="Entity">
-              <select value={entity} onChange={e => { setEntity(e.target.value as Entity); markDirty() }}
-                className="rounded border border-gray-300 px-2 py-1 text-sm text-gray-900">
-                {ENTITIES.map(ent => <option key={ent} value={ent}>{ent}</option>)}
-              </select>
+            <Field label="Entities">
+              <EntityMultiSelect
+                options={ENTITY_OPTIONS}
+                selected={entities}
+                onChange={v => { setEntities(v as Entity[]); markDirty() }}
+              />
             </Field>
             <Field label="Tags (comma-sep)">
               <input

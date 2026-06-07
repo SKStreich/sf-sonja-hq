@@ -52,7 +52,7 @@ function makeChain(opts: ChainOpts = {}) {
   chain.neq = vi.fn((col: string, val: any) => { opts.onNeq?.(col, val); return chain })
   chain.ilike = vi.fn((col: string, val: any) => { opts.onIlike?.(col, val); return chain })
   chain.or = vi.fn((expr: string) => { opts.onOr?.(expr); return chain })
-  ;['in', 'order', 'limit', 'delete', 'gte', 'lte'].forEach(m => {
+  ;['in', 'order', 'limit', 'delete', 'gte', 'lte', 'upsert', 'not'].forEach(m => {
     chain[m] = vi.fn(() => chain)
   })
   chain.insert = vi.fn((p: any) => { opts.onInsert?.(p); return chain })

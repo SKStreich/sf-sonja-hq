@@ -13,6 +13,7 @@ import { InsightsView } from './views/InsightsView'
 import { VaultView } from './views/VaultView'
 import { WorkspaceView } from './views/WorkspaceView'
 import { ChatDrawer } from './ChatDrawer'
+import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 
 type ViewMode = 'card' | 'list' | 'insights' | 'vault' | 'pages'
 
@@ -234,9 +235,17 @@ function Metric({ label, value, hint, tone }: { label: string; value: number; hi
   )
 }
 
+const ENTITY_OPTIONS: { value: Entity; label: string }[] = [
+  { value: 'tm', label: 'TM' },
+  { value: 'sf', label: 'SF' },
+  { value: 'sfe', label: 'SFE' },
+  { value: 'sfc', label: 'SFC' },
+  { value: 'personal', label: 'Personal' },
+]
+
 function Composer({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [body, setBody] = useState('')
-  const [entity, setEntity] = useState<Entity>('personal')
+  const [entities, setEntities] = useState<Entity[]>(['personal'])
   const [kind, setKind] = useState<Kind>('note')
   const [busy, startBusy] = useTransition()
   const [error, setError] = useState('')
@@ -248,7 +257,7 @@ function Composer({ onClose, onCreated }: { onClose: () => void; onCreated: () =
     setError('')
     startBusy(async () => {
       try {
-        await createEntry({ body, entity, kind })
+        await createEntry({ body, entities, kind })
         onCreated()
       } catch (e: any) {
         setError(e.message ?? 'Failed to create')
@@ -265,7 +274,7 @@ function Composer({ onClose, onCreated }: { onClose: () => void; onCreated: () =
       try {
         const fd = new FormData()
         fd.append('file', file)
-        fd.append('entity', entity)
+        fd.append('entities', JSON.stringify(entities))
         fd.append('kind', kind === 'chat' || kind === 'critique' ? 'doc' : kind)
         fd.append('tags', '')
         await uploadKnowledgeFile(fd)
@@ -338,20 +347,14 @@ function Composer({ onClose, onCreated }: { onClose: () => void; onCreated: () =
             )}
           </div>
 
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex flex-wrap items-center gap-3">
             <select value={kind} onChange={e => setKind(e.target.value as Kind)}
               className="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-900">
               <option value="note">Note</option>
               <option value="idea">Idea</option>
               <option value="doc">Doc</option>
             </select>
-            <select value={entity} onChange={e => setEntity(e.target.value as Entity)}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-900">
-              <option value="personal">Personal</option>
-              <option value="tm">TM</option>
-              <option value="sf">SF</option>
-              <option value="sfe">SFE</option>
-            </select>
+            <EntityMultiSelect options={ENTITY_OPTIONS} selected={entities} onChange={v => setEntities(v as Entity[])} />
             {error && <span className="text-xs text-red-600">{error}</span>}
             <button onClick={handleSubmit} disabled={busy || !body.trim() || !!uploading}
               className="ml-auto rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40">

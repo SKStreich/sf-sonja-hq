@@ -4,6 +4,8 @@ import {
   fetchEntryEntityMap,
   fetchEntryIdsForEntity,
   fetchProjectEntityMap,
+  setEntryEntities,
+  setProjectEntities,
 } from '@/lib/entities/multi-entity'
 
 /**
@@ -89,5 +91,54 @@ describe('fetchProjectEntityMap()', () => {
   it('short-circuits on empty id list', async () => {
     const sb = mockSupabase({ project_entities: [{ project_id: 'p', entity_id: 'e' }] })
     expect(await fetchProjectEntityMap(sb, [])).toEqual({})
+  })
+})
+
+/**
+ * Write-side mock: records upsert payloads and the not-in delete predicate so we
+ * can assert the reconcile (upsert desired + delete removed) shape.
+ */
+function mockWriteSupabase() {
+  const calls: { upserts: any[]; notIn: Array<[string, string]> } = { upserts: [], notIn: [] }
+  const builder: any = {
+    upsert: (rows: any[]) => { calls.upserts.push(rows); return { error: null } },
+    delete: () => builder,
+    eq: () => builder,
+    not: (col: string, _op: string, val: string) => { calls.notIn.push([col, val]); return { error: null } },
+  }
+  return { sb: { from: () => builder }, calls }
+}
+
+describe('setEntryEntities()', () => {
+  it('upserts the sorted desired set and prunes anything not in it', async () => {
+    const { sb, calls } = mockWriteSupabase()
+    await setEntryEntities(sb, 'e1', 'org-1', ['personal', 'tm'])
+    expect(calls.upserts[0]).toEqual([
+      { entry_id: 'e1', entity: 'tm', org_id: 'org-1' },
+      { entry_id: 'e1', entity: 'personal', org_id: 'org-1' },
+    ])
+    expect(calls.notIn[0]).toEqual(['entity', '(tm,personal)'])
+  })
+
+  it('throws on an empty set (≥1-entity guard)', async () => {
+    const { sb } = mockWriteSupabase()
+    await expect(setEntryEntities(sb, 'e1', 'org-1', [])).rejects.toThrow('At least one entity is required')
+  })
+})
+
+describe('setProjectEntities()', () => {
+  it('upserts the de-duped id set and prunes the rest', async () => {
+    const { sb, calls } = mockWriteSupabase()
+    await setProjectEntities(sb, 'p1', 'org-1', ['e1', 'e2', 'e1'])
+    expect(calls.upserts[0]).toEqual([
+      { project_id: 'p1', entity_id: 'e1', org_id: 'org-1' },
+      { project_id: 'p1', entity_id: 'e2', org_id: 'org-1' },
+    ])
+    expect(calls.notIn[0]).toEqual(['entity_id', '(e1,e2)'])
+  })
+
+  it('throws on an empty set (≥1-entity guard)', async () => {
+    const { sb } = mockWriteSupabase()
+    await expect(setProjectEntities(sb, 'p1', 'org-1', [])).rejects.toThrow('At least one entity is required')
   })
 })
