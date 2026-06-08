@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HQ · Merge Knowledge Entries — v2 (LOCKED)</title>
+<style>
+  :root {
+    --sf-red:#C0392B; --sf-fg:#1F2937; --sf-muted:#6B7280; --sf-card:#FFFFFF;
+    --sf-bg:#FAFAFA; --sf-border:#E5E7EB; --sf-ok:#16A34A; --sf-warn:#D97706;
+    --sf-cool:#2563EB; --sf-indigo:#4F46E5;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--sf-bg); color: var(--sf-fg); }
+  body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 1.5; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+  .eyebrow { font-family: 'JetBrains Mono','SF Mono',Menlo,monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--sf-muted); }
+  h1 { font-size: 28px; font-weight: 800; margin: 4px 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; font-weight: 700; margin: 48px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--sf-indigo); }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 6px; }
+  p { margin: 8px 0; }
+  .meta { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin: 16px 0 32px; padding: 16px; background: var(--sf-card); border: 1px solid var(--sf-border); }
+  .meta .item .label { font-family:'JetBrains Mono',monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sf-muted); margin-bottom: 2px; }
+  .meta .item .value { font-size: 13px; font-weight: 600; }
+  code, .mono { font-family:'JetBrains Mono',monospace; font-size: 12px; background: rgba(0,0,0,0.05); padding: 1px 4px; }
+  .callout { margin: 16px 0; padding: 12px 16px; border-left: 3px solid var(--sf-indigo); background: var(--sf-card); border-top: 1px solid var(--sf-border); border-right: 1px solid var(--sf-border); border-bottom: 1px solid var(--sf-border); }
+  .callout.warn { border-left-color: var(--sf-warn); }
+  .callout.ok { border-left-color: var(--sf-ok); }
+  .callout.info { border-left-color: var(--sf-cool); }
+  .callout-label { font-family:'JetBrains Mono',monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sf-muted); margin-bottom: 4px; }
+  table.data { width: 100%; border-collapse: collapse; margin: 12px 0; background: var(--sf-card); border: 1px solid var(--sf-border); }
+  table.data th, table.data td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--sf-border); font-size: 13px; vertical-align: top; }
+  table.data th { background: rgba(0,0,0,0.02); font-family:'JetBrains Mono',monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sf-muted); font-weight: 700; }
+  ul li { margin: 4px 0; }
+  hr.section { border: none; border-top: 1px dashed var(--sf-border); margin: 24px 0; }
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 16px 0; }
+  .flow .step { flex: 1; min-width: 150px; background: var(--sf-card); border: 1px solid var(--sf-border); border-top: 3px solid var(--sf-indigo); padding: 12px 14px; }
+  .flow .step .n { font-family:'JetBrains Mono',monospace; font-size: 10px; color: var(--sf-muted); }
+  .flow .step .t { font-weight: 700; font-size: 13px; margin: 2px 0 4px; }
+  .flow .step .d { font-size: 12px; color: var(--sf-muted); }
+  .flow .arrow { align-self: center; padding: 0 8px; color: var(--sf-muted); font-weight: 700; }
+  .decision { background: var(--sf-card); border: 1px solid var(--sf-border); border-left: 3px solid var(--sf-ok); padding: 16px 18px; margin: 14px 0; }
+  .decision .q-head { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .decision .q-id { font-family:'JetBrains Mono',monospace; font-size: 11px; color: var(--sf-ok); letter-spacing: 0.08em; }
+  .decision .locked-val { display:inline-block; margin-left:8px; font-family:'JetBrains Mono',monospace; font-size:11px; color:var(--sf-ok); }
+  .decision .why { display: block; color: var(--sf-muted); font-size: 12px; margin: 6px 0 0; }
+  .pr-card { background: var(--sf-card); border: 1px solid var(--sf-border); padding: 14px 16px; margin: 10px 0; }
+  .pr-card .pr-id { font-family:'JetBrains Mono',monospace; font-weight: 700; color: var(--sf-indigo); font-size: 13px; }
+  .pr-card .pr-effort { float: right; font-size: 11px; color: var(--sf-muted); font-family:'JetBrains Mono',monospace; }
+  .badge { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.08em; padding:2px 7px; border-radius:10px; background:var(--sf-ok); color:#fff; text-transform:uppercase; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">HQ · Knowledge Hub · new feature · <span style="color:var(--sf-ok)">LOCKED</span></div>
+  <h1>Merge Knowledge Entries — v2</h1>
+  <p style="color: var(--sf-muted); font-size: 14px;">
+    Combine two or more similar documents / ideas into a single entry, with Claude drafting a
+    <strong>lossless union</strong> — nothing unique to any source is dropped — that you review and edit before it saves.
+  </p>
+
+  <div class="meta">
+    <div class="item"><div class="label">Status</div><div class="value">v2 · all 7 questions locked</div></div>
+    <div class="item"><div class="label">Date</div><div class="value">2026-06-08</div></div>
+    <div class="item"><div class="label">Prod HEAD</div><div class="value">6bb08ca (PR #53)</div></div>
+    <div class="item"><div class="label">Migration</div><div class="value">NONE needed</div></div>
+  </div>
+
+  <div class="callout ok">
+    <div class="callout-label">What changed since v1</div>
+    <ul style="margin:4px 0;">
+      <li>All 7 open questions are now <strong>locked</strong> (Sonja, 2026-06-08) — see the matrix below.</li>
+      <li><strong>No migration is required.</strong> v1 assumed the <code>knowledge_links_relation_check</code> would need widening for <code>'merged_into'</code>. On inspection, <code>'merged_into'</code> has been an allowed relation since the original Sprint&nbsp;6 migration (<code>20260425000001</code>) and is re-affirmed in the <code>'attached'</code> widen (<code>20260603000001</code>). PR&nbsp;1 is <strong>pure server code</strong>.</li>
+      <li><strong>OQ3 = "anything incl. workspace pages"</strong> (Sonja chose the broader option, not the recommended Tier-1-only). This adds a <em>re-parenting</em> design — documented below.</li>
+    </ul>
+  </div>
+
+  <div class="callout">
+    <div class="callout-label">The ask, in Sonja's words</div>
+    <p style="margin:0;">"What if two documents or ideas are similar and I want to merge them into one, making sure that what is missing from each when merged is included in the newly merged item."</p>
+  </div>
+
+  <h2>Flow</h2>
+  <div class="flow">
+    <div class="step"><div class="n">1 · SELECT</div><div class="t">Pick 2+ entries</div><div class="d">Multi-select in Cards/List → a "Merge (N)" bar appears.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="n">2 · DRAFT</div><div class="t">Claude unions them</div><div class="d">Server reads the source bodies, drafts one doc preserving every unique point + flags conflicts.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="n">3 · REVIEW</div><div class="t">You edit</div><div class="d">Draft opens in an editor: title, body, kind, entities, projects, tags — all editable.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="n">4 · COMMIT</div><div class="t">Save + archive</div><div class="d">New entry created; sources archived + linked "merged into."</div></div>
+  </div>
+
+  <h2>Locked decisions</h2>
+
+  <div class="decision">
+    <div class="q-id">OQ1</div><span class="locked-val">→ NEW ENTRY</span>
+    <div class="q-head">Where does the merged content land?</div>
+    <span class="why">A brand-new <code>knowledge_entries</code> row. Both/all sources are archived and linked to it (<code>merged_into</code>). Cleanest provenance — the result is clearly "the merge," sources stay intact and recoverable.</span>
+  </div>
+
+  <div class="decision">
+    <div class="q-id">OQ2</div><span class="locked-val">→ MULTI-SELECT BAR</span>
+    <div class="q-head">How do you start a merge?</div>
+    <span class="why">Checkboxes in Cards/List → a "Merge (N)" bar appears when 2+ are selected. Natural for "these look similar"; works across the whole hub. (Built in PR 2.)</span>
+  </div>
+
+  <div class="decision">
+    <div class="q-id">OQ3</div><span class="locked-val">→ ANYTHING incl. WORKSPACE</span>
+    <div class="q-head">What's eligible to merge?</div>
+    <span class="why">Any active standard entry of any kind, <strong>including workspace pages</strong>. Vault is the one hard exclusion (Claude never reads vault). When a workspace-page source has children, those children are <strong>re-parented to the merged result</strong> so no page subtree is orphaned — see "Workspace re-parenting" below.</span>
+  </div>
+
+  <div class="decision">
+    <div class="q-id">OQ4</div><span class="locked-val">→ UNION</span>
+    <div class="q-head">Metadata of the merged result</div>
+    <span class="why">Entities = union of all sources' entities; attached projects = union of all sources' attached projects; tags = union of all sources' tags. Title + kind + type-hint are AI-suggested, all editable in review. Loses nothing; you trim during review.</span>
+  </div>
+
+  <div class="decision">
+    <div class="q-id">OQ5</div><span class="locked-val">→ FLAG CONFLICTS</span>
+    <div class="q-head">Conflict handling in the draft</div>
+    <span class="why">When sources contradict, Claude keeps both sides and appends a trailing <code>## Source notes &amp; conflicts</code> section listing the contradictions for you to resolve in review. Never silently drops a claim.</span>
+  </div>
+
+  <div class="decision">
+    <div class="q-id">OQ6</div><span class="locked-val">→ SOFT UNDO</span>
+    <div class="q-head">Can a merge be undone?</div>
+    <span class="why">Sources stay <code>status='archived'</code> and linked. "Unmerge" = restore the archived sources to active + delete the merged entry (manual, low-frequency). All the data to recover is still there. No automatic snapshot table in v1.</span>
+  </div>
+
+  <div class="decision">
+    <div class="q-id">OQ7</div><span class="locked-val">→ SONNET + ~40k CAP</span>
+    <div class="q-head">Model + size guardrail</div>
+    <span class="why"><code>claude-sonnet-4-6</code> (same model as <code>classify()</code>). Combined source bodies are capped at ~40,000 chars; if exceeded, bodies are truncated and the draft is flagged <code>truncated:true</code> so the review UI can warn. If no API key is configured, the server falls back to a deterministic concatenation (sections per source) so the feature still works.</span>
+  </div>
+
+  <h2>How "lossless" is enforced</h2>
+  <p>The merge prompt instructs Claude to (a) include every distinct fact / point / section from each source,
+  (b) de-duplicate overlapping content, and (c) when two sources <em>contradict</em>, keep both and surface the
+  conflict in a trailing <code>## Source notes &amp; conflicts</code> section rather than silently picking one.
+  You resolve conflicts during review. Vault entries are <strong>never</strong> read by Claude, so they cannot be merge sources.</p>
+
+  <h2>Workspace re-parenting (OQ3 = anything)</h2>
+  <p>Because workspace pages are eligible sources and a workspace page can own a child subtree
+  (<code>knowledge_entries.parent_id</code>), merging them needs an explicit rule so children aren't orphaned under an archived page:</p>
+  <ul>
+    <li><strong>If any source is a workspace page,</strong> the merged result's <code>kind</code> is forced to <code>workspace</code> (overriding the AI suggestion) so it can hold a subtree and render in the workspace tree.</li>
+    <li>Each workspace source's <strong>direct children are re-parented</strong> to the merged result (<code>UPDATE knowledge_entries SET parent_id = &lt;merged&gt; WHERE parent_id = &lt;source&gt;</code>), org-scoped.</li>
+    <li>The merged result inherits a <code>parent_id</code> only if all workspace sources share one common parent; otherwise it becomes a top-level page (<code>parent_id = null</code>).</li>
+    <li>Sources are then archived. Their own <code>parent_id</code> is left as-is (harmless; they're archived).</li>
+  </ul>
+
+  <h2>Data model</h2>
+  <table class="data">
+    <tr><th>Concern</th><th>Approach</th></tr>
+    <tr><td>Merged result</td><td>A NEW <code>knowledge_entries</code> row (<code>source='merge'</code>, <code>access='standard'</code>). Entities via <code>setEntryEntities</code>; project links via the <code>attached</code> relation; both as the union of the sources (OQ4).</td></tr>
+    <tr><td>Source disposition</td><td><code>status='archived'</code> on each source + a <code>knowledge_links</code> row <code>relation='merged_into'</code> (<code>from_entry</code>=source → <code>to_entry</code>=merged). Drives "Merged from (N)" on the result and "Merged into X" on each archived source.</td></tr>
+    <tr><td>New link relation</td><td><span class="badge">no migration</span> <code>'merged_into'</code> is already in <code>knowledge_links_relation_check</code> (since <code>20260425000001</code>; re-affirmed <code>20260603000001</code>).</td></tr>
+    <tr><td>Reuse</td><td>No new entity/link primitives. Merge orchestrates an insert + <code>setEntryEntities</code> + attached-link inserts + child re-parenting + <code>merged_into</code> inserts + status archive, in one server action.</td></tr>
+  </table>
+
+  <h2>Build plan</h2>
+  <div class="pr-card"><span class="pr-effort">server only · no migration</span><span class="pr-id">PR 1 — merge core</span>
+    <p style="margin:6px 0 0;font-size:13px;">New <code>src/app/api/knowledge/merge.ts</code>. Pure, testable helpers: <code>unionMergeEntities</code>, <code>unionMergeTags</code>, <code>assembleSourceText</code> (40k cap → <code>{text, truncated}</code>), <code>parseMergeResponse</code>. Server actions: <code>draftMerge(ids[])</code> → AI draft (title / body / suggested kind+type_hint + computed union of entities/projects/tags + <code>truncated</code> + <code>hasWorkspaceSource</code>); <code>commitMerge(edited, sourceIds[])</code> → insert result, set entities, attach projects, re-parent workspace children, write <code>merged_into</code> links, archive sources. Read helpers <code>getMergedFrom</code> / <code>getMergedInto</code>. Unit tests for union math + commit shape + eligibility guards (matching <code>knowledge-links-attach.test.ts</code> conventions).</p>
+  </div>
+  <div class="pr-card"><span class="pr-effort">UI</span><span class="pr-id">PR 2 — selection + review</span>
+    <p style="margin:6px 0 0;font-size:13px;">Multi-select in Cards/List + "Merge (N)" bar (OQ2). Review modal: editable title/body/kind + entity multi-select + project attach + tags, "Save merged" / "Cancel" + a <code>truncated</code> warning. "Merged from (N)" block on the result; "Merged into X" banner on archived sources.</p>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-label">Reuses, doesn't reinvent</div>
+    <p style="margin:0;">Entity writes → <code>setEntryEntities</code>; archive → status update; classification prompt pattern → <code>classify()</code> in <code>knowledge/actions.ts</code>; attach shape → <code>attachEntryToProject</code> in <code>links.ts</code>. Only genuinely new pieces: the merge prompt, the <code>merged_into</code> orchestration, the workspace re-parent, and the review UI.</p>
+  </div>
+
+  <p style="font-size:12px;color:var(--sf-muted);">
+    HQ · <code>docs/specs/hq_merge-entries_v2.html</code> · locked 2026-06-08 · supersedes v1.
+  </p>
+
+</div>
+</body>
+</html>
