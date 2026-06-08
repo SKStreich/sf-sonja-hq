@@ -22,13 +22,13 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
   const [taskRes, projectsRes, entitiesRes, membersRes] = await Promise.all([
     (supabase as any)
       .from('tasks')
-      .select('*, projects(id, name, entity_id), entities(id, name, type, color)')
+      .select('*, projects(id, name, project_entities(entity_id)), entities(id, name, type, color)')
       .eq('id', params.id)
       .eq('archived', false)
       .maybeSingle(),
     supabase
       .from('projects')
-      .select('id, name, entity_id, status')
+      .select('id, name, status, project_entities(entity_id)')
       .neq('status', 'complete')
       .order('name'),
     supabase
@@ -47,6 +47,14 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
 
   if (!taskRes.data) notFound()
 
+  // Collapse the project_entities junction to a single primary entity_id so the
+  // (single-entity) task UI keeps deriving a default task entity from its project.
+  const primaryEntityId = (p: any): string | null => p?.project_entities?.[0]?.entity_id ?? null
+  const projects = (projectsRes.data ?? []).map((p: any) => ({ ...p, entity_id: primaryEntityId(p) }))
+  const task = taskRes.data.projects
+    ? { ...taskRes.data, projects: { ...taskRes.data.projects, entity_id: primaryEntityId(taskRes.data.projects) } }
+    : taskRes.data
+
   return (
     <div className="mx-auto max-w-3xl p-4">
       <div className="mb-4 flex items-center gap-2 text-sm">
@@ -55,8 +63,8 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
         <span className="text-gray-500 truncate">{taskRes.data.title}</span>
       </div>
       <TaskDetailFullPage
-        task={taskRes.data}
-        projects={projectsRes.data ?? []}
+        task={task}
+        projects={projects}
         entities={entitiesRes.data ?? []}
         members={membersRes.data ?? []}
       />

@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { revalidatePath } from 'next/cache'
 import { getAnthropicApiKey, anthropicKeyEnvName } from '@/lib/anthropic-key'
+import { fetchEntryEntityMap, fetchEntryIdsForEntity } from '@/lib/entities/multi-entity'
 
 async function getContext() {
   const supabase = createClient()
@@ -250,20 +251,26 @@ async function executeTool(name: string, input: Record<string, any>, ctx: Awaite
     const limit = Math.min(20, Math.max(1, Number(input.limit) || 10))
     let query = (supabase as any)
       .from('knowledge_entries')
-      .select('id, title, summary, kind, entity, tags, updated_at')
+      .select('id, title, summary, kind, tags, updated_at')
       .eq('org_id', org_id)
       .eq('status', 'active')
       .neq('access', 'vault')
       .order('updated_at', { ascending: false })
       .limit(limit)
     if (input.kind) query = query.eq('kind', input.kind)
-    if (input.entity_type) query = query.eq('entity', input.entity_type)
+    // Entity filter routes through the junction (OR-semantics).
+    if (input.entity_type) {
+      const ids = await fetchEntryIdsForEntity(supabase, input.entity_type as string)
+      if (ids.length === 0) return 'No matching knowledge entries found.'
+      query = query.in('id', ids)
+    }
     if (q) query = query.or(`title.ilike.%${q}%,body.ilike.%${q}%,summary.ilike.%${q}%`)
     const { data, error } = await query
     if (error) return `Search failed: ${error.message}`
     if (!data || data.length === 0) return 'No matching knowledge entries found.'
+    const entityMap = await fetchEntryEntityMap(supabase, data.map((e: any) => e.id))
     return data.map((e: any) =>
-      `- [${e.kind}/${e.entity}] ${e.title ?? '(untitled)'} — ${e.summary ?? '(no summary)'} (id: ${e.id})`
+      `- [${e.kind}/${(entityMap[e.id] ?? []).join('+') || '—'}] ${e.title ?? '(untitled)'} — ${e.summary ?? '(no summary)'} (id: ${e.id})`
     ).join('\n')
   }
 
@@ -272,7 +279,7 @@ async function executeTool(name: string, input: Record<string, any>, ctx: Awaite
     if (!id) return 'entry_id is required.'
     const { data: entry, error } = await (supabase as any)
       .from('knowledge_entries')
-      .select('id, title, body, summary, kind, entity, tags, access, user_id, status')
+      .select('id, title, body, summary, kind, tags, access, user_id, status')
       .eq('id', id)
       .eq('org_id', org_id)
       .maybeSingle()
@@ -282,10 +289,11 @@ async function executeTool(name: string, input: Record<string, any>, ctx: Awaite
     if (entry.access === 'vault' && entry.user_id !== user.id) {
       return 'This entry is in the vault and only the owner can read it.'
     }
+    const entryEntities = (await fetchEntryEntityMap(supabase, [id]))[id] ?? []
     const body = (entry.body ?? '').slice(0, 30000)
     return [
       `title: ${entry.title ?? '(untitled)'}`,
-      `kind: ${entry.kind}  entity: ${entry.entity}`,
+      `kind: ${entry.kind}  entity: ${entryEntities.join('+') || '—'}`,
       `tags: ${(entry.tags ?? []).join(', ') || '(none)'}`,
       `summary: ${entry.summary ?? '(no summary)'}`,
       '',

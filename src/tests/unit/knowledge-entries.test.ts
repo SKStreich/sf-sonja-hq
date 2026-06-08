@@ -214,7 +214,6 @@ describe('createEntry', () => {
       org_id: 'org-1',
       user_id: 'user-1',
       access: 'standard',
-      entity: 'sfs',            // legacy column = primary entity
       kind: 'note',             // default kind
       idea_status: null,        // only set for 'idea'
       source: 'manual',

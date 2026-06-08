@@ -8,6 +8,7 @@ import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
 import { updateEntry, type Kind, type Entity, type KnowledgeEntry } from './actions'
 import { getAnthropicApiKey, anthropicKeyEnvName } from '@/lib/anthropic-key'
+import { fetchEntryEntityMap, setEntryEntities } from '@/lib/entities/multi-entity'
 
 async function getCtx() {
   const supabase = createClient()
@@ -132,14 +133,18 @@ export async function critiqueAndSave(entryId: string): Promise<{ id: string }> 
 
   const { data: entry } = await (supabase as any)
     .from('knowledge_entries')
-    .select('id, title, body, summary, kind, entity, access, tags')
+    .select('id, title, body, summary, kind, access, tags')
     .eq('id', entryId).maybeSingle()
   if (!entry) throw new Error('Entry not found')
   if (entry.access === 'vault') throw new Error('Vault entries cannot be critiqued')
 
+  // Source the entity set from the junction; the critique inherits it.
+  const srcEntities = (await fetchEntryEntityMap(supabase, [entryId]))[entryId] ?? []
+  const primaryEntity = srcEntities[0] ?? 'personal'
+
   const { data: neighbors } = await (supabase as any)
     .from('knowledge_entries')
-    .select('id, title, summary, kind, entity')
+    .select('id, title, summary, kind')
     .eq('org_id', org_id)
     .eq('access', 'standard')
     .eq('status', 'active')
@@ -148,8 +153,9 @@ export async function critiqueAndSave(entryId: string): Promise<{ id: string }> 
     .order('updated_at', { ascending: false })
     .limit(20)
 
+  const neighborEntityMap = await fetchEntryEntityMap(supabase, (neighbors ?? []).map((n: any) => n.id))
   const neighborText = (neighbors ?? []).map((n: any) =>
-    `- [${n.kind}/${n.entity}] ${n.title ?? '(untitled)'} — ${n.summary ?? ''}`
+    `- [${n.kind}/${(neighborEntityMap[n.id] ?? []).join('+') || '—'}] ${n.title ?? '(untitled)'} — ${n.summary ?? ''}`
   ).join('\n')
 
   const client = new Anthropic({ apiKey })
@@ -173,7 +179,7 @@ One sentence restating the core idea.
 
 ENTRY
 kind: ${entry.kind}
-entity: ${entry.entity}
+entity: ${srcEntities.join('+') || primaryEntity}
 title: ${entry.title ?? '(untitled)'}
 tags: ${(entry.tags ?? []).join(', ')}
 body:
@@ -194,7 +200,6 @@ ${neighborText || '(none)'}`
     .insert({
       org_id, user_id: user.id,
       kind: 'critique', access: 'standard',
-      entity: entry.entity,
       title: `Critique — ${entry.title ?? '(untitled)'} (${new Date().toLocaleDateString()})`,
       body: markdown,
       source: 'manual',
@@ -202,6 +207,7 @@ ${neighborText || '(none)'}`
     })
     .select('id').single()
   if (insertError) throw new Error('Failed to save critique: ' + insertError.message)
+  await setEntryEntities(supabase, inserted.id as string, org_id, srcEntities.length ? srcEntities : [primaryEntity])
 
   const { error: linkError } = await (supabase as any).from('knowledge_links').insert({
     from_entry: inserted.id,
@@ -225,16 +231,18 @@ export async function addFollowUpNote(entryId: string, body: string): Promise<{ 
   if (!text) throw new Error('Note body required')
 
   const { data: src } = await (supabase as any)
-    .from('knowledge_entries').select('entity, title, access').eq('id', entryId).maybeSingle()
+    .from('knowledge_entries').select('title, access').eq('id', entryId).maybeSingle()
   if (!src) throw new Error('Source entry not found')
   if (src.access === 'vault') throw new Error('Cannot annotate vault entries here')
+
+  // Inherit the source entry's entity set from the junction.
+  const srcEntities = (await fetchEntryEntityMap(supabase, [entryId]))[entryId] ?? ['personal']
 
   const { data: inserted, error } = await (supabase as any)
     .from('knowledge_entries')
     .insert({
       org_id, user_id: user.id,
       kind: 'note', access: 'standard',
-      entity: src.entity,
       title: `Note on ${src.title ?? '(untitled)'}`,
       body: text,
       source: 'manual',
@@ -242,6 +250,7 @@ export async function addFollowUpNote(entryId: string, body: string): Promise<{ 
     })
     .select('id').single()
   if (error) throw new Error('Failed to create note: ' + error.message)
+  await setEntryEntities(supabase, inserted.id as string, org_id, srcEntities)
 
   const { error: linkError } = await (supabase as any).from('knowledge_links').insert({
     from_entry: inserted.id, to_entry: entryId,

@@ -28,10 +28,9 @@ export function ProjectsClient({ projects, entities, projectEntities = {} }: Pro
 
   const entityMap = Object.fromEntries(entities.map(e => [e.id, e]))
 
-  // Resolve a project's full entity set from the junction, falling back to the
-  // legacy single entity_id during the dual-write window.
+  // Resolve a project's full entity set from the junction (sole source of truth).
   const entitiesOf = (p: Project): Entity[] => {
-    const ids = projectEntities[p.id] ?? (p.entity_id ? [p.entity_id] : [])
+    const ids = projectEntities[p.id] ?? []
     return ids.map(id => entityMap[id]).filter(Boolean) as Entity[]
   }
 

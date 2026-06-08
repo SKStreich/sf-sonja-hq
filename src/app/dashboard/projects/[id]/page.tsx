@@ -26,8 +26,7 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
 
   const entityMap = Object.fromEntries((entitiesResult.data ?? []).map((e: any) => [e.id, e]))
   const projectEntityMap = await fetchProjectEntityMap(supabase, [projectResult.data.id])
-  const projectEntityIds = projectEntityMap[projectResult.data.id]
-    ?? (projectResult.data.entity_id ? [projectResult.data.entity_id] : [])
+  const projectEntityIds = projectEntityMap[projectResult.data.id] ?? []
   const projectEntityRows = projectEntityIds.map((id: string) => entityMap[id]).filter(Boolean)
   const githubUrl: string | null = (projectResult.data as any).github_url ?? null
   const commits = githubUrl ? await fetchGitHubCommits(githubUrl, 20).catch(() => []) : []

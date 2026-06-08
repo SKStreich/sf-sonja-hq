@@ -9,14 +9,15 @@ export default async function ProjectPrintPage({ params }: { params: { id: strin
   if (!user) redirect('/login')
 
   const [projRes, tasksRes, updatesRes, filesRes] = await Promise.all([
-    (supabase as any).from('projects').select('*, entities(name, type)').eq('id', params.id).single(),
+    (supabase as any).from('projects').select('*, project_entities(entities(name, type))').eq('id', params.id).single(),
     (supabase as any).from('tasks').select('*').eq('project_id', params.id).order('status').order('due_date'),
     (supabase as any).from('project_updates').select('*').eq('project_id', params.id).order('created_at', { ascending: false }),
     (supabase as any).from('project_files').select('*').eq('project_id', params.id).order('created_at', { ascending: false }),
   ])
 
   if (!projRes.data) notFound()
-  const project = projRes.data
+  // Collapse the project_entities junction to a single primary entity object.
+  const project = { ...projRes.data, entities: projRes.data.project_entities?.[0]?.entities ?? null }
   const tasks = tasksRes.data ?? []
   const updates = updatesRes.data ?? []
   const files = filesRes.data ?? []

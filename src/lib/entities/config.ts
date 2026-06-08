@@ -4,12 +4,13 @@
  *
  * To add / rename an entity:
  *   1. Edit this file (slug, label, colour, class maps).
- *   2. Ship a DB migration that (a) widens the CHECK on knowledge_entries.entity
- *      + knowledge_entry_entities.entity and (b) inserts/renames the row in the
+ *   2. Ship a DB migration that (a) widens the CHECK on
+ *      knowledge_entry_entities.entity and (b) inserts/renames the row in the
  *      `entities` table (projects/tasks FK to it).
  *
- * Knowledge uses the TEXT slug directly; projects/tasks use the `entities` table
- * (whose `type` column === slug). Keeping both aligned to this list is the point.
+ * Knowledge membership uses the TEXT slug directly (knowledge_entry_entities);
+ * projects (project_entities) + tasks (tasks.entity_id) FK to the `entities`
+ * table (whose `type` column === slug). Keeping both aligned to this list is the point.
  *
  * Tailwind note: the class strings below are literals so the JIT compiler can
  * see them. Do not build entity class names dynamically elsewhere.

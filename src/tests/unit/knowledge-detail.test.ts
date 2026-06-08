@@ -46,7 +46,7 @@ function makeChain(responses: {
   onInsert?: (payload: any) => void
 } = {}): any {
   const chain: any = {}
-  const methods = ['select', 'eq', 'neq', 'in', 'order', 'limit', 'update', 'delete', 'or', 'gte']
+  const methods = ['select', 'eq', 'neq', 'in', 'order', 'limit', 'update', 'delete', 'or', 'gte', 'upsert', 'not']
   methods.forEach(m => { chain[m] = vi.fn(() => chain) })
   chain.insert = vi.fn((payload: any) => { responses.onInsert?.(payload); return chain })
   const def: Resp = responses.default ?? { data: null, error: null }
@@ -252,7 +252,7 @@ describe('critiqueAndSave', () => {
     expect(callArg.messages[0].content).toContain('Critique the following entry')
     expect(callArg.messages[0].content).toContain('title: T')
     // Insert payload
-    expect(insertedPayload).toMatchObject({ kind: 'critique', access: 'standard', entity: 'sf' })
+    expect(insertedPayload).toMatchObject({ kind: 'critique', access: 'standard' })
     expect(insertedPayload.tags).toEqual(['critique'])
     // Link payload
     expect(linkPayload).toMatchObject({ from_entry: 'crit-1', to_entry: 'e1', relation: 'critique_of' })
@@ -308,7 +308,7 @@ describe('addFollowUpNote', () => {
     })
     const res = await addFollowUpNote('e1', 'Follow-up content')
     expect(res.id).toBe('note-1')
-    expect(notePayload).toMatchObject({ kind: 'note', access: 'standard', entity: 'sf', body: 'Follow-up content' })
+    expect(notePayload).toMatchObject({ kind: 'note', access: 'standard', body: 'Follow-up content' })
     expect(notePayload.tags).toEqual(['followup'])
     expect(linkPayload).toMatchObject({ from_entry: 'note-1', to_entry: 'e1', relation: 'note_on' })
   })

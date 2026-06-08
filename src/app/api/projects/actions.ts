@@ -32,14 +32,12 @@ async function getContext() {
 
 export async function createProject(payload: ProjectPayload): Promise<{ id: string }> {
   const { supabase, user, org_id } = await getContext()
-  // Combine single + set inputs; primary feeds the legacy column.
+  // Combine single + set inputs. Entities live solely in the project_entities junction.
   const entityIds = payload.entity_ids ?? (payload.entity_id ? [payload.entity_id] : [])
   if (entityIds.length === 0) throw new Error('At least one entity is required')
-  const primary = entityIds[0]
   const { data, error } = await supabase.from('projects').insert({
     org_id,
     created_by: user.id,
-    entity_id: primary,
     name: payload.name,
     description: payload.description ?? null,
     status: payload.status ?? 'planning',
@@ -58,12 +56,11 @@ export async function createProject(payload: ProjectPayload): Promise<{ id: stri
 
 export async function updateProject(id: string, payload: Partial<ProjectPayload> & { status?: ProjectStatus }) {
   const { supabase, org_id } = await getContext()
-  // Strip entity_ids (not a column); the primary feeds the legacy entity_id col.
-  const { entity_ids, ...rest } = payload
+  // Strip entity_ids + legacy entity_id (not columns); entities live in the junction.
+  const { entity_ids, entity_id: _legacyEntityId, ...rest } = payload
   const update: Record<string, any> = { ...rest }
-  if (entity_ids !== undefined) {
-    if (entity_ids.length === 0) throw new Error('At least one entity is required')
-    update.entity_id = entity_ids[0]
+  if (entity_ids !== undefined && entity_ids.length === 0) {
+    throw new Error('At least one entity is required')
   }
   const { error } = await (supabase as any).from('projects').update(update).eq('id', id)
   if (error) throw new Error('Failed to update project')

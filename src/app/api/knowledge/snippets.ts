@@ -15,7 +15,17 @@ import { createClient } from '@/lib/supabase/server'
 import { createWorkspacePage } from './workspace'
 import { snippetBody, defaultSnippetTitle } from '@/lib/knowledge/snippet-body'
 import { fetchGitHubCommits } from '@/app/api/integrations/actions'
+import { sortEntitySlugs } from '@/lib/entities/multi-entity'
 import type { Entity } from './actions'
+
+/** Resolve a project's primary entity slug from the project_entities junction
+ *  embed (`project_entities(entities(type))`). Canonical-order first, or fallback. */
+function primaryProjectEntity(projectEntities: any): Entity {
+  const slugs = sortEntitySlugs(
+    ((projectEntities ?? []) as any[]).map((pe) => pe?.entities?.type).filter(Boolean),
+  )
+  return (slugs[0] ?? 'personal') as Entity
+}
 
 export interface ProjectChoice {
   id: string
@@ -38,11 +48,16 @@ export async function listProjectsForSnippet(): Promise<ProjectChoice[]> {
 
   const { data, error } = await (supabase as any)
     .from('projects')
-    .select('id, name, entity, github_url')
+    .select('id, name, github_url, project_entities(entities(type))')
     .eq('org_id', profile.org_id)
     .order('name', { ascending: true })
   if (error) throw new Error('Failed to list projects: ' + error.message)
-  return (data ?? []) as ProjectChoice[]
+  return (data ?? []).map((p: any) => ({
+    id: p.id,
+    name: p.name,
+    github_url: p.github_url,
+    entity: primaryProjectEntity(p.project_entities),
+  })) as ProjectChoice[]
 }
 
 /**
@@ -103,13 +118,13 @@ export async function saveCodeSnippet(input: SaveCodeSnippetInput): Promise<{ id
 
     const { data: project } = await (supabase as any)
       .from('projects')
-      .select('id, name, entity, org_id')
+      .select('id, name, org_id, project_entities(entities(type))')
       .eq('id', input.projectId)
       .maybeSingle()
     if (!project) throw new Error('Project not found')
     if (project.org_id !== profile.org_id) throw new Error('Project in different org')
     projectName = project.name as string
-    if (!entity) entity = project.entity as Entity
+    if (!entity) entity = primaryProjectEntity(project.project_entities)
   }
 
   const body = snippetBody({

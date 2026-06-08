@@ -125,7 +125,9 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
     const title = newTask.trim()
     setNewTask('')
     startTransition(async () => {
-      const created = await createTask({ project_id: project.id, entity_id: project.entity_id, title })
+      const entityId = projectEntities[0]?.id
+      if (!entityId) return
+      const created = await createTask({ project_id: project.id, entity_id: entityId, title })
       if (created) setTasks(ts => [...ts, created as Task])
       router.refresh()
     })

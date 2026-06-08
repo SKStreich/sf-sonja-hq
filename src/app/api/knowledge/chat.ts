@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropicApiKey, anthropicKeyEnvName } from '@/lib/anthropic-key'
+import { fetchEntryEntityMap, setEntryEntities } from '@/lib/entities/multi-entity'
 
 export interface ChatMessage {
   id: string
@@ -40,7 +41,7 @@ export async function getOrCreateChat(sourceEntryId: string | null): Promise<{ c
   if (sourceEntryId) {
     // Check source isn't vault
     const { data: src } = await (supabase as any)
-      .from('knowledge_entries').select('access, entity, title')
+      .from('knowledge_entries').select('access, title')
       .eq('id', sourceEntryId).maybeSingle()
     if (!src) throw new Error('Source entry not found')
     if (src.access === 'vault') throw new Error('Cannot chat about a vault entry')
@@ -55,16 +56,19 @@ export async function getOrCreateChat(sourceEntryId: string | null): Promise<{ c
       .maybeSingle()
     if (existingLink?.from_entry) return { chatId: existingLink.from_entry as string }
 
+    // The chat inherits the source entry's entity set (from the junction).
+    const srcEntities = (await fetchEntryEntityMap(supabase, [sourceEntryId]))[sourceEntryId] ?? ['personal']
+
     const { data: chat, error } = await (supabase as any)
       .from('knowledge_entries')
       .insert({
         org_id, user_id: user.id,
         kind: 'chat', access: 'standard',
-        entity: src.entity,
         title: `Chat — ${src.title ?? 'entry'}`,
         body: null, source: 'manual',
       }).select('id').single()
     if (error) throw new Error('Failed to create chat: ' + error.message)
+    await setEntryEntities(supabase, chat.id as string, org_id, srcEntities)
 
     await (supabase as any).from('knowledge_links').insert({
       from_entry: chat.id, to_entry: sourceEntryId,
@@ -79,11 +83,11 @@ export async function getOrCreateChat(sourceEntryId: string | null): Promise<{ c
     .insert({
       org_id, user_id: user.id,
       kind: 'chat', access: 'standard',
-      entity: 'personal',
       title: `Chat — ${new Date().toLocaleString()}`,
       body: null, source: 'manual',
     }).select('id').single()
   if (error) throw new Error('Failed to create chat: ' + error.message)
+  await setEntryEntities(supabase, chat.id as string, org_id, ['personal'])
   return { chatId: chat.id as string }
 }
 
@@ -140,13 +144,14 @@ export async function sendChatMessage(chatId: string, userMessage: string): Prom
   if (link?.to_entry) {
     const { data: src } = await (supabase as any)
       .from('knowledge_entries')
-      .select('title, body, summary, kind, entity, tags, access')
+      .select('title, body, summary, kind, tags, access')
       .eq('id', link.to_entry)
       .maybeSingle()
     if (src && src.access !== 'vault') {
+      const srcEntities = (await fetchEntryEntityMap(supabase, [link.to_entry]))[link.to_entry] ?? []
       sourceContext = `SOURCE ENTRY
 kind: ${src.kind}
-entity: ${src.entity}
+entity: ${srcEntities.join('+') || '—'}
 title: ${src.title ?? '(untitled)'}
 tags: ${(src.tags ?? []).join(', ')}
 ${src.body ?? src.summary ?? ''}`.slice(0, 6000)
@@ -156,14 +161,15 @@ ${src.body ?? src.summary ?? ''}`.slice(0, 6000)
   // Pull a few org neighbors as background (excluding vault).
   const { data: neighbors } = await (supabase as any)
     .from('knowledge_entries')
-    .select('title, summary, kind, entity')
+    .select('id, title, summary, kind')
     .eq('org_id', org_id)
     .eq('access', 'standard')
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
     .limit(10)
+  const neighborEntityMap = await fetchEntryEntityMap(supabase, (neighbors ?? []).map((n: any) => n.id))
   const neighborText = (neighbors ?? [])
-    .map((n: any) => `- (${n.kind}/${n.entity}) ${n.title ?? ''} — ${n.summary ?? ''}`)
+    .map((n: any) => `- (${n.kind}/${(neighborEntityMap[n.id] ?? []).join('+') || '—'}) ${n.title ?? ''} — ${n.summary ?? ''}`)
     .join('\n')
 
   const apiKey = getAnthropicApiKey()

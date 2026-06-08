@@ -17,11 +17,16 @@ export default async function ProjectsPrintPage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const { data: projects } = await supabase
+  const { data: projectsRaw } = await supabase
     .from('projects')
-    .select('*, entities(name, type)')
+    .select('*, project_entities(entities(name, type))')
     .order('status')
     .order('name')
+  // Collapse to a single primary entity object for grouping/labels.
+  const projects = (projectsRaw ?? []).map((p: any) => ({
+    ...p,
+    entities: p.project_entities?.[0]?.entities ?? null,
+  }))
 
   const { data: tasks } = await (supabase as any)
     .from('tasks')

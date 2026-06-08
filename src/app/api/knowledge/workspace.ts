@@ -10,6 +10,13 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { Entity } from './actions'
 import { syncMentionsForEntry } from './links'
+import { fetchEntryEntityMap, setEntryEntities } from '@/lib/entities/multi-entity'
+
+/** Attach a single primary entity (from the junction) to workspace node rows. */
+async function withNodeEntities(supabase: any, rows: any[]): Promise<any[]> {
+  const emap = await fetchEntryEntityMap(supabase, rows.map((r) => r.id))
+  return rows.map((r) => ({ ...r, entity: (emap[r.id]?.[0] ?? 'personal') as Entity }))
+}
 
 export interface WorkspaceNode {
   id: string
@@ -90,7 +97,7 @@ export async function getWorkspaceSiblings(id: string): Promise<{
 
   let q = (supabase as any)
     .from('knowledge_entries')
-    .select('id, parent_id, title, entity, updated_at')
+    .select('id, parent_id, title, updated_at')
     .eq('org_id', org_id)
     .eq('kind', 'workspace')
     .eq('status', 'active')
@@ -98,9 +105,10 @@ export async function getWorkspaceSiblings(id: string): Promise<{
     .order('updated_at', { ascending: false })
   q = self.parent_id ? q.eq('parent_id', self.parent_id) : q.is('parent_id', null)
   const { data } = await q
+  const siblings = await withNodeEntities(supabase, data ?? [])
   return {
     parent,
-    siblings: (data ?? []).map((r: any) => ({ ...r, has_children: false })),
+    siblings: siblings.map((r: any) => ({ ...r, has_children: false })),
   }
 }
 
@@ -108,7 +116,7 @@ export async function listWorkspaceChildren(parentId: string): Promise<Workspace
   const { supabase, org_id } = await getCtx()
   const { data, error } = await (supabase as any)
     .from('knowledge_entries')
-    .select('id, parent_id, title, entity, updated_at')
+    .select('id, parent_id, title, updated_at')
     .eq('org_id', org_id)
     .eq('kind', 'workspace')
     .eq('status', 'active')
@@ -128,20 +136,21 @@ export async function listWorkspaceChildren(parentId: string): Promise<Workspace
       .eq('status', 'active')
     withGrandkids = new Set((g ?? []).map((r: any) => r.parent_id))
   }
-  return (data ?? []).map((r: any) => ({ ...r, has_children: withGrandkids.has(r.id) }))
+  const nodes = await withNodeEntities(supabase, data ?? [])
+  return nodes.map((r: any) => ({ ...r, has_children: withGrandkids.has(r.id) }))
 }
 
 export async function listWorkspaceTree(): Promise<WorkspaceNode[]> {
   const { supabase, org_id } = await getCtx()
   const { data, error } = await (supabase as any)
     .from('knowledge_entries')
-    .select('id, parent_id, title, entity, updated_at')
+    .select('id, parent_id, title, updated_at')
     .eq('org_id', org_id)
     .eq('kind', 'workspace')
     .eq('status', 'active')
     .order('updated_at', { ascending: false })
   if (error) throw new Error('Failed to list workspace pages: ' + error.message)
-  const rows = (data ?? []) as Array<Omit<WorkspaceNode, 'has_children'>>
+  const rows = await withNodeEntities(supabase, data ?? []) as Array<Omit<WorkspaceNode, 'has_children'>>
   const childIds = new Set(rows.map(r => r.parent_id).filter(Boolean))
   return rows.map(r => ({ ...r, has_children: childIds.has(r.id) }))
 }
@@ -161,18 +170,21 @@ export async function createWorkspacePage(input: {
 }): Promise<{ id: string }> {
   const { supabase, user, org_id } = await getCtx()
 
-  // Inherit entity from parent if not provided.
+  // Inherit entity from parent (via the junction) if not provided.
   let entity: Entity = input.entity ?? 'personal'
   if (input.parentId) {
     const { data: parent } = await (supabase as any)
       .from('knowledge_entries')
-      .select('entity, kind, org_id')
+      .select('kind, org_id')
       .eq('id', input.parentId)
       .maybeSingle()
     if (!parent) throw new Error('Parent page not found')
     if (parent.org_id !== org_id) throw new Error('Parent in different org')
     if (parent.kind !== 'workspace') throw new Error('Parent must be a workspace page')
-    if (!input.entity) entity = parent.entity as Entity
+    if (!input.entity) {
+      const parentEntities = (await fetchEntryEntityMap(supabase, [input.parentId]))[input.parentId]
+      entity = (parentEntities?.[0] ?? 'personal') as Entity
+    }
   }
 
   const body = input.body ?? ''
@@ -181,7 +193,6 @@ export async function createWorkspacePage(input: {
     .insert({
       org_id, user_id: user.id,
       kind: 'workspace', access: 'standard',
-      entity,
       parent_id: input.parentId ?? null,
       title: input.title?.trim() || 'Untitled page',
       body,
@@ -192,6 +203,7 @@ export async function createWorkspacePage(input: {
     .select('id')
     .single()
   if (error) throw new Error('Failed to create page: ' + error.message)
+  await setEntryEntities(supabase, data.id as string, org_id, [entity])
 
   // Sync mentions for any [[…]] references in the initial body.
   if (body.length > 0) {
@@ -221,11 +233,14 @@ export async function updateWorkspacePage(
   const update: any = {}
   if (patch.title !== undefined) update.title = patch.title.trim() || 'Untitled page'
   if (patch.body !== undefined) update.body = patch.body
-  if (patch.entity !== undefined) update.entity = patch.entity
 
-  const { error } = await (supabase as any)
-    .from('knowledge_entries').update(update).eq('id', id)
-  if (error) throw new Error('Failed to update page: ' + error.message)
+  if (Object.keys(update).length > 0) {
+    const { error } = await (supabase as any)
+      .from('knowledge_entries').update(update).eq('id', id)
+    if (error) throw new Error('Failed to update page: ' + error.message)
+  }
+  // Entity changes go to the junction (single primary for workspace pages).
+  if (patch.entity !== undefined) await setEntryEntities(supabase, id, org_id, [patch.entity])
 
   // Re-sync [[…]] mentions whenever body changes. Failures are non-fatal so a
   // save never blocks on link parsing — the user still keeps their content.
