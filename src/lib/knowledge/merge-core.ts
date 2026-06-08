@@ -39,6 +39,17 @@ export interface MergeDraftBody {
   body: string
 }
 
+/** Parse a comma-separated tag input into a clean, de-duped, lower-cased list. */
+export function parseTagList(input: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const raw of (input ?? '').split(',')) {
+    const t = raw.toLowerCase().trim()
+    if (t && !seen.has(t)) { seen.add(t); out.push(t) }
+  }
+  return out
+}
+
 // ── union math (OQ4) ──────────────────────────────────────────────────────────
 
 /** Union of all sources' entities, de-duped + canonically sorted. */

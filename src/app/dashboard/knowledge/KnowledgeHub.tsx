@@ -1,5 +1,6 @@
 'use client'
 import { useState, useTransition, useMemo, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   listEntries, createEntry, deleteEntry,
   type KnowledgeEntry, type Kind, type Entity,
@@ -13,6 +14,7 @@ import { InsightsView } from './views/InsightsView'
 import { VaultView } from './views/VaultView'
 import { WorkspaceView } from './views/WorkspaceView'
 import { ChatDrawer } from './ChatDrawer'
+import { MergeReviewModal } from './MergeReviewModal'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 
@@ -54,6 +56,7 @@ interface Props {
 }
 
 export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
+  const router = useRouter()
   const [entries, setEntries] = useState(initialEntries)
   const [vault, setVault] = useState(initialVault)
   const [view, setView] = useState<ViewMode>('card')
@@ -63,6 +66,19 @@ export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
   const [composerOpen, setComposerOpen] = useState(false)
   const [chatTarget, setChatTarget] = useState<{ id: string | null; title?: string } | null>(null)
   const [pendingForwards, setPendingForwards] = useState<Record<string, number>>({})
+  const [selectMode, setSelectMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [mergeOpen, setMergeOpen] = useState(false)
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  const clearSelection = () => setSelectedIds(new Set())
+  const exitSelectMode = () => { setSelectMode(false); clearSelection() }
 
   useEffect(() => {
     let cancelled = false
@@ -182,6 +198,16 @@ export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
           ))}
         </div>
         <div className="flex items-center gap-2">
+          {(view === 'card' || view === 'list') && (
+            <button onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+              className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
+                selectMode
+                  ? 'border-gray-300 bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+              }`}>
+              {selectMode ? 'Cancel select' : '⛙ Select to merge'}
+            </button>
+          )}
           <button onClick={() => setChatTarget({ id: null })}
             className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100">
             ✦ Ask Claude
@@ -195,8 +221,8 @@ export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
 
       {/* Active view */}
       <div className={loading ? 'opacity-60 transition-opacity' : ''}>
-        {view === 'card' && <CardView entries={visibleEntries} pendingForwards={pendingForwards} onDelete={async id => { await deleteEntry(id); refresh() }} onChat={e => setChatTarget({ id: e.id, title: e.title ?? undefined })} />}
-        {view === 'list' && <ListView entries={visibleEntries} pendingForwards={pendingForwards} onDelete={async id => { await deleteEntry(id); refresh() }} />}
+        {view === 'card' && <CardView entries={visibleEntries} pendingForwards={pendingForwards} onDelete={async id => { await deleteEntry(id); refresh() }} onChat={e => setChatTarget({ id: e.id, title: e.title ?? undefined })} selectable={selectMode} selectedIds={selectedIds} onToggleSelect={toggleSelect} />}
+        {view === 'list' && <ListView entries={visibleEntries} pendingForwards={pendingForwards} onDelete={async id => { await deleteEntry(id); refresh() }} selectable={selectMode} selectedIds={selectedIds} onToggleSelect={toggleSelect} />}
         {view === 'insights' && <InsightsView entries={entries} />}
         {view === 'pages' && <WorkspaceView />}
         {view === 'vault' && (
@@ -208,6 +234,42 @@ export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
           />
         )}
       </div>
+
+      {/* Merge action bar */}
+      {selectMode && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 shadow-[0_-2px_8px_rgba(0,0,0,0.06)] backdrop-blur">
+          <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-3">
+            <span className="text-sm text-gray-700">
+              <strong>{selectedIds.size}</strong> selected
+              {selectedIds.size < 2 && <span className="text-gray-400"> — pick at least 2 to merge</span>}
+            </span>
+            <div className="ml-auto flex items-center gap-2">
+              <button onClick={clearSelection}
+                disabled={selectedIds.size === 0}
+                className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 disabled:opacity-40">
+                Clear
+              </button>
+              <button onClick={() => setMergeOpen(true)}
+                disabled={selectedIds.size < 2}
+                className="rounded-md bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40">
+                Merge ({selectedIds.size})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {mergeOpen && (
+        <MergeReviewModal
+          sourceIds={Array.from(selectedIds)}
+          onClose={() => setMergeOpen(false)}
+          onMerged={id => {
+            setMergeOpen(false)
+            exitSelectMode()
+            router.push(`/dashboard/knowledge/${id}`)
+          }}
+        />
+      )}
 
       {composerOpen && <Composer onClose={() => setComposerOpen(false)} onCreated={() => { setComposerOpen(false); refresh() }} />}
       {chatTarget && (

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   unionMergeEntities, unionMergeTags, assembleSourceText,
   buildMergePrompt, parseMergeResponse, fallbackMergeDraft,
-  hasWorkspaceSource, resolveMergeKind, resolveMergeParentId,
+  hasWorkspaceSource, resolveMergeKind, resolveMergeParentId, parseTagList,
   MERGE_CHAR_CAP, type MergeSource,
 } from '@/lib/knowledge/merge-core'
 
@@ -35,6 +35,16 @@ describe('unionMergeTags', () => {
   })
   it('drops empties', () => {
     expect(unionMergeTags([src({ tags: ['', '  '] })])).toEqual([])
+  })
+})
+
+describe('parseTagList', () => {
+  it('splits, lower-cases, trims, de-dupes, drops empties', () => {
+    expect(parseTagList('Alpha, beta ,  , ALPHA, gamma')).toEqual(['alpha', 'beta', 'gamma'])
+  })
+  it('returns [] for empty input', () => {
+    expect(parseTagList('')).toEqual([])
+    expect(parseTagList('  , ,')).toEqual([])
   })
 })
 

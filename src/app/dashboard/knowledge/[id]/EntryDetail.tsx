@@ -34,6 +34,7 @@ import {
   type Share, type ForwardRequest,
 } from '@/app/api/knowledge/shares'
 import { createTaskFromWorkspace } from '@/app/api/tasks/actions'
+import { getMergedFrom, getMergedInto, type MergedRef } from '@/app/api/knowledge/merge'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 
@@ -165,6 +166,8 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
         </button>
       )}
 
+      <MergedIntoBanner entryId={entry.id} />
+
       {/* Tabs */}
       <div className="mb-5 flex items-center gap-1 border-b border-gray-200">
         {hasOriginal && (
@@ -251,6 +254,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
             </div>
           )}
           <EntryAttachments entryId={entry.id} reloadKey={reloadKey} />
+          <MergedFromBlock entryId={entry.id} />
         </div>
       )}
 
@@ -1977,6 +1981,67 @@ function EntryAttachments({ entryId, reloadKey }: { entryId: string; reloadKey: 
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+/**
+ * Prominent banner on an archived merge source: "This entry was merged into X."
+ * Renders nothing for entries that weren't a merge source.
+ */
+function MergedIntoBanner({ entryId }: { entryId: string }) {
+  const [target, setTarget] = useState<MergedRef | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getMergedInto(entryId)
+      .then(t => { if (!cancelled) setTarget(t) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [entryId])
+
+  if (!target) return null
+  return (
+    <div className="mb-4 flex items-center gap-2 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-900">
+      <span className="text-base leading-none">⤳</span>
+      <span>This entry was merged into{' '}
+        <Link href={`/dashboard/knowledge/${target.id}`} className="font-semibold underline hover:text-violet-700">
+          {target.title || 'a merged entry'}
+        </Link>
+        {' '}and archived.
+      </span>
+    </div>
+  )
+}
+
+/** "Merged from (N)" — the archived sources this entry was built from. */
+function MergedFromBlock({ entryId }: { entryId: string }) {
+  const [sources, setSources] = useState<MergedRef[] | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    getMergedFrom(entryId)
+      .then(s => { if (!cancelled) setSources(s) })
+      .catch(() => { if (!cancelled) setSources([]) })
+    return () => { cancelled = true }
+  }, [entryId])
+
+  if (!sources || sources.length === 0) return null
+  return (
+    <div className="rounded-lg border border-violet-200 bg-white p-4">
+      <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-violet-500">
+        Merged from <span className="text-violet-300">({sources.length})</span>
+      </h3>
+      <ul className="divide-y divide-gray-100">
+        {sources.map(s => (
+          <li key={s.linkId} className="py-2">
+            <Link href={`/dashboard/knowledge/${s.id}`}
+              className="flex items-center gap-2 text-sm text-gray-900 hover:text-violet-700">
+              <span className="text-gray-400">⤳</span>
+              <span className="flex-1 truncate">{s.title || 'Untitled'}</span>
+              <span className="text-[10px] uppercase tracking-wider text-gray-400">{s.kind} · archived</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
     </div>
   )
 }

@@ -7,6 +7,9 @@ interface Props {
   entries: KnowledgeEntry[]
   onDelete: (id: string) => void
   pendingForwards?: Record<string, number>
+  selectable?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }
 
 const KIND_DOT: Record<string, string> = {
@@ -54,7 +57,7 @@ function buildRows(entries: KnowledgeEntry[]): Row[] {
   return out
 }
 
-export function ListView({ entries, onDelete, pendingForwards = {} }: Props) {
+export function ListView({ entries, onDelete, pendingForwards = {}, selectable = false, selectedIds, onToggleSelect }: Props) {
   if (entries.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center text-sm text-gray-500">
@@ -74,6 +77,7 @@ export function ListView({ entries, onDelete, pendingForwards = {} }: Props) {
       <table className="w-full text-sm">
         <thead className="border-b border-gray-200 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
           <tr>
+            {selectable && <th className="w-8 px-3 py-2" />}
             <th className="px-4 py-2 text-left font-semibold">Title</th>
             <th className="px-3 py-2 text-left font-semibold">Kind</th>
             <th className="px-3 py-2 text-left font-semibold">Entity</th>
@@ -84,7 +88,18 @@ export function ListView({ entries, onDelete, pendingForwards = {} }: Props) {
         </thead>
         <tbody className="divide-y divide-gray-100">
           {rows.map(({ entry: e, depth }) => (
-            <tr key={e.id} className={`group hover:bg-gray-50 ${depth > 0 ? 'bg-gray-50/60' : ''}`}>
+            <tr key={e.id} className={`group hover:bg-gray-50 ${selectedIds?.has(e.id) ? 'bg-indigo-50' : depth > 0 ? 'bg-gray-50/60' : ''}`}>
+              {selectable && (
+                <td className="px-3 py-2.5 text-center">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds?.has(e.id) ?? false}
+                    onChange={() => onToggleSelect?.(e.id)}
+                    aria-label={`Select ${e.title || 'entry'} for merge`}
+                    className="h-4 w-4 cursor-pointer accent-indigo-600"
+                  />
+                </td>
+              )}
               <td className="px-4 py-2.5">
                 <Link href={`/dashboard/knowledge/${e.id}`} className="block">
                   <div className="flex items-center gap-2" style={{ paddingLeft: depth * 20 }}>
