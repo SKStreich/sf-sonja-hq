@@ -18,9 +18,12 @@ interface Props {
   onDelete: (id: string) => void
   onChat?: (entry: KnowledgeEntry) => void
   pendingForwards?: Record<string, number>
+  selectable?: boolean
+  selectedIds?: Set<string>
+  onToggleSelect?: (id: string) => void
 }
 
-export function CardView({ entries, onDelete, onChat, pendingForwards = {} }: Props) {
+export function CardView({ entries, onDelete, onChat, pendingForwards = {}, selectable = false, selectedIds, onToggleSelect }: Props) {
   // Hide workspace pages that have a parent — they're shown as a count pill on
   // the parent card and are accessible from the parent's detail page. Only
   // top-level workspace pages and non-workspace entries appear in the grid.
@@ -37,9 +40,20 @@ export function CardView({ entries, onDelete, onChat, pendingForwards = {} }: Pr
   }
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-      {visible.map(e => (
-        <article key={e.id} className="group flex flex-col rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md">
+      {visible.map(e => {
+        const selected = selectedIds?.has(e.id) ?? false
+        return (
+        <article key={e.id} className={`group flex flex-col rounded-xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${selected ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200'}`}>
           <div className="mb-2 flex items-center gap-1.5 flex-wrap">
+            {selectable && (
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={() => onToggleSelect?.(e.id)}
+                aria-label={`Select ${e.title || 'entry'} for merge`}
+                className="h-4 w-4 cursor-pointer accent-indigo-600"
+              />
+            )}
             <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_STYLES[e.kind] ?? KIND_STYLES.note}`}>
               {e.kind}
             </span>
@@ -98,7 +112,8 @@ export function CardView({ entries, onDelete, onChat, pendingForwards = {} }: Pr
             </div>
           </div>
         </article>
-      ))}
+        )
+      })}
     </div>
   )
 }
