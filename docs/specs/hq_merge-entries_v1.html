@@ -1,0 +1,260 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HQ · Merge Knowledge Entries — v1 (for review)</title>
+<style>
+  :root {
+    --sf-red:#C0392B; --sf-fg:#1F2937; --sf-muted:#6B7280; --sf-card:#FFFFFF;
+    --sf-bg:#FAFAFA; --sf-border:#E5E7EB; --sf-ok:#16A34A; --sf-warn:#D97706;
+    --sf-cool:#2563EB; --sf-indigo:#4F46E5;
+  }
+  * { box-sizing: border-box; }
+  html, body { background: var(--sf-bg); color: var(--sf-fg); }
+  body { font-family: Helvetica, Arial, sans-serif; margin: 0; padding: 0; line-height: 1.5; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 32px 24px 80px; }
+  .eyebrow { font-family: 'JetBrains Mono','SF Mono',Menlo,monospace; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--sf-muted); }
+  h1 { font-size: 28px; font-weight: 800; margin: 4px 0 8px; letter-spacing: -0.01em; }
+  h2 { font-size: 20px; font-weight: 700; margin: 48px 0 12px; padding-bottom: 8px; border-bottom: 2px solid var(--sf-indigo); }
+  h3 { font-size: 16px; font-weight: 700; margin: 24px 0 6px; }
+  p { margin: 8px 0; }
+  .meta { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin: 16px 0 32px; padding: 16px; background: var(--sf-card); border: 1px solid var(--sf-border); }
+  .meta .item .label { font-family:'JetBrains Mono',monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sf-muted); margin-bottom: 2px; }
+  .meta .item .value { font-size: 13px; font-weight: 600; }
+  code, .mono { font-family:'JetBrains Mono',monospace; font-size: 12px; background: rgba(0,0,0,0.05); padding: 1px 4px; }
+  .callout { margin: 16px 0; padding: 12px 16px; border-left: 3px solid var(--sf-indigo); background: var(--sf-card); border-top: 1px solid var(--sf-border); border-right: 1px solid var(--sf-border); border-bottom: 1px solid var(--sf-border); }
+  .callout.warn { border-left-color: var(--sf-warn); }
+  .callout.ok { border-left-color: var(--sf-ok); }
+  .callout.info { border-left-color: var(--sf-cool); }
+  .callout-label { font-family:'JetBrains Mono',monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--sf-muted); margin-bottom: 4px; }
+  table.data { width: 100%; border-collapse: collapse; margin: 12px 0; background: var(--sf-card); border: 1px solid var(--sf-border); }
+  table.data th, table.data td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--sf-border); font-size: 13px; vertical-align: top; }
+  table.data th { background: rgba(0,0,0,0.02); font-family:'JetBrains Mono',monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--sf-muted); font-weight: 700; }
+  ul li { margin: 4px 0; }
+  hr.section { border: none; border-top: 1px dashed var(--sf-border); margin: 24px 0; }
+  .flow { display: flex; flex-wrap: wrap; align-items: stretch; gap: 0; margin: 16px 0; }
+  .flow .step { flex: 1; min-width: 150px; background: var(--sf-card); border: 1px solid var(--sf-border); border-top: 3px solid var(--sf-indigo); padding: 12px 14px; }
+  .flow .step .n { font-family:'JetBrains Mono',monospace; font-size: 10px; color: var(--sf-muted); }
+  .flow .step .t { font-weight: 700; font-size: 13px; margin: 2px 0 4px; }
+  .flow .step .d { font-size: 12px; color: var(--sf-muted); }
+  .flow .arrow { align-self: center; padding: 0 8px; color: var(--sf-muted); font-weight: 700; }
+  .decision { background: var(--sf-card); border: 1px solid var(--sf-border); border-left: 3px solid var(--sf-warn); padding: 16px 18px; margin: 14px 0; }
+  .decision.locked { border-left-color: var(--sf-ok); }
+  .decision .q-head { font-weight: 700; font-size: 14px; margin-bottom: 4px; }
+  .decision .q-id { font-family:'JetBrains Mono',monospace; font-size: 11px; color: var(--sf-warn); letter-spacing: 0.08em; }
+  .decision.locked .q-id { color: var(--sf-ok); }
+  .opt { display: block; padding: 8px 10px; margin: 6px 0; border: 1px solid var(--sf-border); border-radius: 6px; cursor: pointer; font-size: 13px; }
+  .opt:hover { background: rgba(79,70,229,0.04); }
+  .opt input { margin-right: 8px; }
+  .opt .rec { font-size: 10px; font-weight: 700; color: var(--sf-indigo); font-family:'JetBrains Mono',monospace; letter-spacing: 0.06em; }
+  .opt .why { display: block; color: var(--sf-muted); font-size: 12px; margin: 3px 0 0 24px; }
+  .opt.chosen { border-color: var(--sf-indigo); background: rgba(79,70,229,0.06); box-shadow: inset 3px 0 0 var(--sf-indigo); }
+  .toolbar { position: sticky; top: 0; z-index: 10; background: var(--sf-card); border: 1px solid var(--sf-border); padding: 10px 16px; margin: 0 0 24px; display: flex; align-items: center; gap: 14px; justify-content: space-between; }
+  .toolbar .status { font-size: 12px; color: var(--sf-muted); font-family:'JetBrains Mono',monospace; }
+  .toolbar button { font-family:'JetBrains Mono',monospace; font-size: 12px; padding: 7px 14px; border: 1px solid var(--sf-indigo); background: var(--sf-indigo); color: white; border-radius: 6px; cursor: pointer; }
+  .toolbar button.ghost { background: transparent; color: var(--sf-indigo); }
+  .pr-card { background: var(--sf-card); border: 1px solid var(--sf-border); padding: 14px 16px; margin: 10px 0; }
+  .pr-card .pr-id { font-family:'JetBrains Mono',monospace; font-weight: 700; color: var(--sf-indigo); font-size: 13px; }
+  .pr-card .pr-effort { float: right; font-size: 11px; color: var(--sf-muted); font-family:'JetBrains Mono',monospace; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="eyebrow">HQ · Knowledge Hub · new feature · FOR REVIEW</div>
+  <h1>Merge Knowledge Entries — v1</h1>
+  <p style="color: var(--sf-muted); font-size: 14px;">
+    Combine two or more similar documents / ideas into a single entry, with Claude drafting a
+    <strong>lossless union</strong> — nothing unique to any source is dropped — that you review and edit before it saves.
+  </p>
+
+  <div class="meta">
+    <div class="item"><div class="label">Status</div><div class="value">v1 · open questions inside</div></div>
+    <div class="item"><div class="label">Date</div><div class="value">2026-06-06</div></div>
+    <div class="item"><div class="label">Prod HEAD</div><div class="value">aaeaa97 (PR #52)</div></div>
+    <div class="item"><div class="label">Decisions pre-locked</div><div class="value">3 (see below)</div></div>
+  </div>
+
+  <div class="toolbar">
+    <span class="status" id="status">Open questions: choose to lock</span>
+    <span>
+      <button class="ghost" id="resetBtn">Reset picks</button>
+      <button id="exportBtn">Export decisions JSON</button>
+    </span>
+  </div>
+
+  <div class="callout">
+    <div class="callout-label">The ask, in Sonja's words</div>
+    <p style="margin:0;">"What if two documents or ideas are similar and I want to merge them into one, making sure that what is missing from each when merged is included in the newly merged item."</p>
+  </div>
+
+  <div class="callout ok">
+    <div class="callout-label">Decisions already locked (2026-06-05)</div>
+    <ul style="margin:4px 0;">
+      <li><strong>AI-assisted union</strong> — Claude drafts the merged doc; you don't hand-merge.</li>
+      <li><strong>Review before save</strong> — the draft opens in an editor; nothing is written until you approve.</li>
+      <li><strong>Sources archived, not deleted</strong> — originals are kept (recoverable) and linked to the merged result.</li>
+    </ul>
+  </div>
+
+  <h2>Flow</h2>
+  <div class="flow">
+    <div class="step"><div class="n">1 · SELECT</div><div class="t">Pick 2+ entries</div><div class="d">Multi-select in Cards/List → a "Merge (N)" action appears.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="n">2 · DRAFT</div><div class="t">Claude unions them</div><div class="d">Server reads the source bodies, drafts one doc preserving every unique point + flags conflicts.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="n">3 · REVIEW</div><div class="t">You edit</div><div class="d">Draft opens in an editor: title, body, kind, entities, projects, tags — all editable.</div></div>
+    <div class="arrow">→</div>
+    <div class="step"><div class="n">4 · COMMIT</div><div class="t">Save + archive</div><div class="d">New entry created; sources archived + linked "merged into."</div></div>
+  </div>
+
+  <h2>How "lossless" is enforced</h2>
+  <p>The merge prompt instructs Claude to (a) include every distinct fact / point / section from each source,
+  (b) de-duplicate overlapping content, and (c) when two sources <em>contradict</em>, keep both and surface the
+  conflict in a trailing <code>## Source notes &amp; conflicts</code> section rather than silently picking one.
+  You resolve conflicts during review. Vault entries are <strong>never</strong> read by Claude, so they cannot be merge sources (OQ3).</p>
+
+  <h2>Data model</h2>
+  <table class="data">
+    <tr><th>Concern</th><th>Approach</th></tr>
+    <tr><td>Merged result</td><td>A NEW <code>knowledge_entries</code> row (default per OQ1). Entities written via the existing <code>setEntryEntities</code>; project links via <code>attachEntryToProject</code>; both as the union of the sources (OQ4).</td></tr>
+    <tr><td>Source disposition</td><td><code>status='archived'</code> on each source (via the existing <code>updateEntry</code>) + a <code>knowledge_links</code> row <code>relation='merged_into'</code> (source <code>from_entry</code> → merged <code>to_entry</code>). Drives "Merged from (N)" on the result and "Merged into X" on each archived source.</td></tr>
+    <tr><td>New link relation</td><td>⚠️ <code>knowledge_links_relation_check</code> must be widened to allow <code>'merged_into'</code> (one small migration, same shape as the <code>'attached'</code> widen in PR #46).</td></tr>
+    <tr><td>Reuse</td><td>No new entity/link primitives — merge orchestrates <code>createEntry</code>-like insert + <code>setEntryEntities</code> + <code>attachEntryToProject</code> + <code>updateEntry(status)</code> + one link insert, in one server action.</td></tr>
+  </table>
+
+  <h2>Open questions — lock these to cut v2</h2>
+  <p style="font-size:13px;color:var(--sf-muted);">Pick an option in each; selections persist in this browser. Use "Export decisions JSON" to hand them back.</p>
+
+  <div class="decision" data-q="OQ1">
+    <div class="q-id">OQ1</div>
+    <div class="q-head">Where does the merged content land?</div>
+    <label class="opt"><input type="radio" name="OQ1" value="new"/> <span class="rec">RECOMMENDED</span> A brand-new entry; both sources archived + linked to it.
+      <span class="why">Cleanest provenance — the result is clearly "the merge," sources stay intact and recoverable.</span></label>
+    <label class="opt"><input type="radio" name="OQ1" value="into_primary"/> Merge into one chosen source (keeps its id, history, existing links); the other source(s) archived.
+      <span class="why">Preserves inbound links to the kept doc, but muddier provenance.</span></label>
+  </div>
+
+  <div class="decision" data-q="OQ2">
+    <div class="q-id">OQ2</div>
+    <div class="q-head">How do you start a merge?</div>
+    <label class="opt"><input type="radio" name="OQ2" value="multiselect"/> <span class="rec">RECOMMENDED</span> Multi-select checkboxes in Cards/List → a "Merge (N)" bar appears when 2+ are selected.
+      <span class="why">Natural for "these look similar"; works across the whole hub.</span></label>
+    <label class="opt"><input type="radio" name="OQ2" value="from_detail"/> From one entry's page: "Merge with…" → search/pick the other(s).
+      <span class="why">Fewer UI changes, but you must already be on one of them.</span></label>
+  </div>
+
+  <div class="decision" data-q="OQ3">
+    <div class="q-id">OQ3</div>
+    <div class="q-head">What's eligible to merge?</div>
+    <label class="opt"><input type="radio" name="OQ3" value="tier1_no_ws"/> <span class="rec">RECOMMENDED</span> Tier-1 standard entries only — exclude vault (Claude can't read it) and workspace pages (they own a child tree). Any kind otherwise (idea+doc OK).
+      <span class="why">Matches the "Claude never reads vault" invariant and avoids orphaning page hierarchies.</span></label>
+    <label class="opt"><input type="radio" name="OQ3" value="same_kind"/> Stricter — only entries of the same kind.</label>
+    <label class="opt"><input type="radio" name="OQ3" value="any"/> Anything incl. workspace pages (re-parent children to the merged result).</label>
+  </div>
+
+  <div class="decision" data-q="OQ4">
+    <div class="q-id">OQ4</div>
+    <div class="q-head">Metadata of the merged result</div>
+    <label class="opt"><input type="radio" name="OQ4" value="union"/> <span class="rec">RECOMMENDED</span> Union — entities = all sources' entities, attached projects = all sources' projects, tags = all sources' tags. Title + kind AI-suggested, editable.
+      <span class="why">Loses nothing; you trim during review.</span></label>
+    <label class="opt"><input type="radio" name="OQ4" value="primary"/> Inherit from a chosen "primary" source; ignore the others' metadata.</label>
+  </div>
+
+  <div class="decision" data-q="OQ5">
+    <div class="q-id">OQ5</div>
+    <div class="q-head">Conflict handling in the draft</div>
+    <label class="opt"><input type="radio" name="OQ5" value="flag"/> <span class="rec">RECOMMENDED</span> Keep both sides + a trailing "Source notes &amp; conflicts" section listing contradictions for you to resolve.
+      <span class="why">Never silently drops a claim; you decide.</span></label>
+    <label class="opt"><input type="radio" name="OQ5" value="ai_pick"/> Let Claude pick the most recent / most detailed version and note what it dropped.</label>
+  </div>
+
+  <div class="decision" data-q="OQ6">
+    <div class="q-id">OQ6</div>
+    <div class="q-head">Can a merge be undone?</div>
+    <label class="opt"><input type="radio" name="OQ6" value="manual"/> <span class="rec">RECOMMENDED</span> Soft — sources stay archived &amp; linked; "unmerge" = restore the archived sources + delete the merged entry (manual, low-frequency).
+      <span class="why">Simple; the data to recover is all still there.</span></label>
+    <label class="opt"><input type="radio" name="OQ6" value="snapshot"/> Snapshot each source's full body into the merged entry's <code>knowledge_versions</code> at merge time.</label>
+  </div>
+
+  <div class="decision" data-q="OQ7">
+    <div class="q-id">OQ7</div>
+    <div class="q-head">Model + size guardrail</div>
+    <label class="opt"><input type="radio" name="OQ7" value="sonnet_cap"/> <span class="rec">RECOMMENDED</span> Sonnet (<code>claude-sonnet-4-6</code>, same as classify); cap combined source bodies (~40k chars) and warn if exceeded.
+      <span class="why">Good quality/cost; the cap stops a runaway merge of huge docs.</span></label>
+    <label class="opt"><input type="radio" name="OQ7" value="opus"/> Opus for higher-fidelity union (slower / costlier).</label>
+  </div>
+
+  <h2>Proposed build (after lock)</h2>
+  <div class="pr-card"><span class="pr-effort">migration + server</span><span class="pr-id">PR 1 — merge core</span>
+    <p style="margin:6px 0 0;font-size:13px;">Widen <code>knowledge_links</code> relation CHECK for <code>'merged_into'</code>. Server actions: <code>draftMerge(ids[])</code> → returns the AI draft (title/body/suggested kind + computed union of entities/projects/tags), and <code>commitMerge(draft, ids[])</code> → insert result, write junctions + project links + <code>merged_into</code> links, archive sources. Unit tests for union math + commit shape.</p>
+  </div>
+  <div class="pr-card"><span class="pr-effort">UI</span><span class="pr-id">PR 2 — selection + review</span>
+    <p style="margin:6px 0 0;font-size:13px;">Multi-select in Cards/List + "Merge (N)" bar (per OQ2). Review modal: editable title/body/kind + entity multi-select + project attach + tags, "Save merged" / "Cancel." "Merged from (N)" on the result; "Merged into X" banner on archived sources.</p>
+  </div>
+
+  <div class="callout info">
+    <div class="callout-label">Reuses, doesn't reinvent</div>
+    <p style="margin:0;">Entity writes → <code>setEntryEntities</code>; project links → <code>attachEntryToProject</code>; archive → <code>updateEntry({status:'archived'})</code>; classification prompt pattern → <code>classify()</code> in <code>knowledge/actions.ts</code>. Only genuinely new pieces: the merge prompt, the <code>merged_into</code> relation, and the review UI.</p>
+  </div>
+
+  <p style="font-size:12px;color:var(--sf-muted);">
+    HQ · <code>docs/specs/hq_merge-entries_v1.html</code> · generated 2026-06-06.
+    Lock the open questions → next session cuts v2 (locked) and builds PR 1.
+  </p>
+
+</div>
+
+<script>
+  (function () {
+    var KEY = 'hq_merge_entries_v1_decisions';
+    function load() { try { return JSON.parse(localStorage.getItem(KEY) || '{}'); } catch (e) { return {}; } }
+    function save(o) { localStorage.setItem(KEY, JSON.stringify(o)); }
+    var state = load();
+    var groups = ['OQ1','OQ2','OQ3','OQ4','OQ5','OQ6','OQ7'];
+
+    function paint() {
+      var locked = 0;
+      groups.forEach(function (g) {
+        var card = document.querySelector('.decision[data-q="' + g + '"]');
+        var chosen = state[g];
+        var any = false;
+        card.querySelectorAll('.opt').forEach(function (lab) {
+          var inp = lab.querySelector('input');
+          var on = inp.value === chosen;
+          inp.checked = on;
+          lab.classList.toggle('chosen', on);
+          if (on) any = true;
+        });
+        card.classList.toggle('locked', any);
+        if (any) locked++;
+      });
+      var s = document.getElementById('status');
+      s.textContent = locked === groups.length
+        ? 'All ' + groups.length + ' questions locked — ready to export'
+        : locked + ' / ' + groups.length + ' questions locked';
+    }
+
+    document.querySelectorAll('.decision input[type=radio]').forEach(function (inp) {
+      inp.addEventListener('change', function () { state[inp.name] = inp.value; save(state); paint(); });
+    });
+    document.getElementById('resetBtn').addEventListener('click', function () { state = {}; save(state); paint(); });
+    document.getElementById('exportBtn').addEventListener('click', function () {
+      var payload = {
+        spec: 'hq_merge-entries_v1',
+        exported_at: new Date().toISOString(),
+        locked_decisions: { approach: 'ai_assisted_union', review: 'before_save', sources: 'archived_and_linked' },
+        open_question_answers: state
+      };
+      var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'hq_merge-entries_decisions.json';
+      a.click();
+    });
+    paint();
+  })();
+</script>
+</body>
+</html>
