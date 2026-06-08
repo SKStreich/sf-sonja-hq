@@ -167,7 +167,7 @@ describe('commitMerge', () => {
     const res = await commitMerge({ sourceIds: ['e1', 'e2'], title: 'My Merge', body: 'merged body', entities: ['sfe', 'tm'] })
     expect(res.id).toBe('merged-1')
     const entryInsert = cap.inserts.find(i => i.table === 'knowledge_entries')
-    expect(entryInsert.p).toMatchObject({ source: 'merge', access: 'standard', title: 'My Merge', entity: 'tm' })
+    expect(entryInsert.p).toMatchObject({ source: 'merge', access: 'standard', title: 'My Merge' })
   })
 
   it('writes a merged_into link for each source and archives them', async () => {

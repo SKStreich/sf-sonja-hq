@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { revalidatePath } from 'next/cache'
 import { randomBytes } from 'crypto'
+import { fetchEntryEntityMap } from '@/lib/entities/multi-entity'
 
 export interface Share {
   id: string
@@ -60,10 +61,11 @@ export async function createShare(input: {
   if (input.versionLock) {
     const { data: entry, error: eErr } = await (supabase as any)
       .from('knowledge_entries')
-      .select('id, title, body, kind, entity, tags, mime_type, storage_path, rendered_html')
+      .select('id, title, body, kind, tags, mime_type, storage_path, rendered_html')
       .eq('id', input.entryId)
       .single()
     if (eErr || !entry) throw new Error('Entry not found')
+    const entryEntities = (await fetchEntryEntityMap(supabase, [entry.id]))[entry.id] ?? []
 
     const { data: prev } = await (supabase as any)
       .from('knowledge_versions')
@@ -82,7 +84,7 @@ export async function createShare(input: {
         title: entry.title,
         body: entry.body,
         kind: entry.kind,
-        entity: entry.entity,
+        entity: entryEntities[0] ?? 'personal', // version snapshot keeps a single primary entity
         tags: entry.tags,
         mime_type: entry.mime_type,
         storage_path: entry.storage_path,

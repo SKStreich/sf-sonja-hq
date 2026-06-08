@@ -28,9 +28,7 @@ export interface KnowledgeEntry {
   id: string
   kind: Kind | 'vault'
   access: 'standard' | 'vault'
-  /** Legacy single-entity column. Kept populated during the dual-write window. */
-  entity: Entity
-  /** Full multi-entity membership from the junction (≥1; defaults to [entity]). */
+  /** Multi-entity membership from the junction (≥1). */
   entities: Entity[]
   title: string | null
   body: string | null
@@ -98,7 +96,7 @@ export async function listEntries(opts: {
   const entityMap = await fetchEntryEntityMap(supabase, rows.map(r => r.id))
   return rows.map(r => ({
     ...r,
-    entities: (entityMap[r.id] ?? [r.entity]) as Entity[],
+    entities: (entityMap[r.id] ?? []) as Entity[],
   }))
 }
 
@@ -108,7 +106,7 @@ export async function getEntry(id: string): Promise<KnowledgeEntry | null> {
     .from('knowledge_entries').select('*').eq('id', id).maybeSingle()
   if (!data) return null
   const entityMap = await fetchEntryEntityMap(supabase, [id])
-  return { ...data, entities: entityMap[id] ?? [data.entity] } as KnowledgeEntry
+  return { ...data, entities: entityMap[id] ?? [] } as KnowledgeEntry
 }
 
 async function classify(body: string, entityHint: Entity): Promise<{
@@ -210,7 +208,6 @@ export async function createEntry(input: {
     .insert({
       org_id, user_id: user.id,
       kind, access: 'standard',
-      entity: primary, // legacy column = primary, kept during dual-write window
       title, body, summary,
       type_hint, idea_status,
       tags, confidence,
@@ -269,7 +266,7 @@ export async function updateEntry(id: string, patch: {
       title: current.title,
       body: current.body,
       kind: current.kind,
-      entity: current.entity,
+      entity: current.entities[0], // version snapshot keeps a single primary entity
       tags: current.tags,
       summary: current.summary,
       type_hint: current.type_hint,
@@ -289,8 +286,6 @@ export async function updateEntry(id: string, patch: {
   }
   if (patch.idea_status !== undefined) update.idea_status = patch.idea_status
   if (patch.tags !== undefined) update.tags = patch.tags
-  // Legacy column tracks the primary entity during the dual-write window.
-  if (entitySet !== undefined) update.entity = entitySet[0]
   if (patch.status !== undefined) update.status = patch.status
 
   const { error } = await (supabase as any)
@@ -319,16 +314,20 @@ export async function getHubMetrics(): Promise<{
   const { supabase } = await getCtx()
   const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString()
   const [allRes, rawRes, recentRes] = await Promise.all([
-    (supabase as any).from('knowledge_entries').select('kind, entity').eq('access', 'standard').eq('status', 'active'),
+    (supabase as any).from('knowledge_entries').select('id, kind').eq('access', 'standard').eq('status', 'active'),
     (supabase as any).from('knowledge_entries').select('id', { count: 'exact', head: true }).eq('kind', 'idea').eq('idea_status', 'raw').eq('status', 'active'),
     (supabase as any).from('knowledge_entries').select('id', { count: 'exact', head: true }).eq('access', 'standard').gte('updated_at', sevenDaysAgo),
   ])
-  const rows = (allRes.data ?? []) as { kind: string; entity: string }[]
+  const rows = (allRes.data ?? []) as { id: string; kind: string }[]
   const byKind: Record<string, number> = {}
   const byEntity: Record<string, number> = {}
+  // Entity tally now comes from the junction — an entry counts once per entity it carries.
+  const entityMap = await fetchEntryEntityMap(supabase, rows.map(r => r.id))
   rows.forEach(r => {
     byKind[r.kind] = (byKind[r.kind] ?? 0) + 1
-    byEntity[r.entity] = (byEntity[r.entity] ?? 0) + 1
+    for (const ent of entityMap[r.id] ?? []) {
+      byEntity[ent] = (byEntity[ent] ?? 0) + 1
+    }
   })
   return {
     total: rows.length,

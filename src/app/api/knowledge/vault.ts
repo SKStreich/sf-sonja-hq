@@ -25,9 +25,7 @@ export interface VaultEntry {
   title: string | null
   mime_type: string | null
   size_bytes: number | null
-  /** Legacy single-entity column, kept populated during the dual-write window. */
-  entity: Entity
-  /** Full multi-entity membership from the junction (≥1; defaults to [entity]). */
+  /** Multi-entity membership from the junction (≥1). */
   entities: Entity[]
   tags: string[]
   summary: string | null
@@ -49,7 +47,7 @@ export async function listVaultEntries(): Promise<VaultEntry[]> {
   const { supabase } = await getCtx()
   const { data, error } = await (supabase as any)
     .from('knowledge_entries')
-    .select('id, title, mime_type, size_bytes, entity, tags, summary, created_at, user_id')
+    .select('id, title, mime_type, size_bytes, tags, summary, created_at, user_id')
     .eq('access', 'vault')
     .eq('status', 'active')
     .order('created_at', { ascending: false })
@@ -58,7 +56,7 @@ export async function listVaultEntries(): Promise<VaultEntry[]> {
   const entityMap = await fetchEntryEntityMap(supabase, rows.map(r => r.id))
   return rows.map(r => ({
     ...r,
-    entities: (entityMap[r.id] ?? [r.entity]) as Entity[],
+    entities: (entityMap[r.id] ?? []) as Entity[],
   }))
 }
 
@@ -85,7 +83,6 @@ export async function uploadVaultFile(formData: FormData): Promise<{ id: string 
   if (requested.length === 0) throw new Error('At least one entity is required')
   if (!requested.every(e => (ENTITIES as readonly string[]).includes(e))) throw new Error('Invalid entity')
   const entitySet = sortEntitySlugs(requested) as Entity[]
-  const primary = entitySet[0]
   const tags: string[] = typeof tagsRaw === 'string' && tagsRaw.trim()
     ? tagsRaw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean).slice(0, 8)
     : []
@@ -108,7 +105,6 @@ export async function uploadVaultFile(formData: FormData): Promise<{ id: string 
     .insert({
       org_id, user_id: user.id,
       kind: 'vault', access: 'vault',
-      entity: primary, // legacy column = primary during dual-write window
       title: file.name,
       body: null,
       summary,

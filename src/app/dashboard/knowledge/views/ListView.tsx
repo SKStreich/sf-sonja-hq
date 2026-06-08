@@ -122,7 +122,7 @@ export function ListView({ entries, onDelete, pendingForwards = {}, selectable =
                 </Link>
               </td>
               <td className="px-3 py-2.5 text-xs uppercase tracking-wide text-gray-600">{e.kind}</td>
-              <td className="px-3 py-2.5"><EntityChips entities={e.entities ?? [e.entity]} variant="plain" /></td>
+              <td className="px-3 py-2.5"><EntityChips entities={e.entities ?? []} variant="plain" /></td>
               <td className="px-3 py-2.5 text-xs text-gray-500">
                 {e.tags.slice(0, 3).join(', ')}
               </td>

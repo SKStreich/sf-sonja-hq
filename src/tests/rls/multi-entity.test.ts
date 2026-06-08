@@ -2,9 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 /**
- * Sprint 12 — Multi-entity foundation (PR 1).
- * Junction tables knowledge_entry_entities + project_entities, their RLS, and
- * the transitional ADD-ONLY mirror triggers.
+ * Multi-entity junction tables (knowledge_entry_entities + project_entities)
+ * and their RLS. Post-cutover (20260608000001): the legacy single-entity
+ * columns and the transitional mirror triggers are gone — entity membership is
+ * written to the junction directly, so the helpers below seed the junction.
  *
  * Requires local Supabase running with migrations applied:
  *   npm run supabase:start && npm run test:rls
@@ -91,26 +92,35 @@ afterAll(async () => {
   }
 })
 
+// Entities now live solely in the junction; seed it after creating the parent.
 async function createEntry(user: User, entity = 'personal'): Promise<string> {
   const { data, error } = await user.authed
     .from('knowledge_entries')
-    .insert({ org_id: user.orgId, user_id: user.userId, kind: 'note', entity, title: 'Test entry' })
+    .insert({ org_id: user.orgId, user_id: user.userId, kind: 'note', title: 'Test entry' })
     .select('id').single()
   if (error) throw error
-  return (data as { id: string }).id
+  const id = (data as { id: string }).id
+  const { error: jErr } = await user.authed
+    .from('knowledge_entry_entities').insert({ entry_id: id, entity, org_id: user.orgId })
+  if (jErr) throw jErr
+  return id
 }
 
 async function createProject(user: User): Promise<string> {
   const { data, error } = await user.authed
     .from('projects')
-    .insert({ org_id: user.orgId, created_by: user.userId, entity_id: user.personalId, name: 'Test project', status: 'planning', priority: 'medium' })
+    .insert({ org_id: user.orgId, created_by: user.userId, name: 'Test project', status: 'planning', priority: 'medium' })
     .select('id').single()
   if (error) throw error
-  return (data as { id: string }).id
+  const id = (data as { id: string }).id
+  const { error: jErr } = await user.authed
+    .from('project_entities').insert({ project_id: id, entity_id: user.personalId, org_id: user.orgId })
+  if (jErr) throw jErr
+  return id
 }
 
-describe('mirror triggers backfill the junction on create', () => {
-  it('a new knowledge entry gets exactly one junction row matching its legacy entity', async () => {
+describe('junction seeded on create', () => {
+  it('a new knowledge entry has exactly one junction row for its seeded entity', async () => {
     const id = await createEntry(userA, 'personal')
     const { data } = await userA.authed
       .from('knowledge_entry_entities').select('entity').eq('entry_id', id)
@@ -118,7 +128,7 @@ describe('mirror triggers backfill the junction on create', () => {
     expect(rows.map((r) => r.entity)).toEqual(['personal'])
   })
 
-  it('a new project gets exactly one project_entities row matching its legacy entity_id', async () => {
+  it('a new project has exactly one project_entities row for its seeded entity', async () => {
     const id = await createProject(userA)
     const { data } = await userA.authed
       .from('project_entities').select('entity_id').eq('project_id', id)
@@ -146,16 +156,6 @@ describe('multi-entity membership', () => {
     const { data } = await userA.authed
       .from('project_entities').select('entity_id').eq('project_id', id)
     expect(new Set((data ?? []).map((r: any) => r.entity_id))).toEqual(new Set([userA.personalId, userA.sfId]))
-  })
-
-  it('ADD-ONLY trigger does not clobber a manually-added entity when the legacy column is re-touched', async () => {
-    const id = await createEntry(userA, 'personal')
-    await userA.authed.from('knowledge_entry_entities').insert({ entry_id: id, entity: 'sf', org_id: userA.orgId })
-    // Re-touch the legacy column — trigger fires AFTER UPDATE OF entity.
-    await userA.authed.from('knowledge_entries').update({ entity: 'personal' }).eq('id', id)
-    const { data } = await userA.authed
-      .from('knowledge_entry_entities').select('entity').eq('entry_id', id)
-    expect(new Set((data ?? []).map((r: any) => r.entity))).toEqual(new Set(['personal', 'sf']))
   })
 })
 

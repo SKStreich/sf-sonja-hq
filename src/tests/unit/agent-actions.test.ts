@@ -24,9 +24,10 @@ const MOCK_PROFILE = { org_id: 'org-1' }
 
 function makeChain(response: any = { data: [], error: null, count: 0 }) {
   const chain: any = {}
-  const methods = ['select', 'eq', 'not', 'lt', 'order', 'limit', 'single', 'ilike', 'insert', 'update']
+  const methods = ['select', 'eq', 'not', 'lt', 'order', 'limit', 'single', 'ilike', 'insert', 'update', 'in', 'or', 'gte', 'upsert', 'delete', 'maybeSingle']
   methods.forEach(m => { chain[m] = vi.fn(() => chain) })
   chain.single = vi.fn().mockResolvedValue(response)
+  chain.maybeSingle = vi.fn().mockResolvedValue(response)
   chain.then = (resolve: any) => Promise.resolve(response).then(resolve)
   return chain
 }
@@ -140,6 +141,7 @@ describe('sendAgentMessage', () => {
     })
     // Make .maybeSingle work too
     mockFrom.mockImplementation((table: string) => {
+      if (table === 'knowledge_entry_entities') return makeChain({ data: [{ entry_id: 'e1', entity: 'sf' }], error: null })
       const chain = makeChain({ data: table === 'knowledge_entries' ? entry : MOCK_PROFILE, error: null })
       chain.maybeSingle = vi.fn().mockResolvedValue({ data: table === 'knowledge_entries' ? entry : MOCK_PROFILE, error: null })
       return chain
@@ -169,6 +171,7 @@ describe('sendAgentMessage', () => {
     }
     setupMocks({ user_profiles: { data: MOCK_PROFILE, error: null } })
     mockFrom.mockImplementation((table: string) => {
+      if (table === 'knowledge_entry_entities') return makeChain({ data: [], error: null })
       const chain = makeChain({ data: table === 'knowledge_entries' ? entry : MOCK_PROFILE, error: null })
       chain.maybeSingle = vi.fn().mockResolvedValue({ data: table === 'knowledge_entries' ? entry : MOCK_PROFILE, error: null })
       return chain

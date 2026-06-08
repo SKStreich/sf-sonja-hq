@@ -10,9 +10,10 @@
  * These helpers batch-read the junctions for a set of parent ids and group the
  * result, so display surfaces can render a chip-SET instead of a single chip.
  *
- * READ-ONLY: writes still flow through the legacy single-entity columns during
- * the PR1→PR2b dual-write window (the add-only mirror triggers keep the
- * junctions populated). PR 2b switches writes to the junction directly.
+ * The junction tables are the SOLE source of truth for entity membership. The
+ * legacy single-entity columns (knowledge_entries.entity, projects.entity_id)
+ * and the transitional mirror triggers were dropped in the final cutover
+ * (20260608000001_multi_entity_cutover.sql).
  */
 
 // Canonical slug order + sort live in the entity registry (config.ts), the
@@ -83,10 +84,9 @@ export async function fetchProjectEntityMap(
 }
 
 // ── writes ───────────────────────────────────────────────────────────────────
-// PR 2b: writes go to the junction directly (reconcile = upsert desired set +
-// delete removed). The caller ALSO keeps the legacy column = primary entity for
-// back-compat during the dual-write window. The app-layer "≥1 entity" guard
-// (OQ2='app') lives here: an empty set throws.
+// Writes go to the junction directly (reconcile = upsert desired set + delete
+// removed). The junction is the only place entity membership is stored. The
+// app-layer "≥1 entity" guard (OQ2='app') lives here: an empty set throws.
 
 /**
  * Reconcile a knowledge entry's entity set in knowledge_entry_entities to

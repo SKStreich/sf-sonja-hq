@@ -12,12 +12,12 @@ export default async function TaskManagerPage() {
   const [tasksRes, projectsRes, entitiesRes, membersRes] = await Promise.all([
     (supabase as any)
       .from('tasks')
-      .select('*, projects(id, name, entity_id), entities(id, name, type, color)')
+      .select('*, projects(id, name, project_entities(entity_id)), entities(id, name, type, color)')
       .eq('archived', false)
       .order('due_date', { ascending: true, nullsFirst: false }),
     supabase
       .from('projects')
-      .select('id, name, entity_id, status')
+      .select('id, name, status, project_entities(entity_id)')
       .neq('status', 'complete')
       .order('name'),
     supabase
@@ -34,10 +34,18 @@ export default async function TaskManagerPage() {
       : Promise.resolve({ data: [] }),
   ])
 
+  // Collapse the project_entities junction to a single primary entity_id so the
+  // (single-entity) task UI keeps deriving a default task entity from its project.
+  const primaryEntityId = (p: any): string | null => p?.project_entities?.[0]?.entity_id ?? null
+  const projects = (projectsRes.data ?? []).map((p: any) => ({ ...p, entity_id: primaryEntityId(p) }))
+  const tasks = (tasksRes.data ?? []).map((t: any) =>
+    t.projects ? { ...t, projects: { ...t.projects, entity_id: primaryEntityId(t.projects) } } : t,
+  )
+
   return (
     <TaskManager
-      tasks={tasksRes.data ?? []}
-      projects={projectsRes.data ?? []}
+      tasks={tasks}
+      projects={projects}
       entities={entitiesRes.data ?? []}
       members={membersRes.data ?? []}
       currentUserId={user.id}

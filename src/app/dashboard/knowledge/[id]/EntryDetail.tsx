@@ -59,7 +59,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
   const [title, setTitle] = useState(entry.title ?? '')
   const [body, setBody] = useState(entry.body ?? '')
   const [kind, setKind] = useState<Kind>(entry.kind as Kind)
-  const [entities, setEntities] = useState<Entity[]>(entry.entities ?? [entry.entity])
+  const [entities, setEntities] = useState<Entity[]>(entry.entities ?? [])
   const [tagsInput, setTagsInput] = useState((entry.tags ?? []).join(', '))
   const [dirty, setDirty] = useState(false)
   const [saving, startSave] = useTransition()
@@ -233,7 +233,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
               <MarkdownSplitPane
                 value={body}
                 onChange={v => { setBody(v); markDirty() }}
-                pageEntity={entry.entity}
+                pageEntity={entry.entities[0] ?? 'personal'}
               />
               <WorkspaceChildren parentId={entry.id} />
               <WorkspaceBacklinks entryId={entry.id} reloadKey={reloadKey} />

@@ -55,11 +55,9 @@ export function ProjectCreateDialog({ open, onClose, entities, project, initialE
   const [entityIds, setEntityIds] = useState<string[]>(
     initialEntityIds?.length
       ? initialEntityIds
-      : project?.entity_id
-        ? [project.entity_id]
-        : entities[0]?.id
-          ? [entities[0].id]
-          : [],
+      : entities[0]?.id
+        ? [entities[0].id]
+        : [],
   )
   const toggleEntity = (id: string) => {
     setEntityIds(ids => {

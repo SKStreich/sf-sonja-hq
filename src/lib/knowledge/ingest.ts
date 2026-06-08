@@ -7,6 +7,7 @@
  * user/org context. No auth code lives here.
  */
 import { ENTITY_SLUGS } from '@/lib/entities/config'
+import { fetchEntryEntityMap, setEntryEntities, sortEntitySlugs } from '@/lib/entities/multi-entity'
 
 export const BUCKET = 'knowledge'
 export const MAX_BYTES = 25 * 1024 * 1024
@@ -199,7 +200,6 @@ export async function ingestKnowledgeFile(input: IngestInput): Promise<IngestRes
       user_id,
       kind: resolvedKind,
       access: 'standard',
-      entity,
       title,
       body: body || null,
       tags,
@@ -216,6 +216,7 @@ export async function ingestKnowledgeFile(input: IngestInput): Promise<IngestRes
     await supabase.storage.from(BUCKET).remove([storage_path]).catch(() => {})
     throw new Error('Failed to record entry: ' + error.message)
   }
+  await setEntryEntities(supabase, data.id as string, org_id, [entity])
 
   return {
     id: data.id as string,
@@ -280,13 +281,18 @@ export async function updateKnowledgeEntryFromFile(input: UpdateFromFileInput): 
   // Fetch the current entry, scoped to the caller for ownership enforcement.
   const { data: current, error: fetchErr } = await (supabase as any)
     .from('knowledge_entries')
-    .select('id, version, title, body, kind, entity, tags, summary, type_hint, idea_status, storage_path')
+    .select('id, version, title, body, kind, tags, summary, type_hint, idea_status, storage_path')
     .eq('id', entry_id)
     .eq('org_id', org_id)
     .eq('user_id', user_id)
     .maybeSingle()
   if (fetchErr) throw new Error('Entry lookup failed: ' + fetchErr.message)
   if (!current) throw new IngestNotFoundError('Entry not found or not owned by caller')
+
+  // Entity membership lives in the junction. A supplied `entity` is added to the
+  // set (additive — mirrors the prior add-only mirror-trigger behavior).
+  const currentEntities = (await fetchEntryEntityMap(supabase, [entry_id]))[entry_id] ?? []
+  const entityChanged = input.entity !== undefined && !currentEntities.includes(input.entity)
 
   let body = ''
   let rendered_html: string | null = null
@@ -301,7 +307,6 @@ export async function updateKnowledgeEntryFromFile(input: UpdateFromFileInput): 
 
   const title = file.name
   const nextKind = input.kind !== undefined ? resolveKind(input.kind) : current.kind
-  const nextEntity = input.entity !== undefined ? input.entity : current.entity
   const nextTags = input.tags !== undefined ? input.tags : current.tags
 
   // Change detection mirrors updateEntry: compare the text body + metadata.
@@ -312,7 +317,7 @@ export async function updateKnowledgeEntryFromFile(input: UpdateFromFileInput): 
     norm(body || null) !== norm(current.body) ||
     norm(title) !== norm(current.title) ||
     norm(nextKind) !== norm(current.kind) ||
-    norm(nextEntity) !== norm(current.entity) ||
+    entityChanged ||
     norm(nextTags) !== norm(current.tags)
 
   if (!contentChanged) {
@@ -343,7 +348,7 @@ export async function updateKnowledgeEntryFromFile(input: UpdateFromFileInput): 
       title: current.title,
       body: current.body,
       kind: current.kind,
-      entity: current.entity,
+      entity: currentEntities[0] ?? 'personal', // version snapshot keeps a single primary entity
       tags: current.tags,
       summary: current.summary,
       type_hint: current.type_hint,
@@ -362,7 +367,6 @@ export async function updateKnowledgeEntryFromFile(input: UpdateFromFileInput): 
       body: body || null,
       rendered_html,
       kind: nextKind,
-      entity: nextEntity,
       tags: nextTags,
       storage_path,
       mime_type: mime || null,
@@ -373,6 +377,9 @@ export async function updateKnowledgeEntryFromFile(input: UpdateFromFileInput): 
   if (updErr) {
     await supabase.storage.from(BUCKET).remove([storage_path]).catch(() => {})
     throw new Error('Failed to update entry: ' + updErr.message)
+  }
+  if (entityChanged) {
+    await setEntryEntities(supabase, entry_id, org_id, sortEntitySlugs([...currentEntities, input.entity!]))
   }
 
   // Best-effort cleanup of the superseded blob (versions store text, not blobs).

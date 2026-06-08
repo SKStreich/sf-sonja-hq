@@ -8,6 +8,7 @@
  * Backlink lookups then become a single indexed query.
  */
 import { createClient } from '@/lib/supabase/server'
+import { fetchEntryEntityMap } from '@/lib/entities/multi-entity'
 
 async function getCtx() {
   const supabase = createClient()
@@ -55,7 +56,7 @@ export async function searchLinkTargets(
   if (wantEntries) {
     let entriesQ = (supabase as any)
       .from('knowledge_entries')
-      .select('id, title, entity, kind, updated_at')
+      .select('id, title, kind, updated_at')
       .eq('org_id', org_id)
       .neq('access', 'vault')
       .eq('status', 'active')
@@ -66,6 +67,7 @@ export async function searchLinkTargets(
     const { data } = await entriesQ
     entries = data ?? []
   }
+  const entryEntityMap = await fetchEntryEntityMap(supabase, entries.map((e: any) => e.id))
 
   // Projects: org-scoped, not archived (archived is a boolean column, not a status value).
   let projects: any[] = []
@@ -87,7 +89,8 @@ export async function searchLinkTargets(
     kind: 'project', id: p.id, label: p.name, hint: null,
   }))
   entries.forEach((e: any) => results.push({
-    kind: 'entry', id: e.id, label: e.title, hint: `${e.kind} · ${e.entity}`,
+    kind: 'entry', id: e.id, label: e.title,
+    hint: `${e.kind} · ${(entryEntityMap[e.id] ?? []).join('+') || '—'}`,
   }))
   // Interleave: projects first (rarer), then entries. Cap at 8 total.
   return results.slice(0, 8)
@@ -296,19 +299,19 @@ export async function getEntryBacklinks(entryId: string): Promise<Backlink[]> {
   const { supabase, org_id } = await getCtx()
   const { data, error } = await (supabase as any)
     .from('knowledge_links')
-    .select('from_entry, knowledge_entries!knowledge_links_from_entry_fkey(id, title, kind, entity, updated_at, org_id, access, status)')
+    .select('from_entry, knowledge_entries!knowledge_links_from_entry_fkey(id, title, kind, updated_at, org_id, access, status)')
     .eq('to_entry', entryId)
     .eq('relation', 'mentions')
   if (error) throw new Error('Failed to load backlinks: ' + error.message)
+  const entries = (data ?? []).map((row: any) => row.knowledge_entries).filter(Boolean)
+  const entityMap = await fetchEntryEntityMap(supabase, entries.map((e: any) => e.id))
   const out: Backlink[] = []
-  ;(data ?? []).forEach((row: any) => {
-    const e = row.knowledge_entries
-    if (!e) return
+  entries.forEach((e: any) => {
     if (e.org_id !== org_id) return
     if (e.access === 'vault') return
     if (e.status !== 'active') return
     if (e.id === entryId) return
-    out.push({ id: e.id, title: e.title, kind: e.kind, entity: e.entity, updated_at: e.updated_at })
+    out.push({ id: e.id, title: e.title, kind: e.kind, entity: (entityMap[e.id] ?? [])[0] ?? '—', updated_at: e.updated_at })
   })
   // Stable order: newest first
   out.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
@@ -322,18 +325,18 @@ export async function getProjectBacklinks(projectId: string): Promise<Backlink[]
   const { supabase, org_id } = await getCtx()
   const { data, error } = await (supabase as any)
     .from('knowledge_links')
-    .select('from_entry, knowledge_entries!knowledge_links_from_entry_fkey(id, title, kind, entity, updated_at, org_id, access, status)')
+    .select('from_entry, knowledge_entries!knowledge_links_from_entry_fkey(id, title, kind, updated_at, org_id, access, status)')
     .eq('to_project', projectId)
     .eq('relation', 'mentions')
   if (error) throw new Error('Failed to load project backlinks: ' + error.message)
+  const entries = (data ?? []).map((row: any) => row.knowledge_entries).filter(Boolean)
+  const entityMap = await fetchEntryEntityMap(supabase, entries.map((e: any) => e.id))
   const out: Backlink[] = []
-  ;(data ?? []).forEach((row: any) => {
-    const e = row.knowledge_entries
-    if (!e) return
+  entries.forEach((e: any) => {
     if (e.org_id !== org_id) return
     if (e.access === 'vault') return
     if (e.status !== 'active') return
-    out.push({ id: e.id, title: e.title, kind: e.kind, entity: e.entity, updated_at: e.updated_at })
+    out.push({ id: e.id, title: e.title, kind: e.kind, entity: (entityMap[e.id] ?? [])[0] ?? '—', updated_at: e.updated_at })
   })
   out.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
   return out
@@ -387,7 +390,7 @@ export async function searchAttachableEntries(query: string): Promise<AttachTarg
   const q = query.trim()
   let qb = (supabase as any)
     .from('knowledge_entries')
-    .select('id, title, kind, entity, access')
+    .select('id, title, kind, access')
     .eq('org_id', org_id)
     .eq('status', 'active')
     .not('title', 'is', null)
@@ -395,8 +398,10 @@ export async function searchAttachableEntries(query: string): Promise<AttachTarg
     .limit(8)
   if (q) qb = qb.ilike('title', `%${q}%`)
   const { data } = await qb
-  return (data ?? []).map((e: any) => ({
-    id: e.id, title: e.title, kind: e.kind, entity: e.entity,
+  const rows = (data ?? []) as any[]
+  const entityMap = await fetchEntryEntityMap(supabase, rows.map((e) => e.id))
+  return rows.map((e: any) => ({
+    id: e.id, title: e.title, kind: e.kind, entity: (entityMap[e.id] ?? [])[0] ?? '—',
     vault: e.access === 'vault',
   }))
 }
@@ -468,19 +473,21 @@ export async function getProjectAttachments(projectId: string): Promise<ProjectA
   const { supabase, org_id } = await getCtx()
   const { data, error } = await (supabase as any)
     .from('knowledge_links')
-    .select('id, from_entry, knowledge_entries!knowledge_links_from_entry_fkey(id, title, kind, entity, updated_at, org_id, access, status)')
+    .select('id, from_entry, knowledge_entries!knowledge_links_from_entry_fkey(id, title, kind, updated_at, org_id, access, status)')
     .eq('to_project', projectId)
     .eq('relation', 'attached')
   if (error) throw new Error('Failed to load attachments: ' + error.message)
+  const rows = (data ?? []) as any[]
+  const entityMap = await fetchEntryEntityMap(supabase, rows.map((r) => r.knowledge_entries?.id).filter(Boolean))
   const out: ProjectAttachment[] = []
-  ;(data ?? []).forEach((row: any) => {
+  rows.forEach((row: any) => {
     const e = row.knowledge_entries
     if (!e) return
     if (e.org_id !== org_id) return
     if (e.status !== 'active') return
     out.push({
       linkId: row.id, id: e.id, title: e.title, kind: e.kind,
-      entity: e.entity, vault: e.access === 'vault', updated_at: e.updated_at,
+      entity: (entityMap[e.id] ?? [])[0] ?? '—', vault: e.access === 'vault', updated_at: e.updated_at,
     })
   })
   out.sort((a, b) => b.updated_at.localeCompare(a.updated_at))

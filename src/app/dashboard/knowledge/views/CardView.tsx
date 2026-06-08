@@ -57,7 +57,7 @@ export function CardView({ entries, onDelete, onChat, pendingForwards = {}, sele
             <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${KIND_STYLES[e.kind] ?? KIND_STYLES.note}`}>
               {e.kind}
             </span>
-            <EntityChips entities={e.entities ?? [e.entity]} />
+            <EntityChips entities={e.entities ?? []} />
             {e.idea_status && e.idea_status !== 'raw' && (
               <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">{e.idea_status}</span>
             )}

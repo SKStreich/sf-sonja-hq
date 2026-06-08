@@ -9,6 +9,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropicApiKey, anthropicKeyEnvName } from '@/lib/anthropic-key'
+import { fetchEntryEntityMap } from '@/lib/entities/multi-entity'
 
 function canonicalPair(a: string, b: string): [string, string] {
   return a < b ? [a, b] : [b, a]
@@ -181,16 +182,18 @@ export async function critiqueEntry(id: string): Promise<EntryCritique> {
 
   const { data: entry, error } = await (supabase as any)
     .from('knowledge_entries')
-    .select('id, title, body, summary, kind, entity, access, tags')
+    .select('id, title, body, summary, kind, access, tags')
     .eq('id', id)
     .maybeSingle()
   if (error || !entry) throw new Error('Entry not found')
   if (entry.access === 'vault') throw new Error('Vault entries cannot be critiqued')
 
+  const entryEntities = (await fetchEntryEntityMap(supabase, [id]))[id] ?? []
+
   // Pull a few neighbors in the same org to let Claude reference them.
   const { data: neighbors } = await (supabase as any)
     .from('knowledge_entries')
-    .select('id, title, summary, kind, entity')
+    .select('id, title, summary, kind')
     .eq('org_id', org_id)
     .eq('access', 'standard')
     .eq('status', 'active')
@@ -198,8 +201,9 @@ export async function critiqueEntry(id: string): Promise<EntryCritique> {
     .order('updated_at', { ascending: false })
     .limit(20)
 
+  const neighborEntityMap = await fetchEntryEntityMap(supabase, (neighbors ?? []).map((n: any) => n.id))
   const neighborText = (neighbors ?? []).map((n: any, i: number) =>
-    `[${i}] id=${n.id} kind=${n.kind} entity=${n.entity} title=${n.title ?? '(untitled)'} — ${n.summary ?? ''}`
+    `[${i}] id=${n.id} kind=${n.kind} entity=${(neighborEntityMap[n.id] ?? []).join('+') || '—'} title=${n.title ?? '(untitled)'} — ${n.summary ?? ''}`
   ).join('\n')
 
   const client = new Anthropic({ apiKey })
@@ -215,7 +219,7 @@ export async function critiqueEntry(id: string): Promise<EntryCritique> {
 
 ENTRY
 kind: ${entry.kind}
-entity: ${entry.entity}
+entity: ${entryEntities.join('+') || '—'}
 title: ${entry.title ?? '(untitled)'}
 tags: ${(entry.tags ?? []).join(', ')}
 body:

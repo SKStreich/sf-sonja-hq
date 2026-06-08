@@ -48,7 +48,7 @@ async function loadMergeSources(ids: string[]): Promise<{ supabase: any; user: a
 
   const { data, error } = await (supabase as any)
     .from('knowledge_entries')
-    .select('id, title, kind, access, status, org_id, entity, tags, body, parent_id')
+    .select('id, title, kind, access, status, org_id, tags, body, parent_id')
     .in('id', unique)
   if (error) throw new Error('Failed to load merge sources: ' + error.message)
 
@@ -67,7 +67,7 @@ async function loadMergeSources(ids: string[]): Promise<{ supabase: any; user: a
       id: r.id,
       title: r.title,
       kind: r.kind,
-      entities: (entityMap[r.id] ?? [r.entity]).filter((e: string) => (ENTITY_SLUGS as readonly string[]).includes(e)),
+      entities: (entityMap[r.id] ?? []).filter((e: string) => (ENTITY_SLUGS as readonly string[]).includes(e)),
       tags: Array.isArray(r.tags) ? r.tags : [],
       body: r.body,
       parent_id: r.parent_id ?? null,
@@ -181,7 +181,6 @@ export async function commitMerge(input: CommitMergeInput): Promise<{ id: string
   const requested = sortEntitySlugs(input.entities ?? [])
   if (requested.length === 0) throw new Error('At least one entity is required')
   if (!requested.every(e => (ENTITY_SLUGS as readonly string[]).includes(e))) throw new Error('Invalid entity')
-  const primary = requested[0]
 
   // Workspace sources force kind=workspace so the merged page can hold the
   // re-parented subtree; otherwise honor the reviewed kind.
@@ -201,7 +200,6 @@ export async function commitMerge(input: CommitMergeInput): Promise<{ id: string
     .insert({
       org_id, user_id: user.id,
       kind, access: 'standard',
-      entity: primary,
       title, body, summary: null,
       type_hint, idea_status,
       tags, confidence: null,

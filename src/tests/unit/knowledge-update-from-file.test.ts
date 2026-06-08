@@ -54,10 +54,24 @@ function makeSupabase(opts: { current: any }) {
   versionsChain.then = (resolve: any, reject?: any) =>
     Promise.resolve({ data: null, error: null }).then(resolve, reject)
 
+  // Junction: entity membership now lives here (post-cutover). Reads return the
+  // current entity; setEntryEntities upsert/delete resolve as no-ops.
+  const junctionRows = opts.current
+    ? [{ entry_id: opts.current.id, entity: opts.current.entity ?? 'personal' }]
+    : []
+  const junctionChain: any = {}
+  ;['eq'].forEach(m => { junctionChain[m] = vi.fn(() => junctionChain) })
+  junctionChain.select = vi.fn(() => junctionChain)
+  junctionChain.in = vi.fn(() => Promise.resolve({ data: junctionRows, error: null }))
+  junctionChain.upsert = vi.fn(() => Promise.resolve({ error: null }))
+  junctionChain.delete = vi.fn(() => junctionChain)
+  junctionChain.not = vi.fn(() => Promise.resolve({ error: null }))
+
   const supabase = {
     from: vi.fn((table: string) => {
       if (table === 'knowledge_entries') return entriesChain
       if (table === 'knowledge_versions') return versionsChain
+      if (table === 'knowledge_entry_entities') return junctionChain
       return {}
     }),
     storage: {
