@@ -93,12 +93,12 @@
   <p class="lede">The living scope-of-record for Sonja HQ: every sprint completed and still open, the tasks under each,
     the modules in production today, and the ideas queued for future builds. Updated in place each working session —
     the latest version always carries the full history <em>and</em> shows what just shipped. Git history is the audit trail.</p>
-  <div class="updated">Last updated: 2026-06-08 · Sprint 12 in flight · multi-entity UI + 7-entity taxonomy + doc-side multi-project attach shipped (#48–#52); Merge Knowledge Entries (item E) shipped #54/#55; <strong>multi-entity FINAL CUTOVER shipped #57</strong> (junctions are now the sole source of truth).</div>
+  <div class="updated">Last updated: 2026-06-17 · Sprint 12 in flight · multi-entity FINAL CUTOVER shipped #57; Notion page migration (row 6b) shipped; <strong>Projects/Tasks upgrade shipped #60</strong> — next-action is now a real first task, tasks carry an action type + due date and are editable, % complete, and a dashboard calendar (week/month/year) + tasks on the Gantt.</div>
   <div class="meta">
     <span><strong>Prod:</strong> hq.streichforce.com</span>
-    <span><strong>HEAD:</strong> faefe8d (PR #57)</span>
-    <span><strong>Migrations:</strong> 43</span>
-    <span><strong>Tests:</strong> 278 passing (node+jsdom, local)</span>
+    <span><strong>HEAD:</strong> 3171ed4 (PR #60)</span>
+    <span><strong>Migrations:</strong> 44</span>
+    <span><strong>Tests:</strong> 285 passing (node+jsdom, local)</span>
     <span><strong>Repo:</strong> SKStreich/sf-sonja-hq · ~/Projects/sf-sonja-hq</span>
   </div>
 </header>
@@ -120,7 +120,7 @@
     <div class="stat"><div class="stat-label">In progress</div><div class="stat-value">1</div><div class="stat-sub">S12 wind-down</div></div>
     <div class="stat"><div class="stat-label">Open items</div><div class="stat-value">3</div><div class="stat-sub">task-attach · pages · gates</div></div>
     <div class="stat"><div class="stat-label">Modules live</div><div class="stat-value">14</div></div>
-    <div class="stat"><div class="stat-label">Tests green</div><div class="stat-value">278</div><div class="stat-sub">43 migrations</div></div>
+    <div class="stat"><div class="stat-label">Tests green</div><div class="stat-value">285</div><div class="stat-sub">44 migrations</div></div>
   </div>
   <p class="intro" style="margin-top:14px">HQ is the master source of truth for the platform (Notion is being fully retired). It shipped to production in late April and has been hardened + extended continuously since. Current focus: the multi-entity + doc-linking workstream (a doc/project can belong to ≥1 entity, and Knowledge docs can be tied to projects).</p>
 </section>
@@ -203,7 +203,7 @@
   </div>
 
   <div class="phase wip">
-    <div class="phase-head"><span class="badge wip">🟡 in progress</span><h3>Sprint 12 — Multi-entity, doc-linking &amp; platform infra</h3><span class="dates">May 31 2026 – ongoing · PRs #36–#55</span></div>
+    <div class="phase-head"><span class="badge wip">🟡 in progress</span><h3>Sprint 12 — Multi-entity, doc-linking &amp; platform infra</h3><span class="dates">May 31 2026 – ongoing · PRs #36–#60</span></div>
     <ul>
       <li><code>knowledge_versions</code> → user_profiles FK fix (PostgREST embedded-join) <span class="pr">(#36)</span></li>
       <li><strong>Multi-entity junction foundation</strong> — flat M2M junctions + backfill + mirror triggers (PR 1 of the workstream) <span class="pr">(#37)</span></li>
@@ -215,6 +215,7 @@
       <li>Living <strong>Build &amp; Storage Map</strong> doc + version-on-re-upload to HQ Knowledge <span class="pr">(#38, #42)</span>; relocation records + upload-key Settings tile <span class="pr">(#39, #40, #41)</span>; DR-status updates <span class="pr">(#43, #44)</span></li>
       <li><strong>Multi-entity FINAL CUTOVER</strong> — dropped legacy <code>knowledge_entries.entity</code> + <code>projects.entity_id</code> columns + both mirror triggers; removed all dual-write/legacy-read code; junctions are now the sole source of truth. Also fixed a latent <code>snippets.ts</code> bug (selected a non-existent <code>projects.entity</code>) <span class="pr">(#57)</span></li>
       <li><strong>Notion page migration (curated subset)</strong> — 21 TM docs migrated from Notion (BUILD: Prod &amp; Eng) into HQ Knowledge as entity <code>tm</code> via the upload endpoint; reusable converter stored under <code>~/OneDrive/Documents/Claude/tools/notion-hq-migrator/</code> (audit row 6b)</li>
+      <li><strong>Projects/Tasks upgrade</strong> — a project's <strong>next action is now a real, completable task</strong> (created on project create, pinned first, badged "Next"); <code>projects.next_task_id</code> pointer + <code>next_action*</code> columns kept as a synced cache via <code>refreshNextAction()</code> on every task mutation (self-healing: completing the head advances to the earliest-due open task). Tasks gained an <code>action_type</code> (same vocab as next-action) with inline edit (title/type/due) in the project task list. <strong>% complete</strong> (done ÷ non-cancelled) on cards + detail header. Dashboard <strong>calendar card</strong> (week/month/year over task + project due dates) and tasks plotted on the Projects→Timeline Gantt. Migration <code>20260617000001</code> applied to prod (backfilled 7/7 next-actions). +7 tests <span class="pr">(#60)</span></li>
       <li><em>Still open in this sprint:</em> task-side doc-attach, pre-prod CI gates</li>
     </ul>
   </div>
@@ -285,6 +286,7 @@
   <table>
     <thead><tr><th>Date</th><th>What changed in this doc / what shipped</th></tr></thead>
     <tbody>
+      <tr><td class="mono">2026-06-17</td><td><strong>Projects/Tasks upgrade shipped</strong> <span class="pr">(#60)</span> — a project's <strong>next action is now a real, completable task</strong> (created on project create, pinned first &amp; badged "Next"). New <code>projects.next_task_id</code> pointer; the <code>next_action*</code> columns become a synced cache via <code>refreshNextAction()</code> (runs on every task mutation + project edit; self-healing — completing the head advances to the earliest-due open task, else clears). Tasks gained an <code>action_type</code> (same 9-value vocab as next-action) with inline edit (title/type/due) in the project task list. <strong>% complete</strong> = done ÷ non-cancelled, on project cards + detail header. New dashboard <strong>calendar card</strong> below Today (week/month/year over task + project due dates) and tasks now plotted on the Projects→Timeline Gantt. Migration <code>20260617000001</code> (adds both columns + backfills a task per existing next-action) applied to prod via MCP; backfill verified 7/7. Gates: tsc · 285/285 (+7) · build. Refreshed HEAD (3171ed4 / #60), migrations (44), tests (285).</td></tr>
       <tr><td class="mono">2026-06-09</td><td><strong>Notion page migration shipped (audit row 6b)</strong> — migrated <strong>21 TM docs</strong> from the Notion <em>BUILD: Prod &amp; Eng</em> teamspace (8 Product Topology children + substantive "Docs" rows + 2 AWS-Migration grandchildren) into HQ Knowledge as entity <code>tm</code> / <code>kind=doc</code> via the upload endpoint, rendered HTML in the "Original" tab. Curated subset by design (rest of the TM company Notion stays put). Render fixes baked into the converter (header-row emphasis, cell-wrap, hard line breaks). Reusable converter + sources stored at <code>~/OneDrive/Documents/Claude/tools/notion-hq-migrator/</code>. Moved Page-migration item open→done. No code/migration change (content op via the prod upload endpoint).</td></tr>
       <tr><td class="mono">2026-06-08</td><td><strong>Multi-entity FINAL CUTOVER shipped</strong> <span class="pr">(#57)</span> — dropped legacy <code>knowledge_entries.entity</code> + <code>projects.entity_id</code> columns + both mirror triggers/functions; removed all dual-write + legacy-read code across 37 files; junctions are now the sole source of truth. Fixed a latent <code>snippets.ts</code> bug (selected a non-existent <code>projects.entity</code>). Kept <code>knowledge_versions.entity</code> + <code>tasks.entity_id</code>. Migration <code>20260608000001</code> applied to prod after deploy (backfill verified 100%). Gates: tsc · 278/278 · build. Moved cutover open→done; refreshed HEAD (faefe8d / #57), migrations (43).</td></tr>
       <tr><td class="mono">2026-06-08</td><td><strong>Merge Knowledge Entries (item E) shipped</strong> <span class="pr">(#54 core, #55 UI)</span> — AI-assisted lossless union → new entry; sources archived + linked <code>merged_into</code>; multi-select bar + review modal + "Merged from/into" banners; workspace re-parent; no migration. Folded in a Tailwind fix (scan <code>src/lib</code> so entity chip colors aren't purged — sfo/sfc). v2 spec mirrored to HQ Knowledge (<code>e082af49</code>). Moved item E open→done; refreshed HEAD (0a54800 / #55), migrations (42), tests (278).</td></tr>
