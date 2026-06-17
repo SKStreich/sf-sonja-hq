@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!--
+    Adaptive favicon: keeps the SF mark (filled disc + upward triangle) but flips
+    its colours by browser theme so the disc never disappears into the tab strip.
+    Light tabs → black disc / white triangle (the original look).
+    Dark tabs  → white disc / black triangle (so the disc stays visible).
+  -->
+  <style>
+    .disc { fill: #0b0b0c; }
+    .mark { fill: #ffffff; }
+    @media (prefers-color-scheme: dark) {
+      .disc { fill: #ffffff; }
+      .mark { fill: #0b0b0c; }
+    }
+  </style>
+  <circle class="disc" cx="50" cy="50" r="50" />
+  <polygon class="mark" points="50,29 72,68 28,68" />
+</svg>
