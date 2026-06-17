@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { TimelineView } from '@/components/shared/TimelineView'
 import { ActivityFeed } from '@/components/dashboard/ActivityFeed'
+import { TaskCalendar, type CalendarEvent } from '@/components/dashboard/TaskCalendar'
 import type { ActivityRow } from '@/lib/activity-feed'
 import { ENTITY_CARD_CLASS, ENTITY_CARD_TEXT, entityShort, type EntitySlug } from '@/lib/entities/config'
 
@@ -86,6 +87,7 @@ interface Props {
   entityBreakdown: EntityBreakdown[]
   insights: InsightData
   assignedTasks: any[]
+  calendarEvents: CalendarEvent[]
 }
 
 // ── Entity card colours come from the canonical registry (imported up top) ──
@@ -105,6 +107,7 @@ export function DashboardHome({
   entityBreakdown,
   insights,
   assignedTasks,
+  calendarEvents,
 }: Props) {
   const [knowledgeOpen, setKnowledgeOpen] = useState(recentKnowledge.length > 0)
   const [entityFilter, setEntityFilter] = useState<string | null>(null)
@@ -311,6 +314,9 @@ export function DashboardHome({
               </Link>
             </div>
           </section>
+
+          {/* Calendar — expandable week/month/year view of task & project due dates */}
+          <TaskCalendar events={calendarEvents} />
 
           {/* Overdue Tasks */}
           {fOverdueTasks.length > 0 && (

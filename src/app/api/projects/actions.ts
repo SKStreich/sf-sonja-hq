@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ProjectStatus, ProjectPriority } from '@/types/supabase'
 import { setProjectEntities } from '@/lib/entities/multi-entity'
+import { refreshNextAction } from '@/lib/projects/next-action'
 
 interface ProjectPayload {
   /** Legacy single-entity input (back-compat). Prefer `entity_ids`. */
@@ -49,13 +50,40 @@ export async function createProject(payload: ProjectPayload): Promise<{ id: stri
     due_date: payload.due_date ?? null,
   } as any).select('id').single()
   if (error) throw new Error('Failed to create project')
-  await setProjectEntities(supabase, (data as any).id, org_id, entityIds)
+  const projectId = (data as any).id
+  await setProjectEntities(supabase, projectId, org_id, entityIds)
+
+  // The "next action" entered on the create form becomes a real, completable
+  // task — pinned first in the project's task list. refreshNextAction then
+  // syncs the cached next_action* columns from it.
+  const nextActionText = (payload.next_action ?? '').trim()
+  if (nextActionText) {
+    const { data: created } = await (supabase as any).from('tasks').insert({
+      org_id,
+      user_id: user.id,
+      created_by: user.id,
+      entity_id: entityIds[0],
+      project_id: projectId,
+      title: nextActionText,
+      action_type: payload.next_action_type ?? null,
+      due_date: payload.next_action_due ?? null,
+      status: 'todo',
+      priority: 'medium',
+      gtd_bucket: 'backlog',
+      archived: false,
+    }).select('id').single()
+    if (created?.id) {
+      await (supabase as any).from('projects').update({ next_task_id: created.id }).eq('id', projectId)
+    }
+    await refreshNextAction(supabase, projectId)
+  }
+
   revalidatePath('/dashboard/projects')
-  return { id: (data as any).id }
+  return { id: projectId }
 }
 
 export async function updateProject(id: string, payload: Partial<ProjectPayload> & { status?: ProjectStatus }) {
-  const { supabase, org_id } = await getContext()
+  const { supabase, user, org_id } = await getContext()
   // Strip entity_ids + legacy entity_id (not columns); entities live in the junction.
   const { entity_ids, entity_id: _legacyEntityId, ...rest } = payload
   const update: Record<string, any> = { ...rest }
@@ -65,6 +93,53 @@ export async function updateProject(id: string, payload: Partial<ProjectPayload>
   const { error } = await (supabase as any).from('projects').update(update).eq('id', id)
   if (error) throw new Error('Failed to update project')
   if (entity_ids !== undefined) await setProjectEntities(supabase, id, org_id, entity_ids)
+
+  // Keep the "next action" headline and its backing task in sync. Editing the
+  // next-action fields on the project form updates the pinned task (or creates
+  // one if none exists yet); refreshNextAction then re-syncs the cached columns.
+  if (payload.next_action !== undefined) {
+    const text = (payload.next_action ?? '').trim()
+    if (text) {
+      const { data: proj } = await (supabase as any).from('projects')
+        .select('next_task_id').eq('id', id).single()
+      let pinnedId: string | null = proj?.next_task_id ?? null
+      if (pinnedId) {
+        const { data: t } = await (supabase as any).from('tasks')
+          .select('status,archived').eq('id', pinnedId).single()
+        if (!t || t.archived || t.status === 'done' || t.status === 'cancelled') pinnedId = null
+      }
+      const patch = {
+        title: text,
+        action_type: payload.next_action_type ?? null,
+        due_date: payload.next_action_due ?? null,
+      }
+      if (pinnedId) {
+        await (supabase as any).from('tasks').update(patch).eq('id', pinnedId)
+      } else {
+        const { data: pe } = await (supabase as any).from('project_entities')
+          .select('entity_id').eq('project_id', id).limit(1).single()
+        if (pe?.entity_id) {
+          const { data: created } = await (supabase as any).from('tasks').insert({
+            org_id,
+            user_id: user.id,
+            created_by: user.id,
+            entity_id: pe.entity_id,
+            project_id: id,
+            status: 'todo',
+            priority: 'medium',
+            gtd_bucket: 'backlog',
+            archived: false,
+            ...patch,
+          }).select('id').single()
+          if (created?.id) {
+            await (supabase as any).from('projects').update({ next_task_id: created.id }).eq('id', id)
+          }
+        }
+      }
+    }
+    await refreshNextAction(supabase, id)
+  }
+
   revalidatePath('/dashboard/projects')
   revalidatePath(`/dashboard/projects/${id}`)
 }

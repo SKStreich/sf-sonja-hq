@@ -3,12 +3,21 @@ import { useState } from 'react'
 import { ProjectCard } from './ProjectCard'
 import { ProjectCreateDialog } from './ProjectCreateDialog'
 import { ProjectEntityChips } from './ProjectEntityChips'
-import { TimelineView } from '@/components/shared/TimelineView'
+import { TimelineView, type TimelineItem } from '@/components/shared/TimelineView'
 import { entityLabel } from '@/lib/entities/config'
+import type { TaskProgress } from '@/lib/projects/progress'
 import type { Database, ProjectStatus, ProjectPriority, EntityType } from '@/types/supabase'
 
 type Project = Database['public']['Tables']['projects']['Row']
 type Entity = Database['public']['Tables']['entities']['Row']
+
+export interface ProjectTask {
+  id: string
+  title: string
+  due_date: string | null
+  status: string
+  project_id: string | null
+}
 
 const STATUS_LABELS: Record<ProjectStatus, string> = { planning: 'Planning', active: 'Active', on_hold: 'On Hold', complete: 'Complete' }
 
@@ -17,9 +26,13 @@ interface Props {
   entities: Entity[]
   /** project_id → entity_id[] from the project_entities junction (multi-entity). */
   projectEntities?: Record<string, string[]>
+  /** project_id → completion. */
+  progress?: Record<string, TaskProgress>
+  /** project_id → its non-archived tasks (for the timeline view). */
+  tasksByProject?: Record<string, ProjectTask[]>
 }
 
-export function ProjectsClient({ projects, entities, projectEntities = {} }: Props) {
+export function ProjectsClient({ projects, entities, projectEntities = {}, progress = {}, tasksByProject = {} }: Props) {
   const [view, setView] = useState<'card' | 'list' | 'timeline'>('card')
   const [filterEntity, setFilterEntity] = useState<EntityType | 'all'>('all')
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all')
@@ -130,7 +143,7 @@ export function ProjectsClient({ projects, entities, projectEntities = {} }: Pro
         {/* Card view */}
         {view === 'card' && filtered.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(p => <ProjectCard key={p.id} project={p} entities={entitiesOf(p)} />)}
+            {filtered.map(p => <ProjectCard key={p.id} project={p} entities={entitiesOf(p)} progress={progress[p.id]} />)}
           </div>
         )}
 
@@ -183,13 +196,14 @@ export function ProjectsClient({ projects, entities, projectEntities = {} }: Pro
           </div>
         )}
 
-        {/* Timeline view */}
+        {/* Timeline view — each project bar is followed by its open, dated tasks
+            as points on the same Gantt. */}
         {view === 'timeline' && filtered.length > 0 && (
           <TimelineView
-            items={filtered.map(p => {
+            items={filtered.flatMap(p => {
               // Timeline rows carry a single colour/label; use the primary (first) entity.
               const primary = entitiesOf(p)[0]
-              return {
+              const projectRow: TimelineItem = {
                 id: p.id,
                 name: p.name,
                 startDate: p.created_at ? p.created_at.slice(0, 10) : null,
@@ -198,6 +212,19 @@ export function ProjectsClient({ projects, entities, projectEntities = {} }: Pro
                 entityName: primary ? entityLabel(primary.type) : undefined,
                 href: `/dashboard/projects/${p.id}`,
               }
+              const taskRows: TimelineItem[] = (tasksByProject[p.id] ?? [])
+                .filter(t => t.due_date && t.status !== 'done' && t.status !== 'cancelled')
+                .sort((a, b) => (a.due_date! < b.due_date! ? -1 : 1))
+                .map(t => ({
+                  id: t.id,
+                  name: `↳ ${t.title}`,
+                  // A task shows as a point on its due date (no bar).
+                  startDate: t.due_date,
+                  endDate: null,
+                  entityType: primary?.type,
+                  href: `/dashboard/projects/${p.id}`,
+                }))
+              return [projectRow, ...taskRows]
             })}
             emptyLabel="No projects to display"
           />

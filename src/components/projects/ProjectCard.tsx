@@ -2,6 +2,9 @@ import Link from 'next/link'
 import type { Database } from '@/types/supabase'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './ProjectStatusBadge'
 import { ProjectEntityChips } from './ProjectEntityChips'
+import { ProjectProgress } from './ProjectProgress'
+import { ACTION_TYPE_SHORT } from '@/lib/tasks/action-types'
+import type { TaskProgress } from '@/lib/projects/progress'
 
 type Project = Database['public']['Tables']['projects']['Row'] & {
   next_action_type?: string | null
@@ -9,17 +12,13 @@ type Project = Database['public']['Tables']['projects']['Row'] & {
 }
 type Entity = Database['public']['Tables']['entities']['Row']
 
-const ACTION_TYPE_LABELS: Record<string, string> = {
-  meeting: 'Meeting', call: 'Call', email: 'Email', create_file: 'Create File',
-  review: 'Review', design: 'Design', deploy: 'Deploy', research: 'Research', other: 'Other',
-}
-
 interface ProjectCardProps {
   project: Project
   entities?: Entity[]
+  progress?: TaskProgress
 }
 
-export function ProjectCard({ project, entities = [] }: ProjectCardProps) {
+export function ProjectCard({ project, entities = [], progress }: ProjectCardProps) {
   const isOverdue = project.due_date && new Date(project.due_date + 'T23:59:59') < new Date() && project.status !== 'complete'
   const nextActionOverdue = (project as any).next_action_due &&
     new Date((project as any).next_action_due + 'T23:59:59') < new Date() &&
@@ -48,7 +47,7 @@ export function ProjectCard({ project, entities = [] }: ProjectCardProps) {
           <div className="flex items-center gap-1.5 mb-0.5">
             {(project as any).next_action_type && (
               <span className={`text-xs font-medium uppercase tracking-wider ${nextActionOverdue ? 'text-red-600' : 'text-indigo-600'}`}>
-                {ACTION_TYPE_LABELS[(project as any).next_action_type]}
+                {ACTION_TYPE_SHORT[(project as any).next_action_type]}
               </span>
             )}
             {nextActionOverdue && <span className="text-xs text-red-600">⚠ overdue</span>}
@@ -56,6 +55,9 @@ export function ProjectCard({ project, entities = [] }: ProjectCardProps) {
           <p className="text-xs text-gray-500 line-clamp-1">{project.next_action}</p>
         </div>
       )}
+
+      {/* Completion */}
+      {progress && <ProjectProgress progress={progress} />}
 
       {/* Footer */}
       <div className="flex items-center justify-between gap-2 mt-auto pt-1">

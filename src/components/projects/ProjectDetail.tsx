@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './ProjectStatusBadge'
 import { ProjectCreateDialog } from './ProjectCreateDialog'
 import { ProjectEntityChips } from './ProjectEntityChips'
+import { ProjectProgress } from './ProjectProgress'
+import { DatePicker } from './DatePicker'
+import { ACTION_TYPES, ACTION_TYPE_SHORT } from '@/lib/tasks/action-types'
+import { computeProgress } from '@/lib/projects/progress'
 import { createTask, updateTask, deleteTask } from '@/app/api/tasks/actions'
 import { archiveProject, addProjectUpdate, deleteProjectUpdate, saveProjectFile, deleteProjectFile } from '@/app/api/projects/actions'
 import { saveGitHubUrl, type GitHubCommit } from '@/app/api/integrations/actions'
@@ -19,6 +23,7 @@ import type { Database, TaskStatus } from '@/types/supabase'
 type Project = Database['public']['Tables']['projects']['Row'] & {
   next_action_type?: string | null
   next_action_due?: string | null
+  next_task_id?: string | null
 }
 type Task = Database['public']['Tables']['tasks']['Row']
 type Entity = Database['public']['Tables']['entities']['Row']
@@ -38,12 +43,6 @@ interface ProjectFile {
   file_size: number | null
   content_type: string | null
   created_at: string
-}
-
-const ACTION_TYPE_LABELS: Record<string, string> = {
-  meeting: 'Set Meeting', call: 'Schedule Call', email: 'Send Email',
-  create_file: 'Create File', review: 'Review', design: 'Design',
-  deploy: 'Deploy', research: 'Research', other: 'Other',
 }
 
 const STATUS_ORDER: TaskStatus[] = ['todo', 'in_progress', 'done', 'parked']
@@ -89,6 +88,10 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
   const [updates, setUpdates] = useState(initialUpdates)
   const [files, setFiles] = useState(initialFiles)
   const [newTask, setNewTask] = useState('')
+  const [newTaskType, setNewTaskType] = useState('')
+  const [newTaskDue, setNewTaskDue] = useState('')
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editForm, setEditForm] = useState<{ title: string; action_type: string; due_date: string }>({ title: '', action_type: '', due_date: '' })
   const [newUpdate, setNewUpdate] = useState('')
   const [updateType, setUpdateType] = useState('note')
   const [activeTab, setActiveTab] = useState<'tasks' | 'log' | 'files' | 'github' | 'linked'>('tasks')
@@ -123,11 +126,13 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
     e.preventDefault()
     if (!newTask.trim()) return
     const title = newTask.trim()
-    setNewTask('')
+    const action_type = newTaskType || null
+    const due_date = newTaskDue || null
+    setNewTask(''); setNewTaskType(''); setNewTaskDue('')
     startTransition(async () => {
       const entityId = projectEntities[0]?.id
       if (!entityId) return
-      const created = await createTask({ project_id: project.id, entity_id: entityId, title })
+      const created = await createTask({ project_id: project.id, entity_id: entityId, title, action_type, due_date })
       if (created) setTasks(ts => [...ts, created as Task])
       router.refresh()
     })
@@ -137,12 +142,30 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
     const next: Record<TaskStatus, TaskStatus> = { todo: 'in_progress', in_progress: 'done', done: 'todo', parked: 'todo' }
     const nextStatus = next[task.status]
     setTasks(ts => ts.map(t => t.id === task.id ? { ...t, status: nextStatus } : t))
-    startTransition(async () => { await updateTask(task.id, project.id, { status: nextStatus }) })
+    startTransition(async () => { await updateTask(task.id, project.id, { status: nextStatus }); router.refresh() })
   }
 
   const handleDeleteTask = (task: Task) => {
     setTasks(ts => ts.filter(t => t.id !== task.id))
-    startTransition(async () => { await deleteTask(task.id, project.id) })
+    startTransition(async () => { await deleteTask(task.id, project.id); router.refresh() })
+  }
+
+  const startEdit = (task: Task) => {
+    setEditingId(task.id)
+    setEditForm({
+      title: task.title,
+      action_type: (task as any).action_type ?? '',
+      due_date: task.due_date ?? '',
+    })
+  }
+
+  const handleSaveEdit = (taskId: string) => {
+    const title = editForm.title.trim()
+    if (!title) return
+    const patch = { title, action_type: editForm.action_type || null, due_date: editForm.due_date || null }
+    setTasks(ts => ts.map(t => t.id === taskId ? { ...t, ...patch } as Task : t))
+    setEditingId(null)
+    startTransition(async () => { await updateTask(taskId, project.id, patch); router.refresh() })
   }
 
   const handleAddUpdate = (e: React.FormEvent) => {
@@ -217,9 +240,18 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
     })
   }
 
+  const nextTaskId = (project as any).next_task_id ?? null
+  const progress = computeProgress(tasks)
   const grouped = STATUS_ORDER.map(status => ({
     status,
-    tasks: tasks.filter(t => t.status === status),
+    tasks: tasks.filter(t => t.status === status).sort((a, b) => {
+      // The pinned "next action" task always sorts first; then earliest due.
+      if (a.id === nextTaskId) return -1
+      if (b.id === nextTaskId) return 1
+      const ad = a.due_date ?? '9999-12-31'
+      const bd = b.due_date ?? '9999-12-31'
+      return ad < bd ? -1 : ad > bd ? 1 : 0
+    }),
   })).filter(g => g.tasks.length > 0)
 
   const formatDate = (d: string) =>
@@ -287,6 +319,12 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
           </p>
         )}
 
+        {/* Completion */}
+        <div className="mb-5 max-w-xs">
+          <p className="text-xs font-medium uppercase tracking-wider text-gray-500 mb-1.5">Completion</p>
+          <ProjectProgress progress={progress} showCaption />
+        </div>
+
         {/* Description */}
         {project.description && (
           <p className="text-sm text-gray-600 leading-relaxed mb-5 max-w-2xl">{project.description}</p>
@@ -302,7 +340,7 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
                 </p>
                 {(project as any).next_action_type && (
                   <span className={`rounded-full px-2 py-0.5 text-xs ${nextActionOverdue ? 'bg-red-100 text-red-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                    {ACTION_TYPE_LABELS[(project as any).next_action_type] ?? (project as any).next_action_type}
+                    {ACTION_TYPE_SHORT[(project as any).next_action_type] ?? (project as any).next_action_type}
                   </span>
                 )}
               </div>
@@ -341,13 +379,24 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
         {/* ── TASKS TAB ── */}
         {activeTab === 'tasks' && (
           <div>
-            <form onSubmit={handleAddTask} className="flex gap-2 mb-5">
-              <input value={newTask} onChange={e => setNewTask(e.target.value)}
-                placeholder="Add a task…" className={inputCls} />
-              <button type="submit" disabled={!newTask.trim() || isPending}
-                className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors shrink-0">
-                Add
-              </button>
+            <form onSubmit={handleAddTask} className="mb-5 space-y-2">
+              <div className="flex gap-2">
+                <input value={newTask} onChange={e => setNewTask(e.target.value)}
+                  placeholder="Add a task…" className={inputCls} />
+                <button type="submit" disabled={!newTask.trim() || isPending}
+                  className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors shrink-0">
+                  Add
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <select value={newTaskType} onChange={e => setNewTaskType(e.target.value)}
+                  className="flex-1 rounded-lg bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-gray-200 focus:ring-indigo-400 outline-none transition-all">
+                  <option value="">— Action type (optional) —</option>
+                  {ACTION_TYPES.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                </select>
+                <DatePicker value={newTaskDue} onChange={setNewTaskDue} placeholder="Due date"
+                  className="flex-1 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 ring-1 ring-gray-200 focus:ring-indigo-400 outline-none transition-all" />
+              </div>
             </form>
 
             {tasks.length === 0 ? (
@@ -365,32 +414,83 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
                       <span className="text-xs text-gray-400">{groupTasks.length}</span>
                     </div>
                     <div className="space-y-0.5">
-                      {groupTasks.map(task => (
-                        <div key={task.id}
-                          className="group flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors">
-                          <button onClick={() => handleStatusCycle(task)}
-                            className={`w-4 h-4 rounded-full border flex-shrink-0 transition-colors ${
-                              task.status === 'done' ? 'bg-green-600 border-green-600' :
-                              task.status === 'in_progress' ? 'border-indigo-500 bg-indigo-50' :
-                              'border-gray-300 hover:border-gray-500'
-                            }`} />
-                          <span className={`flex-1 text-sm ${task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
-                            {task.title}
-                          </span>
-                          {(task as any).assignee_id && (() => {
-                            const m = members.find(m => m.id === (task as any).assignee_id)
-                            return m ? (
-                              <span className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0" title={m.full_name ?? m.email}>
-                                {(m.full_name ?? m.email).split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()}
-                              </span>
-                            ) : null
-                          })()}
-                          <button onClick={() => handleDeleteTask(task)}
-                            className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-base leading-none">
-                            ×
-                          </button>
-                        </div>
-                      ))}
+                      {groupTasks.map(task => {
+                        const isNext = task.id === nextTaskId
+                        const at = (task as any).action_type as string | null
+                        const dueOverdue = task.due_date && new Date(task.due_date + 'T23:59:59') < new Date() && task.status !== 'done'
+
+                        if (editingId === task.id) {
+                          return (
+                            <div key={task.id} className="rounded-lg border border-indigo-200 bg-indigo-50/40 px-3 py-3 space-y-2">
+                              <input value={editForm.title} autoFocus
+                                onChange={e => setEditForm(f => ({ ...f, title: e.target.value }))}
+                                onKeyDown={e => { if (e.key === 'Enter') handleSaveEdit(task.id); if (e.key === 'Escape') setEditingId(null) }}
+                                className={inputCls} />
+                              <div className="flex gap-2">
+                                <select value={editForm.action_type}
+                                  onChange={e => setEditForm(f => ({ ...f, action_type: e.target.value }))}
+                                  className="flex-1 rounded-lg bg-white px-3 py-2 text-sm text-gray-700 ring-1 ring-gray-200 focus:ring-indigo-400 outline-none transition-all">
+                                  <option value="">— Action type —</option>
+                                  {ACTION_TYPES.map(a => <option key={a.value} value={a.value}>{a.label}</option>)}
+                                </select>
+                                <DatePicker value={editForm.due_date} onChange={v => setEditForm(f => ({ ...f, due_date: v }))} placeholder="Due date"
+                                  className="flex-1 rounded-lg bg-white px-3 py-2 text-sm text-gray-900 ring-1 ring-gray-200 focus:ring-indigo-400 outline-none transition-all" />
+                              </div>
+                              <div className="flex justify-end gap-3 pt-0.5">
+                                <button onClick={() => setEditingId(null)} className="text-xs text-gray-500 hover:text-gray-700 transition-colors">Cancel</button>
+                                <button onClick={() => handleSaveEdit(task.id)} disabled={!editForm.title.trim()}
+                                  className="rounded-lg bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40 transition-colors">Save</button>
+                              </div>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div key={task.id}
+                            className="group flex items-center gap-3 rounded-lg px-3 py-2.5 hover:bg-gray-50 transition-colors">
+                            <button onClick={() => handleStatusCycle(task)}
+                              className={`w-4 h-4 rounded-full border flex-shrink-0 transition-colors ${
+                                task.status === 'done' ? 'bg-green-600 border-green-600' :
+                                task.status === 'in_progress' ? 'border-indigo-500 bg-indigo-50' :
+                                'border-gray-300 hover:border-gray-500'
+                              }`} />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {isNext && (
+                                  <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-indigo-700">Next</span>
+                                )}
+                                {at && (
+                                  <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600">{ACTION_TYPE_SHORT[at] ?? at}</span>
+                                )}
+                                <span className={`text-sm truncate ${task.status === 'done' ? 'line-through text-gray-400' : 'text-gray-700'}`}>
+                                  {task.title}
+                                </span>
+                              </div>
+                              {task.due_date && (
+                                <p className={`text-xs mt-0.5 ${dueOverdue ? 'text-red-500' : 'text-gray-400'}`}>
+                                  {dueOverdue ? '⚠ Overdue · ' : 'Due '}{formatDate(task.due_date)}
+                                </p>
+                              )}
+                            </div>
+                            {(task as any).assignee_id && (() => {
+                              const m = members.find(m => m.id === (task as any).assignee_id)
+                              return m ? (
+                                <span className="flex items-center justify-center w-5 h-5 rounded-full bg-indigo-100 text-indigo-700 text-[9px] font-bold shrink-0" title={m.full_name ?? m.email}>
+                                  {(m.full_name ?? m.email).split(' ').map((p: string) => p[0]).join('').slice(0, 2).toUpperCase()}
+                                </span>
+                              ) : null
+                            })()}
+                            <button onClick={() => startEdit(task)} title="Edit task"
+                              className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-indigo-600 transition-all text-sm leading-none shrink-0">
+                              ✎
+                            </button>
+                            <button onClick={() => handleDeleteTask(task)} title="Delete task"
+                              className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-base leading-none shrink-0">
+                              ×
+                            </button>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 ))}

@@ -28,6 +28,8 @@ export default async function DashboardPage() {
     { data: allActiveProjects },
     { data: assignedTasks },
     { data: allEntities },
+    { data: calendarTasks },
+    { data: calendarProjects },
   ] = await Promise.all([
     (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
       .eq('gtd_bucket', 'today').eq('archived', false)
@@ -64,6 +66,12 @@ export default async function DashboardPage() {
       .order('due_date', { ascending: true, nullsFirst: false }).limit(10),
     // All active entities — seed a card for every entity, even with zero activity.
     supabase.from('entities').select('id,name,type').eq('active', true),
+    // Calendar feed: every dated, non-archived task + every dated open project.
+    (supabase as any).from('tasks')
+      .select('id,title,due_date,status,priority,project_id,projects(id,name)')
+      .not('due_date', 'is', null).eq('archived', false),
+    supabase.from('projects').select('id,name,due_date')
+      .not('due_date', 'is', null).eq('archived', false as any).neq('status', 'complete'),
   ])
 
   // Normalize junction embeds back to the shapes the UI expects:
@@ -108,6 +116,34 @@ export default async function DashboardPage() {
     todayTaskCount: (todayTasks ?? []).length,
   }
 
+  // Calendar events — dated tasks (any status, to show completed too) + dated
+  // open projects, normalized to a single shape the calendar card renders.
+  const calendarEvents = [
+    ...((calendarTasks ?? []) as any[]).map((t) => {
+      const proj = Array.isArray(t.projects) ? t.projects[0] : t.projects
+      return {
+        id: t.id,
+        title: t.title,
+        date: t.due_date as string,
+        type: 'task' as const,
+        status: t.status ?? null,
+        priority: t.priority ?? null,
+        subtitle: proj?.name ?? null,
+        href: t.project_id ? `/dashboard/projects/${t.project_id}` : '/dashboard/tasks',
+      }
+    }),
+    ...((calendarProjects ?? []) as any[]).map((p) => ({
+      id: `project-${p.id}`,
+      title: p.name,
+      date: p.due_date as string,
+      type: 'project' as const,
+      status: null,
+      priority: null,
+      subtitle: 'Project due',
+      href: `/dashboard/projects/${p.id}`,
+    })),
+  ]
+
   return (
     <DashboardHome
       displayName={displayName}
@@ -122,6 +158,7 @@ export default async function DashboardPage() {
       entityBreakdown={entityBreakdown}
       insights={insights}
       assignedTasks={assignedTasks ?? []}
+      calendarEvents={calendarEvents}
     />
   )
 }
