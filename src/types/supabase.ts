@@ -471,6 +471,7 @@ export type Database = {
           live_url: string | null
           name: string
           next_action: string | null
+          next_task_id: string | null
           org_id: string
           phase: string | null
           priority: Database["public"]["Enums"]["project_priority"]
@@ -491,6 +492,7 @@ export type Database = {
           live_url?: string | null
           name: string
           next_action?: string | null
+          next_task_id?: string | null
           org_id: string
           phase?: string | null
           priority?: Database["public"]["Enums"]["project_priority"]
@@ -511,6 +513,7 @@ export type Database = {
           live_url?: string | null
           name?: string
           next_action?: string | null
+          next_task_id?: string | null
           org_id?: string
           phase?: string | null
           priority?: Database["public"]["Enums"]["project_priority"]
@@ -568,6 +571,7 @@ export type Database = {
       }
       tasks: {
         Row: {
+          action_type: string | null
           archived: boolean
           assignee_id: string | null
           completed_at: string | null
@@ -590,6 +594,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          action_type?: string | null
           archived?: boolean
           assignee_id?: string | null
           completed_at?: string | null
@@ -612,6 +617,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          action_type?: string | null
           archived?: boolean
           assignee_id?: string | null
           completed_at?: string | null

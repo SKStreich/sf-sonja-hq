@@ -2,7 +2,17 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 // ── Supabase mock ─────────────────────────────────────────────────────────────
 
-const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+// `.update().eq()` is awaited directly by some actions (moveTaskBucket) and
+// chained as `.update().eq().select().single()` by the status setters
+// (complete/cancel/reopen). Build an eq-result that supports BOTH: a resolved
+// promise that also carries a `.select()` method.
+function eqResult(result: { data?: any; error: any } = { data: { project_id: null }, error: null }) {
+  return Object.assign(Promise.resolve(result), {
+    select: vi.fn().mockReturnValue({ single: vi.fn().mockResolvedValue(result) }),
+  })
+}
+
+const mockUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(eqResult()) })
 const mockInsert = vi.fn().mockResolvedValue({ error: null })
 const mockDelete = vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
 const mockFrom = vi.fn((table: string) => ({
@@ -29,7 +39,7 @@ import { cancelTask, reopenTask, completeTask, moveTaskBucket } from '@/app/api/
 beforeEach(() => {
   vi.clearAllMocks()
   // Re-wire update mock after clear
-  mockUpdate.mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) })
+  mockUpdate.mockReturnValue({ eq: vi.fn().mockReturnValue(eqResult()) })
 })
 
 describe('cancelTask()', () => {
@@ -40,8 +50,8 @@ describe('cancelTask()', () => {
   })
 
   it('throws when Supabase returns an error', async () => {
-    mockUpdate.mockReturnValueOnce({ eq: vi.fn().mockResolvedValue({ error: { message: 'DB error' } }) })
-    await expect(cancelTask('task-1')).rejects.toThrow('Failed to cancel task')
+    mockUpdate.mockReturnValueOnce({ eq: vi.fn().mockReturnValue(eqResult({ data: null, error: { message: 'DB error' } })) })
+    await expect(cancelTask('task-1')).rejects.toThrow('Failed to update task')
   })
 })
 

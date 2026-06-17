@@ -3,6 +3,7 @@ import { useState, useTransition } from 'react'
 import { createProject, updateProject } from '@/app/api/projects/actions'
 import { DatePicker } from './DatePicker'
 import { entityLabel } from '@/lib/entities/config'
+import { ACTION_TYPES } from '@/lib/tasks/action-types'
 import type { Database, ProjectStatus, ProjectPriority } from '@/types/supabase'
 
 type Entity = Database['public']['Tables']['entities']['Row']
@@ -33,18 +34,6 @@ const PRIORITIES: { value: ProjectPriority; label: string }[] = [
 
 const PHASES = [
   'Discovery', 'Planning', 'Design', 'Build', 'Testing', 'Launch', 'Maintenance',
-]
-
-const ACTION_TYPES = [
-  { value: 'meeting', label: 'Set Meeting' },
-  { value: 'call', label: 'Schedule Call' },
-  { value: 'email', label: 'Send Email' },
-  { value: 'create_file', label: 'Create File' },
-  { value: 'review', label: 'Review' },
-  { value: 'design', label: 'Design' },
-  { value: 'deploy', label: 'Deploy' },
-  { value: 'research', label: 'Research' },
-  { value: 'other', label: 'Other' },
 ]
 
 export function ProjectCreateDialog({ open, onClose, entities, project, initialEntityIds }: Props) {
@@ -196,6 +185,7 @@ export function ProjectCreateDialog({ open, onClose, entities, project, initialE
           {/* Next Action */}
           <div className="rounded-xl bg-gray-50 p-3 space-y-3 ring-1 ring-gray-200">
             <p className="text-xs font-medium uppercase tracking-wider text-gray-500">Next Action</p>
+            <p className="text-xs text-gray-400 -mt-2">Becomes the first task in this project — completable and editable.</p>
             <div>
               <label className={labelCls}>Action Type</label>
               <select value={form.next_action_type} onChange={set('next_action_type')} className={inputCls}>
