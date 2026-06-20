@@ -69,7 +69,7 @@ function wireAuth() {
   mockGetUser.mockResolvedValue({ data: { user: MOCK_USER } })
 }
 
-import { createEntry, listEntries } from '@/app/api/knowledge/actions'
+import { createEntry, listEntries, deleteEntry } from '@/app/api/knowledge/actions'
 
 beforeEach(() => { vi.clearAllMocks() })
 
@@ -251,5 +251,40 @@ describe('createEntry', () => {
     const cap = { inserts: [] as any[] }
     wire(cap, { data: null, error: { message: 'duplicate key value' } })
     await expect(createEntry({ body: 'x', entity: 'sfs' })).rejects.toThrow(/Failed to create entry.*duplicate key/)
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// deleteEntry — must surface RLS-blocked (0-row) deletes instead of silently
+// "succeeding". See migration 20260620000001_ke_delete_owner_admin.sql.
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('deleteEntry', () => {
+  function wire(deleteResult: { data?: any; error?: any }) {
+    wireAuth()
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'user_profiles') {
+        return makeChain({ single: { data: MOCK_PROFILE, error: null } })
+      }
+      // knowledge_entries .delete().eq().select() bottoms out at the terminal await.
+      return makeChain({ default: deleteResult })
+    })
+  }
+
+  it('resolves when a row was deleted', async () => {
+    wire({ data: [{ id: 'e1' }], error: null })
+    await expect(deleteEntry('e1')).resolves.toBeUndefined()
+  })
+
+  it('throws a permission error when nothing was deleted (RLS matched 0 rows)', async () => {
+    // The classic Supabase trap: a delete blocked by RLS returns no error and an
+    // empty data set. deleteEntry must treat this as a failure, not a success.
+    wire({ data: [], error: null })
+    await expect(deleteEntry('not-mine')).rejects.toThrow(/Nothing was deleted.*permission/)
+  })
+
+  it('wraps a Postgres delete error in a clear message', async () => {
+    wire({ data: null, error: { message: 'permission denied for relation knowledge_entries' } })
+    await expect(deleteEntry('e1')).rejects.toThrow(/Failed to delete.*permission denied/)
   })
 })
