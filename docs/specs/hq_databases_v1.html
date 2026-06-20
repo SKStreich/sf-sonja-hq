@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonja HQ — Databases Primitive (Notion parity) · Spec v1</title>
+<style>
+  :root {
+    --ink: #1c1c28; --muted: #5b5b6b; --line: #e4e4ee; --bg: #fbfbfd;
+    --accent: #4338ca; --accent-soft: #eef2ff; --ok: #15803d; --warn: #b45309;
+    --code-bg: #f4f4f8;
+  }
+  * { box-sizing: border-box; }
+  body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         color: var(--ink); background: var(--bg); margin: 0; padding: 0 1.25rem 5rem; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  header.doc { padding: 2.5rem 0 1.25rem; border-bottom: 2px solid var(--ink); margin-bottom: 2rem; }
+  .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; font-weight: 700;
+             color: var(--accent); margin: 0 0 .5rem; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; }
+  h2 { font-size: 1.3rem; margin: 2.6rem 0 .8rem; padding-top: .4rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; }
+  .meta { color: var(--muted); font-size: .9rem; }
+  p, li { color: #2a2a38; }
+  code { background: var(--code-bg); padding: .1rem .35rem; border-radius: 4px; font-size: .86em;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: var(--code-bg); padding: 1rem; border-radius: 8px; overflow:auto; font-size: .82rem;
+        border: 1px solid var(--line); }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 700; white-space: normal; }
+  td { white-space: normal; }
+  .callout { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--accent);
+             padding: .9rem 1.1rem; border-radius: 8px; margin: 1.1rem 0; }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.ok { border-left-color: var(--ok); }
+  .tag { display:inline-block; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+         padding:.12rem .45rem; border-radius:999px; background:var(--accent-soft); color:var(--accent); }
+  .oq { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .oq h3 { margin-top:0; }
+  .rec { color: var(--ok); font-weight:600; }
+  ul.tight { margin:.4rem 0; } ul.tight li { margin:.15rem 0; }
+  .small { font-size:.85rem; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <p class="eyebrow">Sonja HQ · Scoping Spec · DRAFT for review</p>
+  <h1>HQ Databases — a Notion-parity primitive</h1>
+  <p class="meta">Version 1 (draft) · 2026-06-20 · Owner: Sonja Streich · Status: <span class="tag">OPEN — awaiting lock</span></p>
+  <p class="meta">North star: <em>retire Notion</em>. This spec scopes the one capability HQ is missing to get there — structured, tabular data (Notion "databases"), not just documents.</p>
+</header>
+
+<h2>1 · Why this exists</h2>
+<p>
+  HQ today stores <strong>documents</strong>: a knowledge entry is <code>title + body + tags + entities</code>, optionally
+  rendered as an HTML snapshot in an "Original" tab. That is an <strong>archive</strong>. It cannot represent the thing that
+  carries most of the real substance in a serious Notion workspace: a <strong>database</strong> — a collection of records
+  with typed columns, select options, relations, and views.
+</p>
+<div class="callout warn">
+  <strong>The trigger.</strong> The migrated <em>Semantic Layer — Metric/KPI Definitions</em> page came across empty of its
+  tables. Root cause: its content is two Notion databases (<em>App Sections</em>, <em>Metrics &amp; Calculations</em>), and
+  the migrator was fed a <strong>markdown export</strong> — Notion databases don't serialize to markdown, so they appeared as
+  <code>[Embedded database: …]</code> placeholders. <strong>No rows were ever in the file.</strong> This is true of every
+  database across the workspace, not one page.
+</div>
+<div class="callout ok">
+  <strong>The data is recoverable.</strong> Verified live via the Notion API: the <em>Metrics &amp; Calculations</em> database
+  has a full 14-property typed schema and every row is fetchable (each row is a child page). Example row <em>Traded Unit Ratio</em>
+  returned its Backend Variable Name (<code>traded_unit_ratio_past28days</code>), Calculation Summary, Implementation Status
+  (✅ Implemented), Time Period (MTD), Viz Type (Ratio), and Source Ticket (BPE-903). Nothing is locked away.
+</div>
+
+<h2>2 · Two tracks (decided 2026-06-20: do both)</h2>
+<table>
+  <tr><th>Track</th><th>What</th><th>Delivers</th><th>Lifespan</th></tr>
+  <tr>
+    <td><strong>A · Stopgap</strong></td>
+    <td>Importer pulls DB rows via the Notion API and renders them as static HTML tables inside the existing snapshot entries.</td>
+    <td>Lost content (Semantic Layer metrics + every other embedded table) becomes <em>visible</em> again — fast.</td>
+    <td>Throwaway. Read-only. Superseded by Track B.</td>
+  </tr>
+  <tr>
+    <td><strong>B · The primitive</strong></td>
+    <td>A real Databases feature in HQ: typed records, table view, inline-on-page embedding, a proper Notion-API importer.</td>
+    <td>A living tool you can edit in — the thing that actually lets Notion be retired.</td>
+    <td>Permanent. This spec is about Track B.</td>
+  </tr>
+</table>
+<p class="small">Track A is intentionally not over-built — it exists so nothing is missing while Track B is designed and shipped. Its HTML tables get replaced by real embedded databases once Track B lands.</p>
+
+<h2>3 · Scope of Track B v1 (proposed)</h2>
+<h3>In</h3>
+<ul class="tight">
+  <li><strong>Database</strong> object: a named collection belonging to an org + entity set (reuses the multi-entity model).</li>
+  <li><strong>Typed properties</strong>: <code>text</code>, <code>number</code>, <code>select</code>, <code>multi_select</code>,
+      <code>status</code>, <code>checkbox</code>, <code>date</code>, <code>url</code>, and <code>relation</code> (to another HQ database row).</li>
+  <li><strong>Records</strong> with values per property; one designated <em>title</em> property.</li>
+  <li><strong>Table view</strong>: sortable columns, column show/hide, basic filtering by property.</li>
+  <li><strong>Inline-on-page</strong>: embed a database (or a filtered view of it) inside a knowledge/workspace page — the Notion "page with a table in it" shape.</li>
+  <li><strong>Notion-API importer</strong>: given a Notion database URL, recreate its schema + all rows in HQ (replaces the markdown migrator for anything tabular).</li>
+  <li><strong>Editing</strong>: add/edit/delete rows and columns in-app.</li>
+</ul>
+<h3>Out (deferred — Phase 2+)</h3>
+<ul class="tight">
+  <li>Board / calendar / timeline / gallery views.</li>
+  <li>Formulas, rollups, and aggregation footers.</li>
+  <li>Two-way relation sync &amp; rollup recompute.</li>
+  <li>Real-time multiplayer editing; per-cell comments.</li>
+  <li>Permissions below the row level (entity tagging + org RLS is the boundary, per the existing model).</li>
+</ul>
+
+<h2>4 · Data model (proposed)</h2>
+<p>Three core tables, all org-scoped under the existing RLS model. Entity tagging reuses the junction approach from the multi-entity work.</p>
+<pre><code>hq_databases
+  id            uuid pk
+  org_id        uuid  -- RLS boundary (reuse existing pattern)
+  title         text
+  icon          text null
+  description   text null
+  created_by    uuid
+  created_at / updated_at
+
+hq_db_properties              -- the schema (columns)
+  id            uuid pk
+  database_id   uuid fk -> hq_databases (on delete cascade)
+  name          text
+  type          text  -- text|number|select|multi_select|status|checkbox|date|url|relation
+  position      int
+  config        jsonb -- select options[], relation target db id, number format, etc.
+  is_title      bool  -- exactly one true per database
+
+hq_db_records                 -- the rows
+  id            uuid pk
+  database_id   uuid fk -> hq_databases (on delete cascade)
+  position      int
+  values        jsonb -- { "&lt;property_id&gt;": &lt;value&gt; }  (typed at app layer)
+  created_at / updated_at
+
+hq_db_entities (junction)     -- entity tags, mirrors knowledge_entry_entities
+  database_id   uuid
+  entity        text</code></pre>
+<div class="callout">
+  <strong>Why JSONB values, not a column-per-property table?</strong> Notion-style schemas are user-defined and change often.
+  A normalized <code>record_values(record_id, property_id, value)</code> table is the alternative (cleaner querying, easier
+  single-property indexes). The JSONB approach is simpler to build and read whole-row, at the cost of harder server-side
+  filtering on a single property. <span class="rec">Recommendation: JSONB for v1</span> (filtering/sorting volumes are small;
+  revisit if a database grows past a few thousand rows). Flagged as <strong>OQ-2</strong>.
+</div>
+<h3>Inline embedding</h3>
+<p>
+  A page embeds a database via a marker the renderer expands — e.g. a row in a new <code>knowledge_db_embeds(entry_id, database_id, view_config)</code>
+  table, or a <code>[[db:&lt;id&gt;]]</code> token in the body resolved at render time. The first is cleaner for filtered/sorted
+  per-embed views. Flagged as <strong>OQ-3</strong>.
+</p>
+
+<h2>5 · The Notion-API importer (replaces the markdown migrator for tables)</h2>
+<ol class="tight">
+  <li>Input: a Notion database URL (or a page URL — auto-discover databases beneath it).</li>
+  <li>Fetch the database → map each Notion property type to an HQ property type (table below).</li>
+  <li>Enumerate row-pages → read each row's properties → insert <code>hq_db_records</code>.</li>
+  <li>Resolve <code>relation</code> columns in a second pass once both databases exist (store Notion-id → HQ-id map).</li>
+  <li>Report what didn't map (e.g. formulas/rollups → imported as a read-only text snapshot of their current value).</li>
+</ol>
+<table>
+  <tr><th>Notion type</th><th>HQ type</th><th>Note</th></tr>
+  <tr><td>title</td><td>text (is_title)</td><td>exactly one</td></tr>
+  <tr><td>rich_text</td><td>text</td><td>strip/keep inline formatting → markdown</td></tr>
+  <tr><td>select / status</td><td>select / status</td><td>carry option names + colors</td></tr>
+  <tr><td>multi_select</td><td>multi_select</td><td>carry options</td></tr>
+  <tr><td>number / checkbox / date / url</td><td>same</td><td>direct</td></tr>
+  <tr><td>relation</td><td>relation</td><td>2-pass id remap; only if the target db is also imported</td></tr>
+  <tr><td>formula / rollup</td><td>text (read-only snapshot)</td><td>v1 can't recompute — store current value, flag it</td></tr>
+</table>
+<p class="small">Auth: the connected Notion MCP works token-free for reads in-session (verified). A standing/automated importer would use a Notion internal-integration token in HQ env (mirrors the existing API-key pattern). Flagged as <strong>OQ-4</strong>.</p>
+
+<h2>6 · UI surface (proposed)</h2>
+<ul class="tight">
+  <li>New <strong>"Databases"</strong> tab in the Knowledge hub (peer of Cards / List / Pages / Insights / Vault).</li>
+  <li>A database opens to its <strong>table view</strong>; click a row → a record panel (all properties, editable).</li>
+  <li>"+ New database" (blank or "Import from Notion"); "+ New row"; "+ New column" (pick type + options).</li>
+  <li>On a page: an "Embed database" block; renders the live table inline.</li>
+</ul>
+
+<h2>7 · Phasing</h2>
+<table>
+  <tr><th>Phase</th><th>Content</th><th>Rough size</th></tr>
+  <tr><td>A (stopgap)</td><td>API-pull → HTML tables backfilled into affected entries</td><td>~1 short session</td></tr>
+  <tr><td>B1</td><td>Data model + RLS + read-only table view of a hand-seeded db</td><td>1 sprint slice</td></tr>
+  <tr><td>B2</td><td>Notion importer (schema + rows + relations) → first real import = Semantic Layer</td><td>1 sprint slice</td></tr>
+  <tr><td>B3</td><td>In-app editing (rows/columns) + inline-on-page embedding</td><td>1 sprint</td></tr>
+  <tr><td>B4+</td><td>Deferred views (board/calendar), filtering polish, formulas/rollups</td><td>as needed</td></tr>
+</table>
+<p class="small">Pairs with the standing <strong>pre-prod CI gates</strong> work — both want a non-prod Supabase, and a new multi-table primitive is exactly the thing that should land behind RLS tests before external users.</p>
+
+<h2>8 · Open questions to lock</h2>
+<div class="oq"><h3>OQ-1 · How much of Notion is "enough to retire Notion"?</h3>
+  <p>Is v1's table-view + import + editing sufficient to move off Notion for your real pages, or is a specific second view
+  (calendar? board?) a hard requirement before you'd switch? <span class="rec">Recommendation: ship table-view first, add views by demand.</span></p></div>
+<div class="oq"><h3>OQ-2 · Storage shape</h3>
+  <p>JSONB values (simpler) vs normalized record_values (better single-property querying). <span class="rec">Recommendation: JSONB for v1.</span></p></div>
+<div class="oq"><h3>OQ-3 · Inline-embed mechanism</h3>
+  <p>Embed table (per-embed filtered views) vs <code>[[db:id]]</code> body token. <span class="rec">Recommendation: embed table.</span></p></div>
+<div class="oq"><h3>OQ-4 · Importer auth</h3>
+  <p>In-session MCP (manual, token-free) for the first imports vs a stored Notion integration token for repeatable/automated import. <span class="rec">Recommendation: MCP-manual for B2; add a token only if you want re-syncs.</span></p></div>
+<div class="oq"><h3>OQ-5 · Re-sync vs one-time</h3>
+  <p>Is the Notion import a <em>one-time</em> migration (then HQ is the source of truth) or do you want ongoing Notion→HQ re-sync during a transition? <span class="rec">Recommendation: one-time; HQ becomes source of truth (matches the north star).</span></p></div>
+<div class="oq"><h3>OQ-6 · Where do the imported databases live?</h3>
+  <p>Same <code>tm</code> entity as the 21 doc migration, or a different tag? Do the metric databases belong under a TM/CTHQ entity?</p></div>
+
+<h2>9 · Changelog</h2>
+<ul class="tight">
+  <li><strong>v1 (2026-06-20)</strong> — initial draft. Trigger: Semantic Layer table loss. Tracks A+B both approved; this spec covers B. Awaiting OQ locks.</li>
+</ul>
+
+<p class="small" style="margin-top:2rem">Per the HTML-spec convention, refinements save as <code>hq_databases_v2.html</code> (never overwrite); once locked, mirror to HQ Knowledge.</p>
+
+</div>
+</body>
+</html>
