@@ -1,0 +1,69 @@
+name: PR
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Lint gate: fails the PR on any ESLint *error*. Warnings (tracked
+      # burn-down debt — the established `(supabase as any)` cast pattern,
+      # underscore-prefixed unused vars, and cosmetic unescaped entities are
+      # downgraded to "warn" in .eslintrc.json) don't block. The gate exists
+      # to catch NEW structural errors (server→client boundary mistakes,
+      # parse errors, banned imports) before they reach a preview deploy.
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      - run: npm test
+
+  # Foundation smoke (no auth): boots the built app and asserts public pages
+  # render + protected pages redirect to /login (auth wall intact, not a 500).
+  # Needs the PUBLIC Supabase pair so middleware's getUser() can run; these are
+  # publishable values, not secrets-in-the-security-sense, but live in repo
+  # secrets so the URL/key aren't committed. Add them under
+  # Settings → Secrets and variables → Actions, then mark `smoke` a required
+  # check. Until then this job will fail at boot (missing env) — that's
+  # expected; `verify` is the gate that works immediately.
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Start app + smoke
+        run: |
+          npm run start -- -p 3001 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:3001/login >/dev/null 2>&1 && break
+            sleep 2
+          done
+          export SMOKE_BASE_URL=http://localhost:3001
+          npm run smoke
