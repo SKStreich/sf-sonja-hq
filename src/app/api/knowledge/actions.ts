@@ -298,9 +298,15 @@ export async function updateEntry(id: string, patch: {
 
 export async function deleteEntry(id: string) {
   const { supabase } = await getCtx()
-  const { error } = await (supabase as any)
-    .from('knowledge_entries').delete().eq('id', id)
+  // .select() returns the deleted rows; under RLS a delete that matches no rows
+  // (e.g. another user's entry) succeeds with no error but deletes nothing.
+  // Treat 0 deleted rows as a permission failure so it doesn't fail silently.
+  const { data, error } = await (supabase as any)
+    .from('knowledge_entries').delete().eq('id', id).select('id')
   if (error) throw new Error('Failed to delete: ' + error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Nothing was deleted — you may not have permission to delete this entry.')
+  }
   revalidatePath('/dashboard/knowledge')
 }
 
