@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { listEntries, getHubMetrics } from '@/app/api/knowledge/actions'
 import { listVaultEntries } from '@/app/api/knowledge/vault'
+import { listDatabases } from '@/app/api/knowledge/databases'
 import { KnowledgeHub } from './KnowledgeHub'
 
 export const dynamic = 'force-dynamic'
@@ -11,11 +12,19 @@ export default async function KnowledgePage() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect('/login')
 
-  const [entries, vault, metrics] = await Promise.all([
+  const [entries, vault, databases, metrics] = await Promise.all([
     listEntries({ limit: 200 }),
     listVaultEntries(),
+    listDatabases(),
     getHubMetrics(),
   ])
 
-  return <KnowledgeHub initialEntries={entries} initialVault={vault} metrics={metrics} />
+  return (
+    <KnowledgeHub
+      initialEntries={entries}
+      initialVault={vault}
+      initialDatabases={databases}
+      metrics={metrics}
+    />
+  )
 }
