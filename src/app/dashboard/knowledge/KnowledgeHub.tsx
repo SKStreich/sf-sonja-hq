@@ -13,12 +13,14 @@ import { ListView } from './views/ListView'
 import { InsightsView } from './views/InsightsView'
 import { VaultView } from './views/VaultView'
 import { WorkspaceView } from './views/WorkspaceView'
+import { DatabasesView } from './views/DatabasesView'
+import type { HqDatabase } from '@/lib/databases/types'
 import { ChatDrawer } from './ChatDrawer'
 import { MergeReviewModal } from './MergeReviewModal'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 
-type ViewMode = 'card' | 'list' | 'insights' | 'vault' | 'pages'
+type ViewMode = 'card' | 'list' | 'insights' | 'vault' | 'pages' | 'databases'
 
 const KINDS: { value: Kind | null; label: string }[] = [
   { value: null, label: 'All' },
@@ -37,6 +39,7 @@ const VIEW_MODES: { value: ViewMode; label: string; icon: string }[] = [
   { value: 'card', label: 'Cards', icon: '▦' },
   { value: 'list', label: 'List', icon: '☰' },
   { value: 'pages', label: 'Pages', icon: '📄' },
+  { value: 'databases', label: 'Databases', icon: '▤' },
   { value: 'insights', label: 'Insights', icon: '✦' },
   { value: 'vault', label: 'Vault', icon: '🔒' },
 ]
@@ -52,10 +55,11 @@ interface Metrics {
 interface Props {
   initialEntries: KnowledgeEntry[]
   initialVault: VaultEntry[]
+  initialDatabases: HqDatabase[]
   metrics: Metrics
 }
 
-export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
+export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, metrics }: Props) {
   const router = useRouter()
   const [entries, setEntries] = useState(initialEntries)
   const [vault, setVault] = useState(initialVault)
@@ -225,6 +229,7 @@ export function KnowledgeHub({ initialEntries, initialVault, metrics }: Props) {
         {view === 'list' && <ListView entries={visibleEntries} pendingForwards={pendingForwards} onDelete={async id => { await deleteEntry(id); refresh() }} selectable={selectMode} selectedIds={selectedIds} onToggleSelect={toggleSelect} />}
         {view === 'insights' && <InsightsView entries={entries} />}
         {view === 'pages' && <WorkspaceView />}
+        {view === 'databases' && <DatabasesView databases={initialDatabases} />}
         {view === 'vault' && (
           <VaultView
             entries={vault}
