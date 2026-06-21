@@ -103,7 +103,8 @@
   <li><strong>Table view</strong>: sortable columns, column show/hide, basic filtering by property.</li>
   <li><strong>Inline-on-page</strong>: embed a database (or a filtered view of it) inside a knowledge/workspace page — the Notion "page with a table in it" shape.</li>
   <li><strong>Notion-API importer</strong>: given a Notion database URL, recreate its schema + all rows in HQ (replaces the markdown migrator for anything tabular).</li>
-  <li><strong>Editing</strong>: add/edit/delete rows and columns in-app.</li>
+  <li><strong>Editing</strong>: add/edit/delete rows and columns in-app — and an <strong>Edit mode on the Original tab</strong> generally, since today that tab is a read-only sandboxed iframe (<code>EntryDetail.tsx</code>) with no way to change content short of re-uploading.</li>
+  <li><strong>Export / download</strong>: download a database (or any HTML entry's Original) as a standalone <code>.html</code> for offline viewing/sharing, and a table as <code>.csv</code>. Today there is NO download for HTML/text Originals (only PDFs get an "open in new tab" link) — this closes that gap.</li>
 </ul>
 <h3>Out (deferred — Phase 2+)</h3>
 <ul class="tight">
@@ -184,6 +185,7 @@ hq_db_entities (junction)     -- entity tags, mirrors knowledge_entry_entities
   <li>A database opens to its <strong>table view</strong>; click a row → a record panel (all properties, editable).</li>
   <li>"+ New database" (blank or "Import from Notion"); "+ New row"; "+ New column" (pick type + options).</li>
   <li>On a page: an "Embed database" block; renders the live table inline.</li>
+  <li>On the <strong>Original tab</strong> of any entry: an <strong>Edit</strong> toggle (raw-HTML/record editor + Save) and a <strong>⤓ Download HTML</strong> button (+ "Open in new tab"), bringing it to parity with the PDF view's affordances.</li>
 </ul>
 
 <h2>7 · Phasing</h2>
@@ -215,6 +217,7 @@ hq_db_entities (junction)     -- entity tags, mirrors knowledge_entry_entities
 <h2>9 · Changelog</h2>
 <ul class="tight">
   <li><strong>v1 (2026-06-20)</strong> — initial draft. Trigger: Semantic Layer table loss. Tracks A+B both approved; this spec covers B. Awaiting OQ locks.</li>
+  <li><strong>v1.1 (2026-06-20)</strong> — folded in <strong>in-app editing + HTML/CSV export</strong> after Sonja flagged the Original tab is read-only with no download today. Track A stopgap executed: Semantic Layer (28+53 rows) + Gate In/Out (31-row matrix) recovered from live Notion DBs.</li>
 </ul>
 
 <p class="small" style="margin-top:2rem">Per the HTML-spec convention, refinements save as <code>hq_databases_v2.html</code> (never overwrite); once locked, mirror to HQ Knowledge.</p>
