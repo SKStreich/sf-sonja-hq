@@ -50,7 +50,7 @@
 <header class="doc">
   <p class="eyebrow">Sonja HQ · Scoping Spec · DRAFT for review</p>
   <h1>HQ Databases — a Notion-parity primitive</h1>
-  <p class="meta">Version 1 (draft) · 2026-06-20 · Owner: Sonja Streich · Status: <span class="tag">OPEN — awaiting lock</span></p>
+  <p class="meta">Version 1.1 · 2026-06-20 · Owner: Sonja Streich · Status: <span class="tag" style="background:#dcfce7;color:#15803d">✅ LOCKED 2026-06-20</span></p>
   <p class="meta">North star: <em>retire Notion</em>. This spec scopes the one capability HQ is missing to get there — structured, tabular data (Notion "databases"), not just documents.</p>
 </header>
 
@@ -199,7 +199,18 @@ hq_db_entities (junction)     -- entity tags, mirrors knowledge_entry_entities
 </table>
 <p class="small">Pairs with the standing <strong>pre-prod CI gates</strong> work — both want a non-prod Supabase, and a new multi-table primitive is exactly the thing that should land behind RLS tests before external users.</p>
 
-<h2>8 · Open questions to lock</h2>
+<h2>8 · Open questions — ALL LOCKED 2026-06-20</h2>
+<div class="callout ok">
+  <strong>Decisions locked (Sonja, 2026-06-20):</strong>
+  <ul class="tight">
+    <li><strong>OQ-1</strong> → ship <strong>table-view first</strong>, add other views by demand.</li>
+    <li><strong>OQ-2</strong> → <strong>JSONB</strong> values for v1.</li>
+    <li><strong>OQ-3</strong> → <strong>embed table</strong> (per-embed filtered views).</li>
+    <li><strong>OQ-4</strong> → <strong>manual import</strong> for B2; add a stored token only if re-syncs are wanted. <span class="small">(A read-only "HQ Importer" Notion token already exists from the Track A recovery.)</span></li>
+    <li><strong>OQ-5</strong> → <strong>one-time import</strong>; HQ becomes source of truth.</li>
+    <li><strong>OQ-6</strong> → imported databases live under entity <strong><code>tm</code></strong>.</li>
+  </ul>
+</div>
 <div class="oq"><h3>OQ-1 · How much of Notion is "enough to retire Notion"?</h3>
   <p>Is v1's table-view + import + editing sufficient to move off Notion for your real pages, or is a specific second view
   (calendar? board?) a hard requirement before you'd switch? <span class="rec">Recommendation: ship table-view first, add views by demand.</span></p></div>
