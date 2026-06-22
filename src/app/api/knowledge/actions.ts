@@ -297,6 +297,23 @@ export async function updateEntry(id: string, patch: {
 }
 
 /**
+ * Convert-in-place (Phase U3c): promote a doc / note / idea into a workspace
+ * PAGE. Keeps the same entry id, links, and version history — only `kind`
+ * changes (snapshotted + reversible via updateEntry's version path). The
+ * Original tab keeps holding any uploaded HTML; the page now also hosts a
+ * Markdown body + can contain sub-pages / embedded databases.
+ */
+export async function convertEntryToPage(id: string): Promise<void> {
+  const current = await getEntry(id)
+  if (!current) throw new Error('Entry not found')
+  if (current.kind === 'workspace') return // already a page
+  if (current.kind === 'chat' || current.kind === 'critique') {
+    throw new Error('Only docs, notes, and ideas can be converted to a page.')
+  }
+  await updateEntry(id, { kind: 'workspace' })
+}
+
+/**
  * Edit an entry's "Original" content in place (Phase U2 — editing parity).
  * For HTML entries this updates `rendered_html`; for text/markdown it updates
  * `body`. Snapshots the prior state into knowledge_versions (incl. rendered_html

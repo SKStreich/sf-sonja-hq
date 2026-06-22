@@ -9,6 +9,8 @@ import { uploadKnowledgeFile } from '@/app/api/knowledge/upload'
 import { uploadVaultFile, getVaultDownloadUrl, deleteVaultEntry, type VaultEntry } from '@/app/api/knowledge/vault'
 import { listPendingForwardCountsByEntry } from '@/app/api/knowledge/shares'
 import { listNodes } from '@/app/api/knowledge/nodes'
+import { listNodeLinks } from '@/app/api/knowledge/containment'
+import type { NodeEdge } from '@/lib/knowledge/tree'
 import { InsightsView } from './views/InsightsView'
 import { VaultView } from './views/VaultView'
 import { DatabasesView } from './views/DatabasesView'
@@ -57,6 +59,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
   const [composerOpen, setComposerOpen] = useState(false)
   const [chatTarget, setChatTarget] = useState<{ id: string | null; title?: string } | null>(null)
   const [pendingForwards, setPendingForwards] = useState<Record<string, number>>({})
+  const [treeLinks, setTreeLinks] = useState<NodeEdge[]>([])
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [mergeOpen, setMergeOpen] = useState(false)
@@ -75,6 +78,9 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
     let cancelled = false
     listPendingForwardCountsByEntry()
       .then(c => { if (!cancelled) setPendingForwards(c) })
+      .catch(() => {})
+    listNodeLinks()
+      .then(l => { if (!cancelled) setTreeLinks(l) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [])
@@ -229,6 +235,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
           <NodeView
             nodes={shownNodes}
             display={display}
+            treeLinks={treeLinks}
             pendingForwards={pendingForwards}
             selectable={selectMode}
             selectedIds={selectedIds}

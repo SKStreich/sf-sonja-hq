@@ -3,9 +3,16 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import {
-  updateEntry, updateEntryOriginal, deleteEntry,
+  updateEntry, updateEntryOriginal, deleteEntry, convertEntryToPage,
   type KnowledgeEntry, type Kind, type Entity,
 } from '@/app/api/knowledge/actions'
+import {
+  attachEntryToDatabase, getEntryDatabaseLinks, type EntryDatabaseLink,
+} from '@/app/api/knowledge/links'
+import { embedDatabase, removeDatabaseEmbed, getPageEmbeds } from '@/app/api/knowledge/containment'
+import { listDatabases } from '@/app/api/knowledge/databases'
+import { cellModel, orderedProperties } from '@/lib/databases/format'
+import type { HqDatabase, DatabaseDetail } from '@/lib/databases/types'
 import { downloadText, openHtmlInTab, safeDownloadName } from '@/lib/knowledge/download'
 import {
   critiqueAndSave, addFollowUpNote, restoreVersion,
@@ -122,6 +129,20 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
     })
   }
 
+  // Convert-in-place: doc / note / idea → workspace page (U3c). Keeps id/links/
+  // history; the page then hosts a Markdown body + sub-pages + embedded DBs.
+  const canConvertToPage = ['doc', 'note', 'idea'].includes(entry.kind)
+  const convertToPage = () => {
+    if (!confirm('Convert this into a page? It keeps its content, links, and history, and can then hold sub-pages and embedded databases.')) return
+    setErr('')
+    startWork(async () => {
+      try {
+        await convertEntryToPage(entry.id)
+        router.refresh()
+      } catch (e: any) { setErr(e.message ?? 'Convert failed') }
+    })
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       {entry.kind === 'workspace' && (
@@ -142,6 +163,12 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
           className="ml-auto rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100">
           ✦ Discuss with HQ Agent
         </button>
+        {canConvertToPage && (
+          <button onClick={convertToPage} disabled={working}
+            className="rounded border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100 disabled:opacity-40">
+            📄 Convert to page
+          </button>
+        )}
         <button onClick={() => setShareOpen(true)}
           className="rounded border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100">
           Share
@@ -237,6 +264,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
                 pageEntity={entry.entities[0] ?? 'personal'}
               />
               <WorkspaceChildren parentId={entry.id} />
+              <EmbeddedDatabases hostEntryId={entry.id} />
               <WorkspaceBacklinks entryId={entry.id} reloadKey={reloadKey} />
               <WorkspaceSiblings entryId={entry.id} />
             </>
@@ -255,6 +283,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
             </div>
           )}
           <EntryAttachments entryId={entry.id} reloadKey={reloadKey} />
+          <EntryDatabaseLinks entryId={entry.id} reloadKey={reloadKey} />
           <MergedFromBlock entryId={entry.id} />
         </div>
       )}
@@ -2118,6 +2147,237 @@ function MergedFromBlock({ entryId }: { entryId: string }) {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+// ── DB ↔ doc links (U3c) ─────────────────────────────────────────────────────
+// "Linked databases" on a doc/page, mirroring EntryAttachments (projects).
+function EntryDatabaseLinks({ entryId, reloadKey }: { entryId: string; reloadKey: number }) {
+  const [links, setLinks] = useState<EntryDatabaseLink[] | null>(null)
+  const [bump, setBump] = useState(0)
+  const [adding, setAdding] = useState(false)
+  const [all, setAll] = useState<HqDatabase[]>([])
+  const [query, setQuery] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getEntryDatabaseLinks(entryId)
+      .then(l => { if (!cancelled) setLinks(l) })
+      .catch(() => { if (!cancelled) setLinks([]) })
+    return () => { cancelled = true }
+  }, [entryId, reloadKey, bump])
+
+  useEffect(() => {
+    if (!adding || all.length > 0) return
+    let cancelled = false
+    listDatabases().then(d => { if (!cancelled) setAll(d) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [adding, all.length])
+
+  const linkedIds = new Set((links ?? []).map(l => l.databaseId))
+  const candidates = all
+    .filter(d => !linkedIds.has(d.id))
+    .filter(d => d.title.toLowerCase().includes(query.trim().toLowerCase()))
+
+  const attach = async (databaseId: string) => {
+    setBusyId(databaseId)
+    try { await attachEntryToDatabase(entryId, databaseId); setQuery(''); setBump(b => b + 1) }
+    finally { setBusyId(null) }
+  }
+  const detach = async (linkId: string) => {
+    setBusyId(linkId)
+    try { await detachEntry(linkId); setBump(b => b + 1) }
+    finally { setBusyId(null) }
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+          Linked databases <span className="text-gray-400">({links?.length ?? 0})</span>
+        </h3>
+        <button onClick={() => { setAdding(a => !a); setQuery('') }}
+          className="text-xs font-medium text-indigo-600 hover:text-indigo-500">
+          {adding ? 'Done' : '+ Link database'}
+        </button>
+      </div>
+
+      {adding && (
+        <div className="mb-3">
+          <input autoFocus value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="Search databases to link…"
+            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400" />
+          <ul className="mt-1 max-h-56 overflow-y-auto rounded-md border border-gray-100">
+            {candidates.length === 0 && (
+              <li className="px-3 py-2 text-xs text-gray-400">No matching databases.</li>
+            )}
+            {candidates.map(d => (
+              <li key={d.id}>
+                <button onClick={() => attach(d.id)} disabled={busyId === d.id}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-800 hover:bg-indigo-50 disabled:opacity-50">
+                  <span className="text-gray-400">{d.icon ?? '▤'}</span>
+                  <span className="flex-1 truncate">{d.title}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-indigo-500">link</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {links && links.length > 0 ? (
+        <ul className="divide-y divide-gray-100">
+          {links.map(l => (
+            <li key={l.linkId} className="flex items-center gap-2 py-2 text-sm">
+              <span className="text-gray-400">{l.icon ?? '▤'}</span>
+              <span className="flex-1 truncate text-gray-900">{l.title}</span>
+              <button onClick={() => detach(l.linkId)} disabled={busyId === l.linkId}
+                className="text-xs text-gray-400 hover:text-red-600 disabled:opacity-50">✕</button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        !adding && <p className="text-xs text-gray-400">No databases linked yet.</p>
+      )}
+    </div>
+  )
+}
+
+// ── Inline embedded databases on a page (U3c, OQ-3) ───────────────────────────
+function EmbedCell({ model }: { model: ReturnType<typeof cellModel> }) {
+  switch (model.kind) {
+    case 'empty': return <span className="text-gray-300">—</span>
+    case 'checkbox': return <span className={model.checked ? 'text-green-600' : 'text-gray-300'}>{model.checked ? '✓' : '□'}</span>
+    case 'url': return <a href={model.href} target="_blank" rel="noopener noreferrer" className="text-indigo-600 underline">{model.text}</a>
+    case 'chips': return (
+      <span className="inline-flex flex-wrap gap-1">
+        {model.chips.map((c, i) => <span key={i} className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${c.className}`}>{c.label}</span>)}
+      </span>
+    )
+    default: return <span className="text-gray-700">{model.text}</span>
+  }
+}
+
+function EmbeddedDatabase({ detail }: { detail: DatabaseDetail }) {
+  const cols = orderedProperties(detail.properties)
+  return (
+    <div className="overflow-hidden rounded-lg border border-indigo-100 bg-white">
+      <div className="flex items-center gap-2 border-b border-indigo-100 bg-indigo-50/50 px-3 py-2">
+        {detail.database.icon && <span>{detail.database.icon}</span>}
+        <span className="text-sm font-semibold text-gray-900">{detail.database.title}</span>
+        <span className="text-[11px] text-gray-400">{detail.records.length} {detail.records.length === 1 ? 'row' : 'rows'}</span>
+      </div>
+      <div className="max-h-80 overflow-auto">
+        <table className="w-full text-sm">
+          <thead className="border-b border-gray-200 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+            <tr>{cols.map(p => <th key={p.id} className="px-3 py-1.5 text-left font-semibold whitespace-nowrap">{p.name}</th>)}</tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {detail.records.map(rec => (
+              <tr key={rec.id} className="align-top">
+                {cols.map(p => <td key={p.id} className="px-3 py-1.5"><EmbedCell model={cellModel(p, rec.values[p.id])} /></td>)}
+              </tr>
+            ))}
+            {detail.records.length === 0 && (
+              <tr><td colSpan={Math.max(cols.length, 1)} className="px-3 py-3 text-center text-xs text-gray-400">No records.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function EmbeddedDatabases({ hostEntryId }: { hostEntryId: string }) {
+  const [embeds, setEmbeds] = useState<DatabaseDetail[] | null>(null)
+  const [bump, setBump] = useState(0)
+  const [adding, setAdding] = useState(false)
+  const [all, setAll] = useState<HqDatabase[]>([])
+  const [query, setQuery] = useState('')
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getPageEmbeds(hostEntryId)
+      .then(e => { if (!cancelled) setEmbeds(e) })
+      .catch(() => { if (!cancelled) setEmbeds([]) })
+    return () => { cancelled = true }
+  }, [hostEntryId, bump])
+
+  useEffect(() => {
+    if (!adding || all.length > 0) return
+    let cancelled = false
+    listDatabases().then(d => { if (!cancelled) setAll(d) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [adding, all.length])
+
+  const embeddedIds = new Set((embeds ?? []).map(e => e.database.id))
+  const candidates = all
+    .filter(d => !embeddedIds.has(d.id))
+    .filter(d => d.title.toLowerCase().includes(query.trim().toLowerCase()))
+
+  const embed = async (databaseId: string) => {
+    setBusyId(databaseId)
+    try { await embedDatabase(hostEntryId, databaseId); setQuery(''); setBump(b => b + 1) }
+    finally { setBusyId(null) }
+  }
+  const remove = async (databaseId: string) => {
+    setBusyId(databaseId)
+    try { await removeDatabaseEmbed(hostEntryId, databaseId); setBump(b => b + 1) }
+    finally { setBusyId(null) }
+  }
+
+  return (
+    <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">
+          Embedded databases <span className="text-gray-400">({embeds?.length ?? 0})</span>
+        </h3>
+        <button onClick={() => { setAdding(a => !a); setQuery('') }}
+          className="text-xs font-medium text-indigo-600 hover:text-indigo-500">
+          {adding ? 'Done' : '+ Embed database'}
+        </button>
+      </div>
+
+      {adding && (
+        <div className="mb-3">
+          <input autoFocus value={query} onChange={e => setQuery(e.target.value)}
+            placeholder="Search databases to embed…"
+            className="w-full rounded-md border border-gray-200 px-3 py-1.5 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400" />
+          <ul className="mt-1 max-h-56 overflow-y-auto rounded-md border border-gray-100">
+            {candidates.length === 0 && (
+              <li className="px-3 py-2 text-xs text-gray-400">No matching databases.</li>
+            )}
+            {candidates.map(d => (
+              <li key={d.id}>
+                <button onClick={() => embed(d.id)} disabled={busyId === d.id}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-800 hover:bg-indigo-50 disabled:opacity-50">
+                  <span className="text-gray-400">{d.icon ?? '▤'}</span>
+                  <span className="flex-1 truncate">{d.title}</span>
+                  <span className="text-[10px] uppercase tracking-wider text-indigo-500">embed</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {embeds && embeds.length > 0 ? (
+        <div className="space-y-4">
+          {embeds.map(d => (
+            <div key={d.database.id} className="relative">
+              <button onClick={() => remove(d.database.id)} disabled={busyId === d.database.id}
+                title="Remove embed"
+                className="absolute right-2 top-2 z-10 rounded bg-white/80 px-1.5 text-xs text-gray-400 hover:text-red-600 disabled:opacity-50">✕</button>
+              <EmbeddedDatabase detail={d} />
+            </div>
+          ))}
+        </div>
+      ) : (
+        !adding && <p className="text-xs text-gray-400">No databases embedded on this page yet.</p>
+      )}
     </div>
   )
 }

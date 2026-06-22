@@ -87,6 +87,25 @@ describe('buildTree', () => {
     ])
     expect(tree).toHaveLength(3)
   })
+
+  it('extraLinks nest a database under its host page (embed → tree edge)', () => {
+    const tree = buildTree(
+      [node('page'), node('db', { type: 'database' })],
+      { extraLinks: [{ parentId: 'page', childId: 'db' }] },
+    )
+    expect(tree).toHaveLength(1)
+    expect(tree[0].node.id).toBe('page')
+    expect(tree[0].children.map((c) => c.node.id)).toEqual(['db'])
+  })
+
+  it('extraLinks pointing at a missing parent leave the child at root', () => {
+    const tree = buildTree(
+      [node('db', { type: 'database' })],
+      { extraLinks: [{ parentId: 'gone', childId: 'db' }] },
+    )
+    expect(tree).toHaveLength(1)
+    expect(tree[0].node.id).toBe('db')
+  })
 })
 
 describe('countTree', () => {

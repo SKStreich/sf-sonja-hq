@@ -524,3 +524,87 @@ export async function getEntryAttachments(entryId: string): Promise<EntryAttachm
   out.sort((a, b) => a.name.localeCompare(b.name))
   return out
 }
+
+// ── DB ↔ doc links (U3c: to_database target) ───────────────────────────────
+// Same 'attached' relation as projects, just a different target column. Removal
+// reuses detachEntry (it deletes by link id + relation guard, target-agnostic).
+
+/**
+ * Pins knowledge entry `entryId` to database `databaseId` (relation='attached').
+ * Both must be in the caller's org. Duplicate attach is a safe no-op.
+ */
+export async function attachEntryToDatabase(entryId: string, databaseId: string): Promise<void> {
+  const { supabase, user, org_id } = await getCtx()
+
+  const { data: entry } = await (supabase as any)
+    .from('knowledge_entries').select('id, org_id').eq('id', entryId).maybeSingle()
+  if (!entry) throw new Error('Entry not found')
+  if (entry.org_id !== org_id) throw new Error('Entry in different org')
+
+  const { data: db } = await (supabase as any)
+    .from('hq_databases').select('id, org_id').eq('id', databaseId).maybeSingle()
+  if (!db) throw new Error('Database not found')
+  if (db.org_id !== org_id) throw new Error('Database in different org')
+
+  const { error } = await (supabase as any).from('knowledge_links').insert({
+    from_entry: entryId, to_entry: null, to_project: null, to_task: null, to_database: databaseId,
+    relation: 'attached', created_by: user.id,
+  })
+  if (error && error.code !== '23505') {
+    throw new Error('Failed to link database: ' + error.message)
+  }
+}
+
+export interface EntryDatabaseLink {
+  linkId: string
+  databaseId: string
+  title: string
+  icon: string | null
+}
+
+/** Databases that entry `entryId` is attached to (for the doc's "Linked to" block). */
+export async function getEntryDatabaseLinks(entryId: string): Promise<EntryDatabaseLink[]> {
+  const { supabase, org_id } = await getCtx()
+  const { data, error } = await (supabase as any)
+    .from('knowledge_links')
+    .select('id, to_database, hq_databases:to_database(id, title, icon, org_id)')
+    .eq('from_entry', entryId)
+    .eq('relation', 'attached')
+    .not('to_database', 'is', null)
+  if (error) throw new Error('Failed to load database links: ' + error.message)
+  const out: EntryDatabaseLink[] = []
+  ;(data ?? []).forEach((row: any) => {
+    const d = row.hq_databases
+    if (!d || d.org_id !== org_id) return
+    out.push({ linkId: row.id, databaseId: d.id, title: d.title, icon: d.icon ?? null })
+  })
+  out.sort((a, b) => a.title.localeCompare(b.title))
+  return out
+}
+
+export interface DatabaseEntryLink {
+  linkId: string
+  entryId: string
+  title: string | null
+  kind: string
+  vault: boolean
+}
+
+/** The reverse: entries attached to database `databaseId` (for the DB detail). */
+export async function getDatabaseEntryLinks(databaseId: string): Promise<DatabaseEntryLink[]> {
+  const { supabase, org_id } = await getCtx()
+  const { data, error } = await (supabase as any)
+    .from('knowledge_links')
+    .select('id, from_entry, knowledge_entries!knowledge_links_from_entry_fkey(id, title, kind, org_id, access, status)')
+    .eq('to_database', databaseId)
+    .eq('relation', 'attached')
+  if (error) throw new Error('Failed to load database backlinks: ' + error.message)
+  const out: DatabaseEntryLink[] = []
+  ;(data ?? []).forEach((row: any) => {
+    const e = row.knowledge_entries
+    if (!e || e.org_id !== org_id || e.status !== 'active') return
+    out.push({ linkId: row.id, entryId: e.id, title: e.title, kind: e.kind, vault: e.access === 'vault' })
+  })
+  out.sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''))
+  return out
+}
