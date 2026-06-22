@@ -51,7 +51,7 @@
 <header class="doc">
   <p class="eyebrow">Sonja HQ · Scoping Spec · DRAFT for review</p>
   <h1>HQ Knowledge — one unified browser</h1>
-  <p class="meta">Version 1 · 2026-06-22 · Owner: Sonja Streich · Status: <span class="tag" style="background:#fef3c7;color:#b45309">DRAFT — OQs open</span></p>
+  <p class="meta">Version 1.1 · 2026-06-22 · Owner: Sonja Streich · Status: <span class="tag" style="background:#dcfce7;color:#15803d">✅ LOCKED 2026-06-22</span></p>
   <p class="meta">North star: <em>retire Notion</em>. The Databases primitive (B1/B2) is in; this spec reconciles the three "document" systems that grew up separately — <strong>Pages</strong>, <strong>Docs</strong>, and <strong>Databases</strong> — into a single browser where every item is a first-class, filterable, editable node.</p>
 </header>
 
@@ -213,27 +213,42 @@
   net-new IA layer. Pairs with the standing pre-prod CI gate work (a new index/containment layer is exactly what should land behind RLS tests).
 </p>
 
-<h2>8 · Open questions — to lock before U1</h2>
+<h2>8 · Open questions — ALL LOCKED 2026-06-22</h2>
+<div class="callout ok">
+  <strong>Decisions locked (Sonja, 2026-06-22):</strong>
+  <ul class="tight">
+    <li><strong>OQ-1 →</strong> generic <code>knowledge_node_links</code> graph table (option a).</li>
+    <li><strong>OQ-2 →</strong> app-code union for U1.</li>
+    <li><strong>OQ-3 →</strong> Vault as a type filter (owner-only RLS + amber treatment kept).</li>
+    <li><strong>OQ-4 →</strong> <strong>convert in place</strong> (doc→workspace; id/links/history preserved; Original tab keeps the HTML).</li>
+    <li><strong>OQ-5 →</strong> List/Cards in U1; Tree lands in U3 with containment.</li>
+  </ul>
+</div>
 
 <div class="oq">
   <h3>OQ-1 · Containment mechanism for non-page nodes</h3>
-  <p>How does a database (or doc) get parented under a page? <strong>(a)</strong> a generic <code>knowledge_node_links(parent_id, child_id, child_source)</code> graph table; <strong>(b)</strong> add a nullable <code>parent_entry_id</code> to <code>hq_databases</code>; <strong>(c)</strong> lean on the existing <code>knowledge_links</code> with a <code>contains</code> relation. <span class="rec">Recommendation: (a) — one graph for all node types, future-proof for embedding docs-in-docs too.</span></p>
+  <p><span class="rec">✅ Locked: (a) — a generic <code>knowledge_node_links(parent_id, child_id, child_source)</code> graph table.</span></p>
+  <p>How does a database (or doc) get parented under a page? <strong>(a)</strong> a generic <code>knowledge_node_links(parent_id, child_id, child_source)</code> graph table; <strong>(b)</strong> add a nullable <code>parent_entry_id</code> to <code>hq_databases</code>; <strong>(c)</strong> lean on the existing <code>knowledge_links</code> with a <code>contains</code> relation. <span class="small">Chosen (a): one graph for all node types, future-proof for embedding docs-in-docs too.</span></p>
 </div>
 <div class="oq">
   <h3>OQ-2 · Index strategy</h3>
-  <p>Union the two stores <strong>in app code</strong> per request (simple, always fresh) vs a materialized <code>knowledge_nodes</code> index view/table kept in sync (faster sort/paginate across stores, more machinery). <span class="rec">Recommendation: app-code union for U1 (volumes are small); revisit if cross-store sort/pagination gets slow.</span></p>
+  <p><span class="rec">✅ Locked: app-code union per request for U1.</span></p>
+  <p>Union the two stores <strong>in app code</strong> per request (simple, always fresh) vs a materialized <code>knowledge_nodes</code> index view/table kept in sync (faster sort/paginate across stores, more machinery). <span class="small">Chosen app-code union (volumes are small); revisit if cross-store sort/pagination gets slow.</span></p>
 </div>
 <div class="oq">
   <h3>OQ-3 · Does "Vault" stay a type, or its own gate?</h3>
-  <p>Vault entries are owner-only (Tier-2). Fold them in as a <em>type filter</em> in the same browser (consistent), or keep a distinct locked surface? <span class="rec">Recommendation: type filter, but keep the owner-only RLS + the amber treatment so it reads as privileged.</span></p>
+  <p><span class="rec">✅ Locked: type filter; owner-only RLS + amber treatment retained.</span></p>
+  <p>Vault entries are owner-only (Tier-2). Fold them in as a <em>type filter</em> in the same browser (consistent), or keep a distinct locked surface? <span class="small">Chosen type filter, keeping the owner-only RLS + amber treatment so it reads as privileged.</span></p>
 </div>
 <div class="oq">
   <h3>OQ-4 · Promotion default — copy vs convert-in-place</h3>
-  <p>When promoting an import-doc to a Page: convert the <em>same</em> entry's <code>kind</code> doc→workspace (keeps id, links, history; Original tab holds the old HTML) vs create a <em>new</em> page and archive the doc. <span class="rec">Recommendation: convert in place — preserves every backlink and the id the import set up.</span></p>
+  <p><span class="rec">✅ Locked: convert in place.</span></p>
+  <p>When promoting an import-doc to a Page: convert the <em>same</em> entry's <code>kind</code> doc→workspace (keeps id, links, history; Original tab holds the old HTML) vs create a <em>new</em> page and archive the doc. <span class="small">Chosen convert-in-place — preserves every backlink and the id the import set up.</span></p>
 </div>
 <div class="oq">
   <h3>OQ-5 · How far does "Tree" go in U1?</h3>
-  <p>Ship the unified flat List/Cards in U1 and add the containment Tree in U3 (when embeds/parenting exist), or build a basic Tree in U1? <span class="rec">Recommendation: List/Cards in U1; Tree lands with containment in U3 so it has real nesting to show.</span></p>
+  <p><span class="rec">✅ Locked: List/Cards in U1; Tree in U3.</span></p>
+  <p>Ship the unified flat List/Cards in U1 and add the containment Tree in U3 (when embeds/parenting exist), or build a basic Tree in U1? <span class="small">Chosen List/Cards in U1; Tree lands with containment in U3 so it has real nesting to show.</span></p>
 </div>
 
 <h2>9 · Changelog</h2>
@@ -241,6 +256,7 @@
   <thead><tr><th>Date</th><th>Change</th></tr></thead>
   <tbody>
     <tr><td class="mono">2026-06-22</td><td>v1 — initial draft. Trigger: after the B2 Notion import, Pages/Docs/Databases don't cohere (no shared filtering, editing only on Pages, no DB↔doc tie). Decision locked: <strong>full unify into one browser</strong> (chosen over link-only / promote-only). Scopes the node abstraction, toolbar redesign, embedding + linking + promotion, a 4-phase plan (U1–U4, absorbing Databases B3), and 5 OQs to lock before U1.</td></tr>
+    <tr><td class="mono">2026-06-22</td><td>v1.1 — <strong>all 5 OQs LOCKED</strong> (Sonja): OQ-1 generic <code>knowledge_node_links</code> graph · OQ-2 app-code union for U1 · OQ-3 Vault as a type filter (owner-only RLS kept) · OQ-4 <strong>convert-in-place</strong> promotion · OQ-5 List/Cards in U1, Tree in U3. Status DRAFT → LOCKED. Ready to build <strong>U1</strong>.</td></tr>
   </tbody>
 </table>
 
