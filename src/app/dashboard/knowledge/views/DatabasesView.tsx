@@ -1,26 +1,50 @@
 'use client'
 /**
- * Databases tab — Phase B2.
+ * Databases tab — Phase U3a (in-app editing).
  *
  * Master/detail inside the Knowledge hub: a list of the org's databases →
- * click one → its records rendered as a typed table. B2 adds an "Import from
- * Notion" panel (paste a Notion DB URL + a read-only integration token →
- * recreate the schema + rows in HQ). In-app row/column editing + inline-page
- * embeds are still B3. Cell rendering is driven by the pure `cellModel` helper
- * so this component stays presentational.
+ * click one → its records rendered as a typed, EDITABLE table. U3a adds inline
+ * cell editing, add/delete rows, and add/rename/retype/delete columns on top of
+ * the B1 read view + B2 Notion import + U2 CSV download. Every mutation routes
+ * through the server actions in api/knowledge/database-edit and returns fresh
+ * DatabaseDetail, so the table always re-renders from one authoritative shape.
+ * Cell display is driven by the pure `cellModel` helper; cell *editing* by the
+ * pure `parseCellInput` / `cellInputValue` helpers.
  */
-import { useState, useTransition, useEffect } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDatabaseDetail } from '@/app/api/knowledge/databases'
+import {
+  addRecord,
+  updateCell,
+  deleteRecord,
+  addProperty,
+  updateProperty,
+  deleteProperty,
+} from '@/app/api/knowledge/database-edit'
 import { importNotionDatabase, type ImportNotionReport } from '@/app/api/knowledge/database-import'
 import { EntityChips } from '@/components/shared/EntityChips'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 import { cellModel, orderedProperties } from '@/lib/databases/format'
+import {
+  PROPERTY_TYPES,
+  typeUsesOptions,
+  cellInputValue,
+  parseOptionsInput,
+} from '@/lib/databases/edit'
 import { databaseToCsv } from '@/lib/databases/csv'
 import { downloadText, safeDownloadName } from '@/lib/knowledge/download'
-import type { HqDatabase, DatabaseDetail, DbProperty, DbRecord } from '@/lib/databases/types'
+import type {
+  HqDatabase,
+  DatabaseDetail,
+  DbProperty,
+  DbPropertyType,
+  DbRecord,
+  DbSelectOption,
+} from '@/lib/databases/types'
 
-function Cell({ property, record }: { property: DbProperty; record: DbRecord }) {
+// ── Read-only cell display (unchanged from B1) ─────────────────────────────────
+function CellDisplay({ property, record }: { property: DbProperty; record: DbRecord }) {
   const model = cellModel(property, record.values[property.id])
   const titleCls = property.is_title ? 'font-medium text-gray-900' : 'text-gray-700'
 
@@ -39,6 +63,7 @@ function Cell({ property, record }: { property: DbProperty; record: DbRecord }) 
           href={model.href}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
           className="text-indigo-600 underline decoration-indigo-200 hover:decoration-indigo-500"
         >
           {model.text}
@@ -60,14 +85,299 @@ function Cell({ property, record }: { property: DbProperty; record: DbRecord }) 
   }
 }
 
-function RecordsTable({ detail }: { detail: DatabaseDetail }) {
+// ── Editable cell ──────────────────────────────────────────────────────────────
+// Click to edit; the editor shape follows the column type. Checkbox + select /
+// status commit immediately; text-like editors commit on blur / Enter, cancel
+// on Escape. `raw` is whatever the editor holds; the server normalizes it.
+function EditableCell({
+  property,
+  record,
+  disabled,
+  onCommit,
+}: {
+  property: DbProperty
+  record: DbRecord
+  disabled: boolean
+  onCommit: (raw: unknown) => void
+}) {
+  const [editing, setEditing] = useState(false)
+  const value = record.values[property.id]
+
+  // Checkbox: no edit mode — the display IS the control.
+  if (property.type === 'checkbox') {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => onCommit(value !== true)}
+        className={`text-base ${value === true ? 'text-green-600' : 'text-gray-300'} hover:text-green-700 disabled:opacity-50`}
+        aria-label={value === true ? 'Checked' : 'Unchecked'}
+      >
+        {value === true ? '✓' : '□'}
+      </button>
+    )
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setEditing(true)}
+        className="block w-full text-left disabled:cursor-default"
+      >
+        <CellDisplay property={property} record={record} />
+      </button>
+    )
+  }
+
+  const commit = (raw: unknown) => {
+    setEditing(false)
+    onCommit(raw)
+  }
+
+  // Select / status: dropdown from config.options, commit on change.
+  if (property.type === 'select' || property.type === 'status') {
+    const options = property.config.options ?? []
+    return (
+      <select
+        autoFocus
+        defaultValue={value == null ? '' : String(value)}
+        onBlur={() => setEditing(false)}
+        onChange={(e) => commit(e.target.value)}
+        className="w-full rounded border border-indigo-300 bg-white px-1.5 py-1 text-sm focus:outline-none"
+      >
+        <option value="">—</option>
+        {options.map((o) => (
+          <option key={o.name} value={o.name}>
+            {o.name}
+          </option>
+        ))}
+        {/* keep a current value that isn't in the option list selectable */}
+        {value != null && !options.some((o) => o.name === String(value)) && (
+          <option value={String(value)}>{String(value)}</option>
+        )}
+      </select>
+    )
+  }
+
+  // Text-like: text / number / date / url / multi_select / relation.
+  const inputType =
+    property.type === 'number' ? 'number' : property.type === 'date' ? 'date' : property.type === 'url' ? 'url' : 'text'
+  const placeholder =
+    property.type === 'multi_select' || property.type === 'relation' ? 'comma, separated' : undefined
+
+  return (
+    <input
+      autoFocus
+      type={inputType}
+      defaultValue={cellInputValue(value)}
+      placeholder={placeholder}
+      onBlur={(e) => commit(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          ;(e.target as HTMLInputElement).blur()
+        } else if (e.key === 'Escape') {
+          setEditing(false)
+        }
+      }}
+      className="w-full rounded border border-indigo-300 bg-white px-1.5 py-1 text-sm focus:outline-none"
+    />
+  )
+}
+
+// ── Column editor (add or edit a property) ─────────────────────────────────────
+function ColumnEditor({
+  initial,
+  canDelete,
+  disabled,
+  onSave,
+  onDelete,
+  onCancel,
+}: {
+  initial?: { name: string; type: DbPropertyType; options?: DbSelectOption[] }
+  canDelete: boolean
+  disabled: boolean
+  onSave: (input: { name: string; type: DbPropertyType; options?: DbSelectOption[] }) => void
+  onDelete?: () => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(initial?.name ?? '')
+  const [type, setType] = useState<DbPropertyType>(initial?.type ?? 'text')
+  const [optionsText, setOptionsText] = useState((initial?.options ?? []).map((o) => o.name).join(', '))
+
+  function save() {
+    if (!name.trim()) return
+    onSave({ name: name.trim(), type, options: typeUsesOptions(type) ? parseOptionsInput(optionsText) : undefined })
+  }
+
+  return (
+    <div className="w-64 space-y-2 rounded-lg border border-gray-200 bg-white p-3 text-left shadow-lg">
+      <label className="block">
+        <span className="mb-1 block text-[11px] font-medium text-gray-500">Column name</span>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && save()}
+          className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none"
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-[11px] font-medium text-gray-500">Type</span>
+        <select
+          value={type}
+          onChange={(e) => setType(e.target.value as DbPropertyType)}
+          className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none"
+        >
+          {PROPERTY_TYPES.map((t) => (
+            <option key={t.value} value={t.value}>
+              {t.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {typeUsesOptions(type) && (
+        <label className="block">
+          <span className="mb-1 block text-[11px] font-medium text-gray-500">Options (comma-separated)</span>
+          <textarea
+            value={optionsText}
+            onChange={(e) => setOptionsText(e.target.value)}
+            rows={2}
+            className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none"
+          />
+        </label>
+      )}
+      <div className="flex items-center gap-2 pt-1">
+        <button
+          onClick={save}
+          disabled={disabled || !name.trim()}
+          className="rounded bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          Save
+        </button>
+        <button onClick={onCancel} className="text-xs text-gray-500 hover:text-gray-800">
+          Cancel
+        </button>
+        {onDelete && (
+          <button
+            onClick={onDelete}
+            disabled={disabled || !canDelete}
+            title={canDelete ? 'Delete column' : 'The title column cannot be deleted'}
+            className="ml-auto text-xs text-red-600 hover:text-red-800 disabled:opacity-40"
+          >
+            Delete
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// A header cell with a popover ColumnEditor for rename/retype/delete.
+function ColumnHeader({
+  property,
+  disabled,
+  onSave,
+  onDelete,
+}: {
+  property: DbProperty
+  disabled: boolean
+  onSave: (input: { name: string; type: DbPropertyType; options?: DbSelectOption[] }) => void
+  onDelete: () => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLTableCellElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    function onDoc(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  return (
+    <th ref={ref} className="relative px-4 py-2 text-left font-semibold whitespace-nowrap">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="inline-flex items-center gap-1 hover:text-gray-800"
+      >
+        {property.is_title && <span className="text-gray-400">★</span>}
+        {property.name}
+        <span className="text-gray-300">⌄</span>
+      </button>
+      {open && (
+        <div className="absolute left-0 top-full z-20 mt-1 normal-case tracking-normal">
+          <ColumnEditor
+            initial={{ name: property.name, type: property.type, options: property.config.options }}
+            canDelete={!property.is_title}
+            disabled={disabled}
+            onSave={(input) => {
+              setOpen(false)
+              onSave(input)
+            }}
+            onDelete={() => {
+              setOpen(false)
+              onDelete()
+            }}
+            onCancel={() => setOpen(false)}
+          />
+        </div>
+      )}
+    </th>
+  )
+}
+
+// ── Editable records table ─────────────────────────────────────────────────────
+function EditableRecordsTable({
+  detail,
+  disabled,
+  onCellCommit,
+  onDeleteRow,
+  onSaveColumn,
+  onDeleteColumn,
+  onAddColumn,
+}: {
+  detail: DatabaseDetail
+  disabled: boolean
+  onCellCommit: (record: DbRecord, property: DbProperty, raw: unknown) => void
+  onDeleteRow: (record: DbRecord) => void
+  onSaveColumn: (property: DbProperty, input: { name: string; type: DbPropertyType; options?: DbSelectOption[] }) => void
+  onDeleteColumn: (property: DbProperty) => void
+  onAddColumn: (input: { name: string; type: DbPropertyType; options?: DbSelectOption[] }) => void
+}) {
   const cols = orderedProperties(detail.properties)
+  const [adding, setAdding] = useState(false)
 
   if (cols.length === 0) {
     return (
-      <p className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center text-sm text-gray-500">
-        This database has no columns yet.
-      </p>
+      <div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-center">
+        <p className="text-sm text-gray-500">This database has no columns yet.</p>
+        {adding ? (
+          <div className="mt-3 inline-block">
+            <ColumnEditor
+              canDelete={false}
+              disabled={disabled}
+              onSave={(input) => {
+                setAdding(false)
+                onAddColumn(input)
+              }}
+              onCancel={() => setAdding(false)}
+            />
+          </div>
+        ) : (
+          <button
+            onClick={() => setAdding(true)}
+            className="mt-3 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          >
+            + Add column
+          </button>
+        )}
+      </div>
     )
   }
 
@@ -77,25 +387,68 @@ function RecordsTable({ detail }: { detail: DatabaseDetail }) {
         <thead className="border-b border-gray-200 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
           <tr>
             {cols.map((p) => (
-              <th key={p.id} className="px-4 py-2 text-left font-semibold whitespace-nowrap">
-                {p.name}
-              </th>
+              <ColumnHeader
+                key={p.id}
+                property={p}
+                disabled={disabled}
+                onSave={(input) => onSaveColumn(p, input)}
+                onDelete={() => onDeleteColumn(p)}
+              />
             ))}
+            <th className="relative px-3 py-2 text-left font-semibold">
+              <button
+                type="button"
+                onClick={() => setAdding((v) => !v)}
+                title="Add column"
+                className="text-gray-400 hover:text-gray-700"
+              >
+                +
+              </button>
+              {adding && (
+                <div className="absolute right-0 top-full z-20 mt-1 normal-case tracking-normal">
+                  <ColumnEditor
+                    canDelete={false}
+                    disabled={disabled}
+                    onSave={(input) => {
+                      setAdding(false)
+                      onAddColumn(input)
+                    }}
+                    onCancel={() => setAdding(false)}
+                  />
+                </div>
+              )}
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-100">
           {detail.records.map((rec) => (
-            <tr key={rec.id} className="align-top hover:bg-gray-50">
+            <tr key={rec.id} className="group align-top hover:bg-gray-50">
               {cols.map((p) => (
                 <td key={p.id} className="px-4 py-2.5">
-                  <Cell property={p} record={rec} />
+                  <EditableCell
+                    property={p}
+                    record={rec}
+                    disabled={disabled}
+                    onCommit={(raw) => onCellCommit(rec, p, raw)}
+                  />
                 </td>
               ))}
+              <td className="px-3 py-2.5 text-right">
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onDeleteRow(rec)}
+                  title="Delete row"
+                  className="text-gray-300 opacity-0 transition group-hover:opacity-100 hover:text-red-600 disabled:opacity-30"
+                >
+                  ✕
+                </button>
+              </td>
             </tr>
           ))}
           {detail.records.length === 0 && (
             <tr>
-              <td colSpan={cols.length} className="px-4 py-6 text-center text-sm text-gray-500">
+              <td colSpan={cols.length + 1} className="px-4 py-6 text-center text-sm text-gray-500">
                 No records yet.
               </td>
             </tr>
@@ -106,6 +459,7 @@ function RecordsTable({ detail }: { detail: DatabaseDetail }) {
   )
 }
 
+// ── Notion import panel (unchanged from B2) ────────────────────────────────────
 function ImportPanel({ onImported }: { onImported: (r: ImportNotionReport) => void }) {
   const [open, setOpen] = useState(false)
   const [url, setUrl] = useState('')
@@ -189,9 +543,7 @@ function ImportPanel({ onImported }: { onImported: (r: ImportNotionReport) => vo
             ))}
           </select>
         </label>
-        {error && (
-          <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
-        )}
+        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
         <div className="flex items-center gap-3">
           <button
             onClick={submit}
@@ -236,10 +588,17 @@ function ReportBanner({ report, onDismiss }: { report: ImportNotionReport; onDis
   )
 }
 
-export function DatabasesView({ databases, openDatabaseId }: { databases: HqDatabase[]; openDatabaseId?: string | null }) {
+export function DatabasesView({
+  databases,
+  openDatabaseId,
+}: {
+  databases: HqDatabase[]
+  openDatabaseId?: string | null
+}) {
   const router = useRouter()
   const [detail, setDetail] = useState<DatabaseDetail | null>(null)
   const [report, setReport] = useState<ImportNotionReport | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
   function open(id: string) {
@@ -265,6 +624,22 @@ export function DatabasesView({ databases, openDatabaseId }: { databases: HqData
     })
   }
 
+  // Run a mutating server action, fold the returned fresh detail back into
+  // state, and surface any error. The list view sort can drift after edits, so
+  // refresh the server list too (cheap, keeps record counts / order honest).
+  function mutate(fn: () => Promise<DatabaseDetail>) {
+    setError(null)
+    startTransition(async () => {
+      try {
+        const d = await fn()
+        setDetail(d)
+        router.refresh()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Update failed.')
+      }
+    })
+  }
+
   // Detail view
   if (detail) {
     const db = detail.database
@@ -277,14 +652,25 @@ export function DatabasesView({ databases, openDatabaseId }: { databases: HqData
           ← All databases
         </button>
         {report && <ReportBanner report={report} onDismiss={() => setReport(null)} />}
+        {error && (
+          <div className="mb-4 flex items-start justify-between gap-3 rounded-lg bg-red-50 px-4 py-2 text-sm text-red-700">
+            <span>{error}</span>
+            <button onClick={() => setError(null)} className="shrink-0 text-red-500 hover:text-red-800">
+              ✕
+            </button>
+          </div>
+        )}
         <div className="mb-4">
           <div className="flex items-center gap-2">
             {db.icon && <span className="text-xl">{db.icon}</span>}
             <h2 className="text-lg font-semibold text-gray-900">{db.title}</h2>
             <EntityChips entities={db.entities} />
             <button
-              onClick={() => downloadText(safeDownloadName(db.title, 'csv'), databaseToCsv(detail), 'text/csv')}
-              className="ml-auto rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">
+              onClick={() =>
+                downloadText(safeDownloadName(db.title, 'csv'), databaseToCsv(detail), 'text/csv')
+              }
+              className="ml-auto rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+            >
               ⤓ Download CSV
             </button>
           </div>
@@ -294,7 +680,26 @@ export function DatabasesView({ databases, openDatabaseId }: { databases: HqData
             {detail.properties.length} {detail.properties.length === 1 ? 'column' : 'columns'}
           </p>
         </div>
-        <RecordsTable detail={detail} />
+        <div className={pending ? 'opacity-60' : ''}>
+          <EditableRecordsTable
+            detail={detail}
+            disabled={pending}
+            onCellCommit={(rec, p, raw) => mutate(() => updateCell(db.id, rec.id, p, raw))}
+            onDeleteRow={(rec) => mutate(() => deleteRecord(db.id, rec.id))}
+            onSaveColumn={(p, input) => mutate(() => updateProperty(db.id, p.id, input))}
+            onDeleteColumn={(p) => mutate(() => deleteProperty(db.id, p.id))}
+            onAddColumn={(input) => mutate(() => addProperty(db.id, input))}
+          />
+          {detail.properties.length > 0 && (
+            <button
+              onClick={() => mutate(() => addRecord(db.id))}
+              disabled={pending}
+              className="mt-3 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            >
+              + Add row
+            </button>
+          )}
+        </div>
       </div>
     )
   }
@@ -320,38 +725,34 @@ export function DatabasesView({ databases, openDatabaseId }: { databases: HqData
       {report && <ReportBanner report={report} onDismiss={() => setReport(null)} />}
       <ImportPanel onImported={handleImported} />
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
-      <table className="w-full text-sm">
-        <thead className="border-b border-gray-200 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
-          <tr>
-            <th className="px-4 py-2 text-left font-semibold">Database</th>
-            <th className="px-4 py-2 text-left font-semibold">Entities</th>
-            <th className="px-4 py-2 text-right font-semibold">Records</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {databases.map((db) => (
-            <tr
-              key={db.id}
-              onClick={() => open(db.id)}
-              className="cursor-pointer hover:bg-gray-50"
-            >
-              <td className="px-4 py-2.5">
-                <span className="inline-flex items-center gap-2 font-medium text-gray-900">
-                  {db.icon && <span>{db.icon}</span>}
-                  {db.title}
-                </span>
-                {db.description && (
-                  <span className="mt-0.5 block text-xs text-gray-400 line-clamp-1">{db.description}</span>
-                )}
-              </td>
-              <td className="px-4 py-2.5">
-                <EntityChips entities={db.entities} variant="plain" />
-              </td>
-              <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{db.record_count ?? 0}</td>
+        <table className="w-full text-sm">
+          <thead className="border-b border-gray-200 bg-gray-50 text-[11px] uppercase tracking-wide text-gray-500">
+            <tr>
+              <th className="px-4 py-2 text-left font-semibold">Database</th>
+              <th className="px-4 py-2 text-left font-semibold">Entities</th>
+              <th className="px-4 py-2 text-right font-semibold">Records</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {databases.map((db) => (
+              <tr key={db.id} onClick={() => open(db.id)} className="cursor-pointer hover:bg-gray-50">
+                <td className="px-4 py-2.5">
+                  <span className="inline-flex items-center gap-2 font-medium text-gray-900">
+                    {db.icon && <span>{db.icon}</span>}
+                    {db.title}
+                  </span>
+                  {db.description && (
+                    <span className="mt-0.5 block text-xs text-gray-400 line-clamp-1">{db.description}</span>
+                  )}
+                </td>
+                <td className="px-4 py-2.5">
+                  <EntityChips entities={db.entities} variant="plain" />
+                </td>
+                <td className="px-4 py-2.5 text-right tabular-nums text-gray-500">{db.record_count ?? 0}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   )
