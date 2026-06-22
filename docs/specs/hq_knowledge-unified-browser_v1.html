@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonja HQ — Unified Knowledge Browser · Spec v1</title>
+<style>
+  :root {
+    --ink: #1c1c28; --muted: #5b5b6b; --line: #e4e4ee; --bg: #fbfbfd;
+    --accent: #4338ca; --accent-soft: #eef2ff; --ok: #15803d; --warn: #b45309;
+    --code-bg: #f4f4f8;
+  }
+  * { box-sizing: border-box; }
+  body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         color: var(--ink); background: var(--bg); margin: 0; padding: 0 1.25rem 5rem; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  header.doc { padding: 2.5rem 0 1.25rem; border-bottom: 2px solid var(--ink); margin-bottom: 2rem; }
+  .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; font-weight: 700;
+             color: var(--accent); margin: 0 0 .5rem; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; }
+  h2 { font-size: 1.3rem; margin: 2.6rem 0 .8rem; padding-top: .4rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; }
+  .meta { color: var(--muted); font-size: .9rem; }
+  p, li { color: #2a2a38; }
+  code { background: var(--code-bg); padding: .1rem .35rem; border-radius: 4px; font-size: .86em;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: var(--code-bg); padding: 1rem; border-radius: 8px; overflow:auto; font-size: .82rem;
+        border: 1px solid var(--line); }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 700; white-space: normal; }
+  td { white-space: normal; }
+  .callout { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--accent);
+             padding: .9rem 1.1rem; border-radius: 8px; margin: 1.1rem 0; }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.ok { border-left-color: var(--ok); }
+  .tag { display:inline-block; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+         padding:.12rem .45rem; border-radius:999px; background:var(--accent-soft); color:var(--accent); }
+  .oq { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .oq h3 { margin-top:0; }
+  .rec { color: var(--ok); font-weight:600; }
+  ul.tight { margin:.4rem 0; } ul.tight li { margin:.15rem 0; }
+  .small { font-size:.85rem; color:var(--muted); }
+  .pill { display:inline-block; font-size:.68rem; font-weight:700; padding:.1rem .4rem; border-radius:4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <p class="eyebrow">Sonja HQ · Scoping Spec · DRAFT for review</p>
+  <h1>HQ Knowledge — one unified browser</h1>
+  <p class="meta">Version 1 · 2026-06-22 · Owner: Sonja Streich · Status: <span class="tag" style="background:#fef3c7;color:#b45309">DRAFT — OQs open</span></p>
+  <p class="meta">North star: <em>retire Notion</em>. The Databases primitive (B1/B2) is in; this spec reconciles the three "document" systems that grew up separately — <strong>Pages</strong>, <strong>Docs</strong>, and <strong>Databases</strong> — into a single browser where every item is a first-class, filterable, editable node.</p>
+</header>
+
+<h2>1 · The problem — three islands, two muddled axes</h2>
+<p>
+  The Knowledge hub today carries three different "document" systems that were each built on their own and never
+  reconciled. They store data differently, allow editing in different (or no) places, and respond to the toolbar
+  filters inconsistently. The B2 Notion import made this visible: the <em>Metrics &amp; Calculations</em> database came
+  in as a real database, but nothing connects it to the <em>Semantic Layer</em> doc it lived inside in Notion.
+</p>
+
+<table>
+  <thead><tr><th>Surface</th><th>Stored as</th><th>Editable?</th><th>Obeys the toolbar filters?</th></tr></thead>
+  <tbody>
+    <tr>
+      <td><strong>Docs</strong> (+ Ideas / Chats / Notes)</td>
+      <td><code>knowledge_entries</code>, <code>kind='doc'</code> — the imported Notion HTML (Semantic Layer, the 21 migrated docs) lives here</td>
+      <td><strong>No</strong> — uploaded HTML renders in a <strong>read-only "Original" iframe</strong> (<code>EntryDetail</code> ~L524). Editing the body never touches the rendered HTML.</td>
+      <td>✅ Kind + Entity + Search drive <code>listEntries()</code></td>
+    </tr>
+    <tr>
+      <td><strong>Pages</strong></td>
+      <td><code>knowledge_entries</code>, <code>kind='workspace'</code> — a parent/child tree</td>
+      <td><strong>Yes</strong> — the <code>MarkdownSplitPane</code> editor (<code>EntryDetail</code> ~L233). The <em>only</em> surface with real editing.</td>
+      <td>❌ <code>WorkspaceView</code> fetches its own tree, ignores the filters</td>
+    </tr>
+    <tr>
+      <td><strong>Databases</strong></td>
+      <td><code>hq_databases</code> + properties + records (separate tables)</td>
+      <td>No (read-only table; row/col editing is the unbuilt B3)</td>
+      <td>❌ <code>DatabasesView</code> takes a fixed prop, ignores the filters</td>
+    </tr>
+    <tr>
+      <td><strong>Vault</strong></td>
+      <td><code>knowledge_entries</code>, <code>access='vault'</code></td>
+      <td>File only (no body editing)</td>
+      <td>❌ filters disabled on this tab</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>Two axes are conflated into one toolbar</h3>
+<p>The current toolbar mixes <em>two different questions</em> onto controls that sit side by side:</p>
+<ul class="tight">
+  <li><strong>"What content type?"</strong> — Ideas / Docs / Chats / Notes (the <em>kind filter</em>) … <em>and also</em> Pages / Databases / Vault (which are content types too, but live on the <em>view toggle</em>).</li>
+  <li><strong>"How should it be displayed?"</strong> — Cards / List / Insights (genuine display modes, on the same toggle as Pages/Databases).</li>
+</ul>
+<p>
+  Because Pages and Databases are content-type selectors <em>masquerading as view modes</em>, and the Kind/Entity filters
+  only feed the entry-list views, the filters go dead the moment you're on the Pages or Databases tab — they aren't
+  "relative to" that view because the view <em>is itself</em> a competing content selector. <span class="small">(Concretely:
+  <code>handleKindChange</code> only re-runs <code>listEntries()</code>; <code>WorkspaceView</code> / <code>DatabasesView</code>
+  never read <code>kind</code> or <code>entity</code>.)</span>
+</p>
+<div class="callout warn">
+  <strong>Bonus inconsistency:</strong> <code>listEntries</code>' "All" does <code>.neq('kind','critique')</code> — so it
+  <em>includes</em> <code>workspace</code> pages. A page therefore shows up <strong>twice</strong>: once as a card in Cards/List
+  "All", and again in the Pages tree. The same item has two homes with two behaviours.
+</div>
+
+<h2>2 · The decision (locked 2026-06-22)</h2>
+<div class="callout ok">
+  <strong>Full unify into one browser.</strong> Collapse Pages, Docs, and Databases into a <strong>single, filterable browser</strong>
+  where every item — a page, a doc, a database, an idea, a note, a chat, a vault file — is a <strong>first-class node</strong>
+  with consistent filtering, a consistent way to open it, and editing appropriate to its type. One place, two clean axes
+  (type · scope), one display layer. <span class="small">(Chosen over "link-only" and "promote-docs-to-pages" — both were
+  partial. This is the true end state.)</span>
+</div>
+
+<h2>3 · Target model — the unified browser</h2>
+<p>Three orthogonal controls, each doing exactly one job, every one applying to <em>everything</em>:</p>
+<table>
+  <thead><tr><th>Axis</th><th>Control</th><th>Applies to</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Type</strong> (what)</td><td>All · Pages · Docs · Databases · Ideas · Notes · Chats · Vault — a single segmented filter</td><td>every node, from one index</td></tr>
+    <tr><td><strong>Scope</strong> (which)</td><td>Entity (the 7) · Search — text + type-ahead</td><td>every node, uniformly</td></tr>
+    <tr><td><strong>Display</strong> (how)</td><td>List · Cards · Tree — orthogonal, remembered per session</td><td>where meaningful (Tree shows nesting; Insights stays a separate analytical view)</td></tr>
+  </tbody>
+</table>
+<p>
+  "Pages", "Databases", and "Vault" stop being <em>tabs</em> and become <em>type filters</em> sitting next to Docs/Ideas/Notes/Chats.
+  Pick a type (or All) → choose a display → filter by entity/search. Every result is a node you can open; opening it lands on a
+  detail view whose editor matches its type (Markdown editor for pages, table editor for databases, Original+Edit for HTML docs).
+</p>
+
+<h3>Nesting &amp; containment — the Notion shape</h3>
+<p>
+  A unified browser needs one containment graph. Pages already have <code>parent_id</code>. The model extends that so a
+  <strong>node can contain other nodes</strong>: a page can hold sub-pages, an <strong>embedded database</strong>, and
+  <strong>attached docs</strong>. The Tree display renders this graph; the flat List/Cards displays render the filtered set.
+  This is what finally lets the Semantic Layer page <em>contain</em> its two databases again (see §6).
+</p>
+
+<h2>4 · Architecture — the "node" abstraction</h2>
+<p>
+  Two stores stay (<code>knowledge_entries</code> and <code>hq_databases</code>) — no destructive merge. They unify at a thin
+  <strong>presentation/index layer</strong>: a <code>KnowledgeNode</code> view model that both stores project into.
+</p>
+<pre><code>type KnowledgeNode = {
+  id: string
+  source: 'entry' | 'database'      // which store it came from
+  type:  'page' | 'doc' | 'idea' | 'note' | 'chat' | 'database' | 'vault'
+  title: string
+  icon:  string | null
+  entities: string[]                // unified entity tags (junction)
+  parent_id: string | null          // containment graph (pages today; nodes tomorrow)
+  updated_at: string
+  // editing/open affordance derived from `type`
+}</code></pre>
+<ul class="tight">
+  <li><strong>Index:</strong> a single server reader (<code>listNodes({ type, entity, query, display })</code>) unions the two stores into <code>KnowledgeNode[]</code>, applying entity/search uniformly. Replaces the split between <code>listEntries</code> / <code>listWorkspaceTree</code> / <code>listDatabases</code> at the UI boundary (the underlying readers stay).</li>
+  <li><strong>Containment:</strong> introduce a node-level parent link so a database (a <code>database</code> node) can be parented under a page. Cleanest is a small <code>knowledge_node_links</code> / reuse of the existing graph rather than putting a <code>parent_id</code> on <code>hq_databases</code>. <span class="rec">→ OQ-1.</span></li>
+  <li><strong>Embedding (the inline table):</strong> <code>knowledge_db_embeds(host_entry_id, database_id, view_config jsonb)</code> — a page renders an embedded database (optionally a filtered/sorted view) inline. This is the deferred <strong>OQ-3 from the Databases spec</strong>, pulled in here.</li>
+  <li><strong>Linking (DB ↔ doc, both directions):</strong> reuse the existing <code>knowledge_links</code> substrate (already powers doc↔project <code>attached</code> + <code>mentions</code>), extended to allow a <strong>database</strong> as a link target. Gives the "appears on / related to" backlink between the Metrics DB and the Semantic Layer doc with no new mechanism.</li>
+  <li><strong>Editing parity:</strong> (a) an <strong>Edit mode on the Original tab</strong> for HTML docs (today a read-only iframe — no edit, no download); (b) database <strong>row/column editing</strong> (B3 core); (c) keep the Markdown editor for pages. After this, every node type is editable in place.</li>
+  <li><strong>Promotion (optional, not bulk):</strong> a "Convert to Page" action turns an import-doc that <em>was</em> a database-container in Notion into an editable page that embeds its databases, keeping the imported HTML as a read-only <em>Original</em> snapshot/version. Used surgically (Semantic Layer, Gate In/Out), not across all 21 docs.</li>
+</ul>
+<div class="callout">
+  <strong>Why a presentation-layer union, not one mega-table:</strong> a destructive merge of <code>knowledge_entries</code> and
+  <code>hq_databases</code> would be high-risk and gains little — they have genuinely different shapes (prose vs typed records).
+  Unifying at the index + containment + link layers gives the single-browser experience without a dangerous migration, and keeps
+  RLS exactly as it is (org-scoped on both stores).
+</div>
+
+<h2>5 · Filtering &amp; toolbar redesign (fixes the dead-filter problem)</h2>
+<table>
+  <thead><tr><th></th><th>Today</th><th>Proposed</th></tr></thead>
+  <tbody>
+    <tr><td>Type</td><td>Kind buttons (Ideas/Docs/Chats/Notes) <em>plus</em> Pages/Databases/Vault on the view toggle — two places</td><td>One segmented <strong>Type</strong> filter: All · Pages · Docs · Databases · Ideas · Notes · Chats · Vault</td></tr>
+    <tr><td>Entity</td><td>Applies to Cards/List only</td><td>Applies to <strong>every</strong> type, including Pages &amp; Databases</td></tr>
+    <tr><td>Search</td><td>Cards/List only</td><td>Universal; type-ahead across all node types</td></tr>
+    <tr><td>Display</td><td>Cards/List buried among content types</td><td>Separate <strong>List · Cards · Tree</strong> control; Insights stays its own analytical view</td></tr>
+    <tr><td>Dedup</td><td>Workspace pages appear in both Cards "All" and the Pages tree</td><td>One node, one place; Tree shows containment, List/Cards show the filtered set</td></tr>
+  </tbody>
+</table>
+
+<h2>6 · Worked example — the Semantic Layer</h2>
+<p>This is the case that prompted the spec. After the unification:</p>
+<ul class="tight">
+  <li>The <strong>Semantic Layer</strong> doc becomes (via "Convert to Page") an editable <strong>Page</strong> with its intro prose.</li>
+  <li>It <strong>embeds</strong> the two imported databases inline — <em>🍎 UI App Sections</em> and <em>♎ Metrics &amp; Calculations</em> — rebuilding the exact Notion structure (a page that <em>contained</em> those databases).</li>
+  <li>The imported HTML is retained as the read-only <strong>Original</strong> snapshot/version, so nothing from the migration is lost.</li>
+  <li>Each database shows an <strong>"appears on → Semantic Layer"</strong> backlink, so from the Metrics DB you can navigate to the page it belongs to.</li>
+  <li>The Metrics DB's <em>App Sections</em> relation (today raw Notion ids) resolves to the App Sections rows once both DBs are linked — the cross-DB relation resolution noted in B2.</li>
+</ul>
+
+<h2>7 · Phasing</h2>
+<table>
+  <thead><tr><th>Phase</th><th>Content</th><th>Rough size</th></tr></thead>
+  <tbody>
+    <tr><td><strong>U1 — Unify the browser</strong></td><td>The <code>KnowledgeNode</code> index + one server reader; toolbar redesign (Type · Entity · Search · Display); Pages/Databases/Vault become type filters; entity/search apply to all; fix the workspace double-listing. <em>No editing changes yet.</em></td><td>1 sprint slice</td></tr>
+    <tr><td><strong>U2 — Editing parity</strong></td><td>Original-tab <strong>Edit mode</strong> + HTML/CSV <strong>download</strong> for docs; database <strong>row/column editing</strong> (B3 core). Every node editable in place.</td><td>1 sprint</td></tr>
+    <tr><td><strong>U3 — Containment &amp; embedding</strong></td><td><code>knowledge_db_embeds</code> (inline DB on a page, OQ-3); node-level parent links; <strong>"Convert to Page"</strong> promotion; DB↔doc linking + "appears on" backlinks; Semantic Layer worked example; Metrics relation resolution.</td><td>1 sprint</td></tr>
+    <tr><td><strong>U4+ — Polish</strong></td><td>Tree display refinements; deferred DB views (board/calendar); filter/sort polish; formulas/rollups as needed.</td><td>by demand</td></tr>
+  </tbody>
+</table>
+<p class="small">
+  Maps onto the Databases roadmap: <strong>U2/U3 absorb Databases B3</strong> (editing, embeds, export, relation resolution); U1 is the
+  net-new IA layer. Pairs with the standing pre-prod CI gate work (a new index/containment layer is exactly what should land behind RLS tests).
+</p>
+
+<h2>8 · Open questions — to lock before U1</h2>
+
+<div class="oq">
+  <h3>OQ-1 · Containment mechanism for non-page nodes</h3>
+  <p>How does a database (or doc) get parented under a page? <strong>(a)</strong> a generic <code>knowledge_node_links(parent_id, child_id, child_source)</code> graph table; <strong>(b)</strong> add a nullable <code>parent_entry_id</code> to <code>hq_databases</code>; <strong>(c)</strong> lean on the existing <code>knowledge_links</code> with a <code>contains</code> relation. <span class="rec">Recommendation: (a) — one graph for all node types, future-proof for embedding docs-in-docs too.</span></p>
+</div>
+<div class="oq">
+  <h3>OQ-2 · Index strategy</h3>
+  <p>Union the two stores <strong>in app code</strong> per request (simple, always fresh) vs a materialized <code>knowledge_nodes</code> index view/table kept in sync (faster sort/paginate across stores, more machinery). <span class="rec">Recommendation: app-code union for U1 (volumes are small); revisit if cross-store sort/pagination gets slow.</span></p>
+</div>
+<div class="oq">
+  <h3>OQ-3 · Does "Vault" stay a type, or its own gate?</h3>
+  <p>Vault entries are owner-only (Tier-2). Fold them in as a <em>type filter</em> in the same browser (consistent), or keep a distinct locked surface? <span class="rec">Recommendation: type filter, but keep the owner-only RLS + the amber treatment so it reads as privileged.</span></p>
+</div>
+<div class="oq">
+  <h3>OQ-4 · Promotion default — copy vs convert-in-place</h3>
+  <p>When promoting an import-doc to a Page: convert the <em>same</em> entry's <code>kind</code> doc→workspace (keeps id, links, history; Original tab holds the old HTML) vs create a <em>new</em> page and archive the doc. <span class="rec">Recommendation: convert in place — preserves every backlink and the id the import set up.</span></p>
+</div>
+<div class="oq">
+  <h3>OQ-5 · How far does "Tree" go in U1?</h3>
+  <p>Ship the unified flat List/Cards in U1 and add the containment Tree in U3 (when embeds/parenting exist), or build a basic Tree in U1? <span class="rec">Recommendation: List/Cards in U1; Tree lands with containment in U3 so it has real nesting to show.</span></p>
+</div>
+
+<h2>9 · Changelog</h2>
+<table>
+  <thead><tr><th>Date</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td class="mono">2026-06-22</td><td>v1 — initial draft. Trigger: after the B2 Notion import, Pages/Docs/Databases don't cohere (no shared filtering, editing only on Pages, no DB↔doc tie). Decision locked: <strong>full unify into one browser</strong> (chosen over link-only / promote-only). Scopes the node abstraction, toolbar redesign, embedding + linking + promotion, a 4-phase plan (U1–U4, absorbing Databases B3), and 5 OQs to lock before U1.</td></tr>
+  </tbody>
+</table>
+
+<p class="small" style="margin-top:2rem">Per the HTML-spec convention, refinements save as <code>hq_knowledge-unified-browser_v2.html</code> (never overwrite); once OQs lock, mirror to HQ Knowledge.</p>
+
+</div>
+</body>
+</html>
