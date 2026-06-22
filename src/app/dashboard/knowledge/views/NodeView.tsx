@@ -12,12 +12,13 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { EntityChips } from '@/components/shared/EntityChips'
 import { TYPE_META, type KnowledgeNode } from '@/lib/knowledge/nodes'
-import { buildTree, type TreeNode } from '@/lib/knowledge/tree'
+import { buildTree, type TreeNode, type NodeEdge } from '@/lib/knowledge/tree'
 import type { KnowledgeEntry } from '@/app/api/knowledge/actions'
 
 interface Props {
   nodes: KnowledgeNode[]
   display: 'cards' | 'list' | 'tree'
+  treeLinks?: NodeEdge[]
   pendingForwards?: Record<string, number>
   selectable?: boolean
   selectedIds?: Set<string>
@@ -71,7 +72,7 @@ export function NodeView(props: Props) {
 // unit-tested. Each row reuses the same navigation as cards/list.
 
 function TreeView(props: Props) {
-  const tree = buildTree(props.nodes)
+  const tree = buildTree(props.nodes, { extraLinks: props.treeLinks })
   return (
     <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
       <ul className="divide-y divide-gray-100">

@@ -18,26 +18,43 @@ export interface TreeNode {
   depth: number
 }
 
+/** An explicit containment edge (U3c knowledge_node_links): a page (parentId)
+ *  contains a child node (childId), e.g. an embedded database. Layered on top
+ *  of the implicit knowledge_entries.parent_id edges. */
+export interface NodeEdge {
+  parentId: string
+  childId: string
+}
+
 const byDateDesc = (a: KnowledgeNode, b: KnowledgeNode) => b.updatedAt.localeCompare(a.updatedAt)
 
 /** Build the containment forest. Roots first (newest-touched), each child list
  *  likewise sorted. A node is a child iff its entry.parent_id resolves to
- *  another node in the set (and isn't itself); otherwise it's a root. */
-export function buildTree(nodes: KnowledgeNode[]): TreeNode[] {
+ *  another node in the set, OR an explicit NodeEdge nests it under a parent in
+ *  the set (and it isn't itself); otherwise it's a root. */
+export function buildTree(nodes: KnowledgeNode[], opts: { extraLinks?: NodeEdge[] } = {}): TreeNode[] {
   const byId = new Map(nodes.map((n) => [n.id, n]))
   const childrenOf = new Map<string, KnowledgeNode[]>()
-  const roots: KnowledgeNode[] = []
+  const hasParent = new Set<string>()
+
+  const pushChild = (pid: string, child: KnowledgeNode) => {
+    if (pid === child.id || !byId.has(pid)) return
+    const arr = childrenOf.get(pid) ?? []
+    if (!arr.some((c) => c.id === child.id)) arr.push(child)
+    childrenOf.set(pid, arr)
+    hasParent.add(child.id)
+  }
 
   for (const n of nodes) {
     const pid = n.entry?.parent_id ?? null
-    if (pid && pid !== n.id && byId.has(pid)) {
-      const arr = childrenOf.get(pid) ?? []
-      arr.push(n)
-      childrenOf.set(pid, arr)
-    } else {
-      roots.push(n)
-    }
+    if (pid) pushChild(pid, n)
   }
+  for (const e of opts.extraLinks ?? []) {
+    const child = byId.get(e.childId)
+    if (child) pushChild(e.parentId, child)
+  }
+
+  const roots = nodes.filter((n) => !hasParent.has(n.id))
 
   const visited = new Set<string>()
   const build = (n: KnowledgeNode, depth: number): TreeNode => {
