@@ -49,7 +49,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
     buildNodes({ entries: initialEntries, databases: initialDatabases, vault: initialVault }),
   )
   const [type, setType] = useState<TypeFilter>('all')
-  const [display, setDisplay] = useState<'cards' | 'list'>('cards')
+  const [display, setDisplay] = useState<'cards' | 'list' | 'tree'>('cards')
   const [insights, setInsights] = useState(false)
   const [openDbId, setOpenDbId] = useState<string | null>(null)
   const [entity, setEntity] = useState<Entity | null>(null)
@@ -173,7 +173,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
         <div className="flex items-center gap-2">
           {showingNodeView && (
             <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
-              {([['cards', '▦ Cards'], ['list', '☰ List']] as const).map(([d, label]) => (
+              {([['cards', '▦ Cards'], ['list', '☰ List'], ['tree', '⛬ Tree']] as const).map(([d, label]) => (
                 <button key={d} onClick={() => setDisplay(d)}
                   className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
                     display === d ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
