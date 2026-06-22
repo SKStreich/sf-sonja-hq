@@ -16,6 +16,8 @@ import { importNotionDatabase, type ImportNotionReport } from '@/app/api/knowled
 import { EntityChips } from '@/components/shared/EntityChips'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 import { cellModel, orderedProperties } from '@/lib/databases/format'
+import { databaseToCsv } from '@/lib/databases/csv'
+import { downloadText, safeDownloadName } from '@/lib/knowledge/download'
 import type { HqDatabase, DatabaseDetail, DbProperty, DbRecord } from '@/lib/databases/types'
 
 function Cell({ property, record }: { property: DbProperty; record: DbRecord }) {
@@ -280,6 +282,11 @@ export function DatabasesView({ databases, openDatabaseId }: { databases: HqData
             {db.icon && <span className="text-xl">{db.icon}</span>}
             <h2 className="text-lg font-semibold text-gray-900">{db.title}</h2>
             <EntityChips entities={db.entities} />
+            <button
+              onClick={() => downloadText(safeDownloadName(db.title, 'csv'), databaseToCsv(detail), 'text/csv')}
+              className="ml-auto rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">
+              ⤓ Download CSV
+            </button>
           </div>
           {db.description && <p className="mt-1 text-sm text-gray-500">{db.description}</p>}
           <p className="mt-1 text-xs text-gray-400">
