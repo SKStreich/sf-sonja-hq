@@ -34,4 +34,15 @@ describe('htmlToMarkdown', () => {
     const md = htmlToMarkdown('<p>a</p><p>b</p>')
     expect(md).not.toMatch(/\n{3,}/)
   })
+
+  it('keeps a <br>-containing table cell on one row (no broken GFM table)', () => {
+    const md = htmlToMarkdown(
+      '<table><thead><tr><th>A</th><th>B</th></tr></thead>' +
+        '<tbody><tr><td>Main page<br>Access via:<br>LNM</td><td>x</td></tr></tbody></table>',
+    )
+    // Exactly 3 table lines: header, divider, one data row (no split row).
+    const tableLines = md.split('\n').filter((l) => l.trim().startsWith('|'))
+    expect(tableLines).toHaveLength(3)
+    expect(md).toContain('Main page Access via: LNM')
+  })
 })

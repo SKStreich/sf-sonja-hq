@@ -6,10 +6,17 @@
 import TurndownService from 'turndown'
 import { gfm } from 'turndown-plugin-gfm' // types declared in src/types/turndown-plugin-gfm.d.ts
 
-/** Strip a leading injected <style>…</style> preamble (the migrator adds one to
- *  every recovered-table fragment) so it doesn't end up as literal text. */
-function stripStyleBlocks(html: string): string {
-  return html.replace(/<style[\s\S]*?<\/style>/gi, '')
+/** Pre-clean HTML before turndown:
+ *  - drop the injected <style>…</style> preamble (the migrator adds one to every
+ *    recovered-table fragment) so it never leaks as literal text;
+ *  - replace <br> with a space. A hard line break inside a GFM table cell would
+ *    split one logical row across physical lines and break the table parse, and
+ *    react-markdown here renders no raw HTML, so a literal <br> wouldn't help.
+ *    These docs use <br> mostly inside table cells, so a space is the safe call. */
+function preprocessHtml(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, ' ')
 }
 
 let _service: TurndownService | null = null
@@ -31,7 +38,7 @@ export function htmlToMarkdown(html: string | null | undefined): string {
   const src = (html ?? '').trim()
   if (!src) return ''
   return service()
-    .turndown(stripStyleBlocks(src))
+    .turndown(preprocessHtml(src))
     .replace(/\n{3,}/g, '\n\n') // collapse runs of blank lines
     .trim()
 }
