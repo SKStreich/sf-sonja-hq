@@ -9,7 +9,7 @@
  * embeds are still B3. Cell rendering is driven by the pure `cellModel` helper
  * so this component stays presentational.
  */
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { getDatabaseDetail } from '@/app/api/knowledge/databases'
 import { importNotionDatabase, type ImportNotionReport } from '@/app/api/knowledge/database-import'
@@ -234,7 +234,7 @@ function ReportBanner({ report, onDismiss }: { report: ImportNotionReport; onDis
   )
 }
 
-export function DatabasesView({ databases }: { databases: HqDatabase[] }) {
+export function DatabasesView({ databases, openDatabaseId }: { databases: HqDatabase[]; openDatabaseId?: string | null }) {
   const router = useRouter()
   const [detail, setDetail] = useState<DatabaseDetail | null>(null)
   const [report, setReport] = useState<ImportNotionReport | null>(null)
@@ -246,6 +246,13 @@ export function DatabasesView({ databases }: { databases: HqDatabase[] }) {
       setDetail(d)
     })
   }
+
+  // Open a specific database when asked from the unified browser ("All" → a
+  // database node). Re-runs only when the requested id changes.
+  useEffect(() => {
+    if (openDatabaseId) open(openDatabaseId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openDatabaseId])
 
   function handleImported(r: ImportNotionReport) {
     setReport(r)

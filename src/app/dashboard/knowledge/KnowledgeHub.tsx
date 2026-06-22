@@ -2,46 +2,30 @@
 import { useState, useTransition, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  listEntries, createEntry, deleteEntry,
+  createEntry, deleteEntry,
   type KnowledgeEntry, type Kind, type Entity,
 } from '@/app/api/knowledge/actions'
 import { uploadKnowledgeFile } from '@/app/api/knowledge/upload'
-import { listVaultEntries, uploadVaultFile, getVaultDownloadUrl, deleteVaultEntry, type VaultEntry } from '@/app/api/knowledge/vault'
+import { uploadVaultFile, getVaultDownloadUrl, deleteVaultEntry, type VaultEntry } from '@/app/api/knowledge/vault'
 import { listPendingForwardCountsByEntry } from '@/app/api/knowledge/shares'
-import { CardView } from './views/CardView'
-import { ListView } from './views/ListView'
+import { listNodes } from '@/app/api/knowledge/nodes'
 import { InsightsView } from './views/InsightsView'
 import { VaultView } from './views/VaultView'
-import { WorkspaceView } from './views/WorkspaceView'
 import { DatabasesView } from './views/DatabasesView'
+import { NodeView } from './views/NodeView'
+import {
+  buildNodes, filterNodesByType, countNodesByType,
+  TYPE_FILTERS, type KnowledgeNode, type TypeFilter,
+} from '@/lib/knowledge/nodes'
 import type { HqDatabase } from '@/lib/databases/types'
 import { ChatDrawer } from './ChatDrawer'
 import { MergeReviewModal } from './MergeReviewModal'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 
-type ViewMode = 'card' | 'list' | 'insights' | 'vault' | 'pages' | 'databases'
-
-const KINDS: { value: Kind | null; label: string }[] = [
-  { value: null, label: 'All' },
-  { value: 'idea', label: 'Ideas' },
-  { value: 'doc', label: 'Docs' },
-  { value: 'chat', label: 'Chats' },
-  { value: 'note', label: 'Notes' },
-]
-
 const ENTITIES: { value: Entity | null; label: string }[] = [
   { value: null, label: 'All' },
   ...ENTITY_SELECT_OPTIONS,
-]
-
-const VIEW_MODES: { value: ViewMode; label: string; icon: string }[] = [
-  { value: 'card', label: 'Cards', icon: '▦' },
-  { value: 'list', label: 'List', icon: '☰' },
-  { value: 'pages', label: 'Pages', icon: '📄' },
-  { value: 'databases', label: 'Databases', icon: '▤' },
-  { value: 'insights', label: 'Insights', icon: '✦' },
-  { value: 'vault', label: 'Vault', icon: '🔒' },
 ]
 
 interface Metrics {
@@ -61,10 +45,13 @@ interface Props {
 
 export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, metrics }: Props) {
   const router = useRouter()
-  const [entries, setEntries] = useState(initialEntries)
-  const [vault, setVault] = useState(initialVault)
-  const [view, setView] = useState<ViewMode>('card')
-  const [kind, setKind] = useState<Kind | null>(null)
+  const [nodes, setNodes] = useState<KnowledgeNode[]>(() =>
+    buildNodes({ entries: initialEntries, databases: initialDatabases, vault: initialVault }),
+  )
+  const [type, setType] = useState<TypeFilter>('all')
+  const [display, setDisplay] = useState<'cards' | 'list'>('cards')
+  const [insights, setInsights] = useState(false)
+  const [openDbId, setOpenDbId] = useState<string | null>(null)
   const [entity, setEntity] = useState<Entity | null>(null)
   const [query, setQuery] = useState('')
   const [composerOpen, setComposerOpen] = useState(false)
@@ -94,41 +81,38 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
 
   const [loading, startLoad] = useTransition()
 
-  const refresh = () => {
+  // Entity + search hit the one server reader (OQ-2 app-code union). The Type
+  // filter is a pure client-side narrowing of the already-loaded node set.
+  const reload = (over: { entity?: Entity | null; query?: string } = {}) => {
     startLoad(async () => {
-      if (view === 'vault') {
-        setVault(await listVaultEntries())
-      } else {
-        setEntries(await listEntries({ kind, entity, query }))
-      }
+      setNodes(await listNodes({
+        entity: over.entity !== undefined ? over.entity : entity,
+        query: over.query !== undefined ? over.query : query,
+      }))
     })
   }
+  const handleSearch = (value: string) => { setQuery(value); reload({ query: value }) }
+  const handleEntityChange = (e: Entity | null) => { setEntity(e); reload({ entity: e }) }
 
-  const handleSearch = (value: string) => {
-    setQuery(value)
-    startLoad(async () => {
-      setEntries(await listEntries({ kind, entity, query: value }))
-    })
+  // Selecting a content type clears the Insights overlay; leaving Databases
+  // drops any open-database target.
+  const selectType = (t: TypeFilter) => {
+    setInsights(false)
+    setType(t)
+    if (t !== 'database') setOpenDbId(null)
   }
-
-  const handleKindChange = (k: Kind | null) => {
-    setKind(k)
-    startLoad(async () => {
-      setEntries(await listEntries({ kind: k, entity, query }))
-    })
+  const openDatabase = (id: string) => { setInsights(false); setType('database'); setOpenDbId(id) }
+  const openVault = async (node: KnowledgeNode) => {
+    window.open(await getVaultDownloadUrl(node.id), '_blank', 'noopener,noreferrer')
   }
+  const handleDelete = async (id: string) => { await deleteEntry(id); reload() }
 
-  const handleEntityChange = (e: Entity | null) => {
-    setEntity(e)
-    startLoad(async () => {
-      setEntries(await listEntries({ kind, entity: e, query }))
-    })
-  }
-
-  const visibleEntries = useMemo(() => {
-    if (view === 'vault') return []
-    return entries
-  }, [entries, view])
+  const counts = useMemo(() => countNodesByType(nodes), [nodes])
+  const entryList = useMemo(() => nodes.filter(n => n.entry).map(n => n.entry!), [nodes])
+  const vaultEntries = useMemo(() => nodes.filter(n => n.type === 'vault').map(n => n.vault!), [nodes])
+  const databaseList = useMemo(() => nodes.filter(n => n.type === 'database').map(n => n.database!), [nodes])
+  const shownNodes = useMemo(() => filterNodesByType(nodes, type), [nodes, type])
+  const showingNodeView = !insights && type !== 'database' && type !== 'vault'
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8">
@@ -145,35 +129,32 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
         <Metric label="Total entries" value={metrics.total} />
         <Metric label="Raw ideas" value={metrics.rawIdeas} hint={metrics.rawIdeas > 0 ? 'awaiting review' : 'inbox clear'} />
         <Metric label="Active last 7d" value={metrics.recentCount} />
-        <Metric label="Vault files" value={vault.length} tone="amber" />
+        <Metric label="Vault files" value={counts.vault} tone="amber" />
       </div>
 
-      {/* Filters */}
+      {/* Type filter — Pages / Databases / Vault are types now, not view tabs */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1">
-          {KINDS.map(k => (
-            <button key={k.label} onClick={() => handleKindChange(k.value)}
-              disabled={view === 'vault'}
-              className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                kind === k.value && view !== 'vault'
-                  ? 'bg-indigo-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-100 disabled:opacity-40'
-              }`}>
-              {k.label}
-              {k.value && metrics.byKind[k.value] !== undefined && (
-                <span className="ml-1 text-[10px] opacity-70">{metrics.byKind[k.value]}</span>
-              )}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-1">
+          {TYPE_FILTERS.map(t => {
+            const active = !insights && type === t.value
+            const count = t.value === 'all' ? nodes.length : counts[t.value]
+            return (
+              <button key={t.value} onClick={() => selectType(t.value)}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  active ? 'bg-indigo-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+                }`}>
+                {t.label}
+                <span className="ml-1 text-[10px] opacity-70">{count}</span>
+              </button>
+            )
+          })}
         </div>
         <div className="h-5 w-px bg-gray-200" />
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1">
           {ENTITIES.map(e => (
             <button key={e.label} onClick={() => handleEntityChange(e.value)}
               className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                entity === e.value
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
+                entity === e.value ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
               }`}>
               {e.label}
             </button>
@@ -187,22 +168,30 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
         />
       </div>
 
-      {/* View toggle */}
+      {/* Display + actions */}
       <div className="mb-5 flex items-center justify-between">
-        <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
-          {VIEW_MODES.map(v => (
-            <button key={v.value} onClick={() => setView(v.value)}
-              className={`flex items-center gap-1.5 rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                view === v.value
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}>
-              <span>{v.icon}</span> {v.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          {showingNodeView && (
+            <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
+              {([['cards', '▦ Cards'], ['list', '☰ List']] as const).map(([d, label]) => (
+                <button key={d} onClick={() => setDisplay(d)}
+                  className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
+                    display === d ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={() => { setInsights(v => !v) }}
+            className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors ${
+              insights ? 'border-indigo-300 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+            }`}>
+            ✦ Insights
+          </button>
         </div>
         <div className="flex items-center gap-2">
-          {(view === 'card' || view === 'list') && (
+          {showingNodeView && (
             <button onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
               className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
                 selectMode
@@ -225,17 +214,29 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
 
       {/* Active view */}
       <div className={loading ? 'opacity-60 transition-opacity' : ''}>
-        {view === 'card' && <CardView entries={visibleEntries} pendingForwards={pendingForwards} onDelete={async id => { await deleteEntry(id); refresh() }} onChat={e => setChatTarget({ id: e.id, title: e.title ?? undefined })} selectable={selectMode} selectedIds={selectedIds} onToggleSelect={toggleSelect} />}
-        {view === 'list' && <ListView entries={visibleEntries} pendingForwards={pendingForwards} onDelete={async id => { await deleteEntry(id); refresh() }} selectable={selectMode} selectedIds={selectedIds} onToggleSelect={toggleSelect} />}
-        {view === 'insights' && <InsightsView entries={entries} />}
-        {view === 'pages' && <WorkspaceView />}
-        {view === 'databases' && <DatabasesView databases={initialDatabases} />}
-        {view === 'vault' && (
+        {insights ? (
+          <InsightsView entries={entryList} />
+        ) : type === 'database' ? (
+          <DatabasesView databases={databaseList} openDatabaseId={openDbId} />
+        ) : type === 'vault' ? (
           <VaultView
-            entries={vault}
+            entries={vaultEntries}
             onDownload={async id => { window.open(await getVaultDownloadUrl(id), '_blank', 'noopener,noreferrer') }}
-            onDelete={async id => { await deleteVaultEntry(id); refresh() }}
-            onUpload={async fd => { await uploadVaultFile(fd); refresh() }}
+            onDelete={async id => { await deleteVaultEntry(id); reload() }}
+            onUpload={async fd => { await uploadVaultFile(fd); reload() }}
+          />
+        ) : (
+          <NodeView
+            nodes={shownNodes}
+            display={display}
+            pendingForwards={pendingForwards}
+            selectable={selectMode}
+            selectedIds={selectedIds}
+            onToggleSelect={toggleSelect}
+            onChat={e => setChatTarget({ id: e.id, title: e.title ?? undefined })}
+            onDelete={handleDelete}
+            onOpenDatabase={openDatabase}
+            onOpenVault={openVault}
           />
         )}
       </div>
@@ -276,7 +277,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
         />
       )}
 
-      {composerOpen && <Composer onClose={() => setComposerOpen(false)} onCreated={() => { setComposerOpen(false); refresh() }} />}
+      {composerOpen && <Composer onClose={() => setComposerOpen(false)} onCreated={() => { setComposerOpen(false); reload() }} />}
       {chatTarget && (
         <ChatDrawer
           sourceEntryId={chatTarget.id}
