@@ -296,6 +296,55 @@ export async function updateEntry(id: string, patch: {
   revalidatePath(`/dashboard/knowledge/${id}`)
 }
 
+/**
+ * Edit an entry's "Original" content in place (Phase U2 — editing parity).
+ * For HTML entries this updates `rendered_html`; for text/markdown it updates
+ * `body`. Snapshots the prior state into knowledge_versions (incl. rendered_html
+ * / mime_type / storage_path) and bumps the version, so the edit is reversible.
+ */
+export async function updateEntryOriginal(
+  id: string,
+  content: { html?: string; text?: string },
+): Promise<void> {
+  if (content.html === undefined && content.text === undefined) return
+  const { supabase, user } = await getCtx()
+
+  const { data: cur, error: readErr } = await (supabase as any)
+    .from('knowledge_entries')
+    .select('id, title, body, kind, tags, summary, type_hint, idea_status, version, rendered_html, mime_type, storage_path, knowledge_entry_entities(entity)')
+    .eq('id', id)
+    .maybeSingle()
+  if (readErr || !cur) throw new Error('Entry not found')
+
+  await (supabase as any).from('knowledge_versions').insert({
+    entry_id: id,
+    version: cur.version,
+    title: cur.title,
+    body: cur.body,
+    kind: cur.kind,
+    entity: cur.knowledge_entry_entities?.[0]?.entity ?? null,
+    tags: cur.tags,
+    summary: cur.summary,
+    type_hint: cur.type_hint,
+    idea_status: cur.idea_status,
+    rendered_html: cur.rendered_html,
+    mime_type: cur.mime_type,
+    storage_path: cur.storage_path,
+    created_by: user.id,
+  })
+
+  const update: Record<string, any> = { version: (cur.version ?? 1) + 1 }
+  if (content.html !== undefined) update.rendered_html = content.html
+  if (content.text !== undefined) update.body = content.text
+
+  const { error } = await (supabase as any)
+    .from('knowledge_entries').update(update).eq('id', id).select('id')
+  if (error) throw new Error('Failed to save: ' + error.message)
+
+  revalidatePath('/dashboard/knowledge')
+  revalidatePath(`/dashboard/knowledge/${id}`)
+}
+
 export async function deleteEntry(id: string) {
   const { supabase } = await getCtx()
   // .select() returns the deleted rows; under RLS a delete that matches no rows

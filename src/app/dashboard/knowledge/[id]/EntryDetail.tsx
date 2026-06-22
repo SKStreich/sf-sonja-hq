@@ -3,9 +3,10 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import {
-  updateEntry, deleteEntry,
+  updateEntry, updateEntryOriginal, deleteEntry,
   type KnowledgeEntry, type Kind, type Entity,
 } from '@/app/api/knowledge/actions'
+import { downloadText, openHtmlInTab, safeDownloadName } from '@/lib/knowledge/download'
 import {
   critiqueAndSave, addFollowUpNote, restoreVersion,
   type EntryVersion, type RelatedEntry,
@@ -259,7 +260,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
       )}
 
       {tab === 'original' && hasOriginal && (
-        <OriginalTab entryId={entry.id} />
+        <OriginalTab entryId={entry.id} title={entry.title} />
       )}
 
       {tab === 'critiques' && (
@@ -500,35 +501,85 @@ function wrapHtml(inner: string): string {
 </style></head><body>${inner}</body></html>`
 }
 
-function OriginalTab({ entryId }: { entryId: string }) {
+function OriginalToolbarButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick}
+      className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50">
+      {children}
+    </button>
+  )
+}
+
+function OriginalTab({ entryId, title }: { entryId: string; title: string | null }) {
   const [view, setView] = useState<OriginalView | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+  const [saving, startSave] = useTransition()
 
-  useEffect(() => {
-    let cancelled = false
+  const load = () => {
     setLoading(true)
     getOriginalView(entryId)
-      .then(v => { if (!cancelled) setView(v) })
-      .catch(e => { if (!cancelled) setErr(e?.message ?? 'Failed to load original') })
-      .finally(() => { if (!cancelled) setLoading(false) })
-    return () => { cancelled = true }
-  }, [entryId])
+      .then(v => setView(v))
+      .catch(e => setErr(e?.message ?? 'Failed to load original'))
+      .finally(() => setLoading(false))
+  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load() }, [entryId])
+
+  const save = (content: { html?: string; text?: string }) => {
+    setErr('')
+    startSave(async () => {
+      try {
+        await updateEntryOriginal(entryId, content)
+        setEditing(false)
+        load()
+      } catch (e: any) { setErr(e?.message ?? 'Save failed') }
+    })
+  }
 
   if (loading) return <p className="text-sm text-gray-500">Loading original…</p>
-  if (err) return <p className="text-sm text-red-600">{err}</p>
+  if (err && !view) return <p className="text-sm text-red-600">{err}</p>
   if (!view || view.kind === 'none') {
     return <p className="text-sm text-gray-500">No original view available for this entry.</p>
   }
 
   if (view.kind === 'html') {
+    const full = wrapHtml(view.html)
     return (
-      <iframe
-        srcDoc={wrapHtml(view.html)}
-        sandbox=""
-        className="h-[80vh] w-full rounded-lg border border-gray-200 bg-white"
-        title="Original document"
-      />
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {editing ? (
+            <>
+              <button onClick={() => save({ html: draft })} disabled={saving}
+                className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
+                {saving ? 'Saving…' : 'Save'}
+              </button>
+              <OriginalToolbarButton onClick={() => setEditing(false)}>Cancel</OriginalToolbarButton>
+              <span className="text-[11px] text-gray-400">Editing raw HTML — saved as a new version.</span>
+            </>
+          ) : (
+            <>
+              <OriginalToolbarButton onClick={() => { setDraft(view.html); setEditing(true) }}>✎ Edit</OriginalToolbarButton>
+              <OriginalToolbarButton onClick={() => downloadText(safeDownloadName(title, 'html'), full, 'text/html')}>⤓ Download HTML</OriginalToolbarButton>
+              <OriginalToolbarButton onClick={() => openHtmlInTab(full)}>Open in new tab ↗</OriginalToolbarButton>
+            </>
+          )}
+        </div>
+        {err && <p className="text-xs text-red-600">{err}</p>}
+        {editing ? (
+          <textarea value={draft} onChange={e => setDraft(e.target.value)}
+            className="h-[80vh] w-full rounded-lg border border-gray-200 bg-white p-3 font-mono text-xs text-gray-900 outline-none focus:border-indigo-400" />
+        ) : (
+          <iframe
+            srcDoc={full}
+            sandbox=""
+            className="h-[80vh] w-full rounded-lg border border-gray-200 bg-white"
+            title="Original document"
+          />
+        )}
+      </div>
     )
   }
 
@@ -550,10 +601,35 @@ function OriginalTab({ entryId }: { entryId: string }) {
   }
 
   // text / markdown
+  const ext = view.markdown ? 'md' : 'txt'
   return (
-    <pre className="max-h-[80vh] overflow-auto rounded-lg border border-gray-200 bg-white p-4 font-mono text-xs text-gray-900 whitespace-pre-wrap">
-      {view.text}
-    </pre>
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {editing ? (
+          <>
+            <button onClick={() => save({ text: draft })} disabled={saving}
+              className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-50">
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <OriginalToolbarButton onClick={() => setEditing(false)}>Cancel</OriginalToolbarButton>
+          </>
+        ) : (
+          <>
+            <OriginalToolbarButton onClick={() => { setDraft(view.text); setEditing(true) }}>✎ Edit</OriginalToolbarButton>
+            <OriginalToolbarButton onClick={() => downloadText(safeDownloadName(title, ext), view.text, view.markdown ? 'text/markdown' : 'text/plain')}>⤓ Download</OriginalToolbarButton>
+          </>
+        )}
+      </div>
+      {err && <p className="text-xs text-red-600">{err}</p>}
+      {editing ? (
+        <textarea value={draft} onChange={e => setDraft(e.target.value)}
+          className="h-[80vh] w-full rounded-lg border border-gray-200 bg-white p-4 font-mono text-xs text-gray-900 outline-none focus:border-indigo-400" />
+      ) : (
+        <pre className="max-h-[80vh] overflow-auto rounded-lg border border-gray-200 bg-white p-4 font-mono text-xs text-gray-900 whitespace-pre-wrap">
+          {view.text}
+        </pre>
+      )}
+    </div>
   )
 }
 
