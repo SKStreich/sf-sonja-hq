@@ -8,14 +8,16 @@
  * forwards, summary/tags/idea-status). Database + vault nodes get their own
  * cards/rows and open via callbacks. This replaces CardView + ListView.
  */
+import { useState } from 'react'
 import Link from 'next/link'
 import { EntityChips } from '@/components/shared/EntityChips'
 import { TYPE_META, type KnowledgeNode } from '@/lib/knowledge/nodes'
+import { buildTree, type TreeNode } from '@/lib/knowledge/tree'
 import type { KnowledgeEntry } from '@/app/api/knowledge/actions'
 
 interface Props {
   nodes: KnowledgeNode[]
-  display: 'cards' | 'list'
+  display: 'cards' | 'list' | 'tree'
   pendingForwards?: Record<string, number>
   selectable?: boolean
   selectedIds?: Set<string>
@@ -43,9 +45,8 @@ function prepare(nodes: KnowledgeNode[]): { visible: KnowledgeNode[]; childCount
 
 export function NodeView(props: Props) {
   const { nodes, display } = props
-  const { visible, childCount } = prepare(nodes)
 
-  if (visible.length === 0) {
+  if (nodes.length === 0) {
     return (
       <div className="rounded-xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center">
         <p className="text-sm font-medium text-gray-700">Nothing here yet</p>
@@ -54,9 +55,84 @@ export function NodeView(props: Props) {
     )
   }
 
+  // Tree uses the FULL node set (child pages must show nested, not be hidden
+  // the way cards/list collapse them into a per-parent count pill).
+  if (display === 'tree') return <TreeView {...props} />
+
+  const { visible, childCount } = prepare(nodes)
   return display === 'cards'
     ? <CardsGrid {...props} visible={visible} childCount={childCount} />
     : <ListTable {...props} visible={visible} childCount={childCount} />
+}
+
+// ── Tree ─────────────────────────────────────────────────────────────────────
+// Containment view (spec OQ-5): pages nest under their parent page; every other
+// type sits at the root. Built from the pure tree model so the edge logic is
+// unit-tested. Each row reuses the same navigation as cards/list.
+
+function TreeView(props: Props) {
+  const tree = buildTree(props.nodes)
+  return (
+    <div className="overflow-hidden rounded-xl border border-gray-200 bg-white">
+      <ul className="divide-y divide-gray-100">
+        {tree.map((t) => (
+          <TreeRow key={t.node.id} item={t} {...props} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function TreeRow({ item, ...props }: { item: TreeNode } & Props) {
+  const { onOpenDatabase, onOpenVault } = props
+  const [open, setOpen] = useState(true)
+  const { node, children, depth } = item
+  const m = TYPE_META[node.type]
+  const hasChildren = children.length > 0
+  // 14px per level + room for the chevron column.
+  const pad = 12 + depth * 16
+
+  const label = (
+    <span className="inline-flex items-center gap-2">
+      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${m.dot}`} />
+      <span className="font-medium text-gray-900 line-clamp-1 group-hover:text-indigo-700">{node.title}</span>
+      <span className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-bold uppercase tracking-wide ${m.badge}`}>{m.label}</span>
+      {hasChildren && (
+        <span className="shrink-0 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500">{children.length}</span>
+      )}
+    </span>
+  )
+
+  return (
+    <li>
+      <div className="group flex items-center gap-2 px-3 py-2 hover:bg-gray-50" style={{ paddingLeft: pad }}>
+        {hasChildren ? (
+          <button onClick={() => setOpen((v) => !v)} aria-label={open ? 'Collapse' : 'Expand'}
+            className="w-4 shrink-0 text-gray-400 hover:text-gray-700">{open ? '▾' : '▸'}</button>
+        ) : (
+          <span className="w-4 shrink-0" />
+        )}
+        <div className="min-w-0 flex-1 text-sm">
+          {node.type === 'database' ? (
+            <button onClick={() => onOpenDatabase?.(node.id)} className="block w-full text-left">{label}</button>
+          ) : node.type === 'vault' ? (
+            <button onClick={() => onOpenVault?.(node)} className="block w-full text-left">{label}</button>
+          ) : (
+            <Link href={`/dashboard/knowledge/${node.id}`} className="block">{label}</Link>
+          )}
+        </div>
+        <EntityChips entities={node.entities} variant="plain" />
+        <span className="shrink-0 text-[11px] text-gray-400">{new Date(node.updatedAt).toLocaleDateString()}</span>
+      </div>
+      {hasChildren && open && (
+        <ul>
+          {children.map((c) => (
+            <TreeRow key={c.node.id} item={c} {...props} />
+          ))}
+        </ul>
+      )}
+    </li>
+  )
 }
 
 // ── Cards ────────────────────────────────────────────────────────────────────
