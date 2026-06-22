@@ -11,6 +11,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropicApiKey } from '@/lib/anthropic-key'
 import { fetchEntryEntityMap, fetchEntryIdsForEntity, setEntryEntities, sortEntitySlugs } from '@/lib/entities/multi-entity'
 import { ENTITY_SLUGS } from '@/lib/entities/config'
+import { htmlToMarkdown } from '@/lib/knowledge/html-to-markdown'
 
 const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
@@ -310,7 +311,36 @@ export async function convertEntryToPage(id: string): Promise<void> {
   if (current.kind === 'chat' || current.kind === 'critique') {
     throw new Error('Only docs, notes, and ideas can be converted to a page.')
   }
-  await updateEntry(id, { kind: 'workspace' })
+  // A page is edited as Markdown in the live split-pane. For an uploaded HTML
+  // doc the real content lives in rendered_html (the flat `body` ingest extracts
+  // is a single unstructured line — useless to edit). Derive a Markdown body
+  // from the HTML so the page is genuinely editable. The HTML stays available
+  // in the Original tab.
+  const md = await pageBodyFromOriginal(id)
+  await updateEntry(id, { kind: 'workspace', ...(md !== null ? { body: md } : {}) })
+}
+
+/**
+ * Re-derive a workspace page's Markdown body from its Original HTML
+ * (rendered_html). Lets a page converted from an HTML doc — or one whose body
+ * is the flattened ingest text — be reflowed into editable Markdown on demand.
+ */
+export async function reflowPageFromOriginal(id: string): Promise<void> {
+  const md = await pageBodyFromOriginal(id)
+  if (md === null) throw new Error('This page has no Original HTML to reflow from.')
+  await updateEntry(id, { body: md })
+}
+
+/** Returns Markdown derived from an entry's rendered_html, or null if it has
+ *  none. Not exported ('use server' files only allow async-function exports). */
+async function pageBodyFromOriginal(id: string): Promise<string | null> {
+  const supabase = createClient()
+  const { data } = await (supabase as any)
+    .from('knowledge_entries').select('rendered_html').eq('id', id).maybeSingle()
+  const html = data?.rendered_html as string | null | undefined
+  if (!html || !html.trim()) return null
+  const md = htmlToMarkdown(html)
+  return md.trim() ? md : null
 }
 
 /**

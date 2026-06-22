@@ -3,7 +3,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import {
-  updateEntry, updateEntryOriginal, deleteEntry, convertEntryToPage,
+  updateEntry, updateEntryOriginal, deleteEntry, convertEntryToPage, reflowPageFromOriginal,
   type KnowledgeEntry, type Kind, type Entity,
 } from '@/app/api/knowledge/actions'
 import {
@@ -60,8 +60,12 @@ type Tab = 'content' | 'original' | 'critiques' | 'history' | 'notes' | 'shares'
 export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props) {
   const router = useRouter()
   const [tab, setTab] = useState<Tab>(
-    !!entry.storage_path || entry.mime_type === 'text/markdown' || entry.source === 'upload'
-      ? 'original' : 'content'
+    // A page is edited as Markdown on the Content tab (live split-pane) — land
+    // there, not on the read-only Original iframe.
+    entry.kind === 'workspace'
+      ? 'content'
+      : !!entry.storage_path || entry.mime_type === 'text/markdown' || entry.source === 'upload'
+        ? 'original' : 'content'
   )
 
   const [title, setTitle] = useState(entry.title ?? '')
@@ -143,6 +147,20 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
     })
   }
 
+  // Re-derive the page's editable Markdown body from its Original HTML. Useful
+  // when a page was converted from an HTML doc and its body is the flattened
+  // ingest text rather than structured Markdown.
+  const reflow = () => {
+    if (!confirm('Rebuild this page’s editable content from its Original HTML? Your current body is snapshotted in History first.')) return
+    setErr('')
+    startWork(async () => {
+      try {
+        await reflowPageFromOriginal(entry.id)
+        router.refresh()
+      } catch (e: any) { setErr(e.message ?? 'Reflow failed') }
+    })
+  }
+
   return (
     <div className="mx-auto max-w-4xl px-6 py-8">
       {entry.kind === 'workspace' && (
@@ -167,6 +185,13 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
           <button onClick={convertToPage} disabled={working}
             className="rounded border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100 disabled:opacity-40">
             📄 Convert to page
+          </button>
+        )}
+        {entry.kind === 'workspace' && hasOriginal && (
+          <button onClick={reflow} disabled={working}
+            title="Rebuild the editable Markdown body from the Original HTML"
+            className="rounded border border-teal-200 bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700 hover:bg-teal-100 disabled:opacity-40">
+            ↻ Reflow from Original
           </button>
         )}
         <button onClick={() => setShareOpen(true)}
