@@ -77,4 +77,8 @@ export interface DatabaseDetail {
    *  for relation columns whose target database is also in the org; absent when
    *  there is nothing to resolve. */
   relationIndex?: Record<string, Record<string, RelationTarget>>
+  /** Per relation-property-id, the resolved target HQ database id — present
+   *  whenever the target is in the org (even with zero records). The relation
+   *  picker searches this database. */
+  relationTargets?: Record<string, string>
 }
