@@ -19,7 +19,11 @@ import {
   parseNotionDatabaseId,
   mapDatabaseSchema,
   mapRecordValues,
+  matchRecordsToPageIds,
+  notionPageTitle,
 } from '@/lib/databases/notion-import'
+import { recordTitle } from '@/lib/databases/format'
+import type { DbProperty, DbRecord } from '@/lib/databases/types'
 
 export interface ImportNotionArgs {
   url: string
@@ -60,9 +64,11 @@ async function notionFetch(path: string, token: string, init?: RequestInit): Pro
   return res.json()
 }
 
+interface NotionPage { id?: string; properties?: Record<string, any> }
+
 /** Fetch every row-page of a database, following pagination. */
-async function fetchAllRows(databaseId: string, token: string): Promise<{ properties?: Record<string, any> }[]> {
-  const pages: { properties?: Record<string, any> }[] = []
+async function fetchAllRows(databaseId: string, token: string): Promise<NotionPage[]> {
+  const pages: NotionPage[] = []
   let cursor: string | undefined
   // Bound the loop so a misbehaving API can't spin forever.
   for (let guard = 0; guard < 200; guard++) {
@@ -101,7 +107,8 @@ export async function importNotionDatabase(args: ImportNotionArgs): Promise<Impo
     throw new Error('That Notion database has no columns to import.')
   }
 
-  // 2 — create the database row.
+  // 2 — create the database row. Record the source Notion db id so relation
+  //     columns in OTHER databases that point here can resolve to this HQ db.
   const { data: dbRow, error: dbErr } = await (supabase as any)
     .from('hq_databases')
     .insert({
@@ -110,6 +117,7 @@ export async function importNotionDatabase(args: ImportNotionArgs): Promise<Impo
       title: schema.title,
       icon: schema.icon,
       description: schema.description,
+      notion_database_id: databaseId,
     })
     .select('id')
     .single()
@@ -124,14 +132,41 @@ export async function importNotionDatabase(args: ImportNotionArgs): Promise<Impo
 
   // 4 — insert columns, then map Notion property id → HQ property id by position
   //     (positions are unique 0..n-1, so they're a stable join key).
-  const propRows = schema.properties.map((p) => ({
-    database_id: hqDbId,
-    name: p.name,
-    type: p.type,
-    position: p.position,
-    config: p.config,
-    is_title: p.is_title,
-  }))
+  //     Resolve relation targets: if a relation's target Notion db is already an
+  //     HQ database, pin its HQ id so the cell resolves without a Notion lookup.
+  const targetNotionDbIds = Array.from(
+    new Set(
+      schema.properties
+        .map((p) => p.config.notionRelationDatabaseId)
+        .filter((v): v is string => typeof v === 'string'),
+    ),
+  )
+  const hqDbByNotionDb = new Map<string, string>()
+  if (targetNotionDbIds.length > 0) {
+    const { data: targets } = await (supabase as any)
+      .from('hq_databases')
+      .select('id, notion_database_id')
+      .in('notion_database_id', targetNotionDbIds)
+    for (const t of (targets ?? []) as { id: string; notion_database_id: string }[]) {
+      hqDbByNotionDb.set(t.notion_database_id, t.id)
+    }
+  }
+
+  const propRows = schema.properties.map((p) => {
+    const config: Record<string, unknown> = { ...p.config }
+    const targetHq = p.config.notionRelationDatabaseId
+      ? hqDbByNotionDb.get(p.config.notionRelationDatabaseId)
+      : undefined
+    if (targetHq) config.relationDatabaseId = targetHq
+    return {
+      database_id: hqDbId,
+      name: p.name,
+      type: p.type,
+      position: p.position,
+      config,
+      is_title: p.is_title,
+    }
+  })
   const { data: insertedProps, error: propErr } = await (supabase as any)
     .from('hq_db_properties')
     .insert(propRows)
@@ -157,7 +192,7 @@ export async function importNotionDatabase(args: ImportNotionArgs): Promise<Impo
       const hqId = notionIdToHq.get(notionId)
       if (hqId) values[hqId] = val
     }
-    return { database_id: hqDbId, position: i, values }
+    return { database_id: hqDbId, position: i, values, notion_page_id: page.id ?? null }
   })
 
   // 6 — insert records in chunks (keeps the request body bounded).
@@ -176,5 +211,80 @@ export async function importNotionDatabase(args: ImportNotionArgs): Promise<Impo
     recordCount: recordRows.length,
     propertyCount: schema.properties.length,
     unmappedColumns: schema.unmappedColumns,
+  }
+}
+
+export interface BackfillPageIdsArgs {
+  /** The HQ database to patch (it was imported before page ids were captured). */
+  databaseId: string
+  /** The source Notion database URL or id to re-fetch page ids from. */
+  url: string
+  token: string
+}
+
+export interface BackfillPageIdsReport {
+  total: number
+  matched: number
+  unmatched: number
+  unmatchedTitles: string[]
+}
+
+/**
+ * One-time recovery for databases imported before U3d: re-fetch the source Notion
+ * database, match each row to its HQ record by title, and patch the HQ record's
+ * `notion_page_id` (plus the database's `notion_database_id`). Afterwards, any
+ * relation column elsewhere that references this database's pages resolves to
+ * record titles. The token is per-call and not persisted (mirrors the importer).
+ */
+export async function backfillNotionPageIds(args: BackfillPageIdsArgs): Promise<BackfillPageIdsReport> {
+  const token = args.token?.trim()
+  if (!token) throw new Error('A Notion integration token is required.')
+  if (!args.databaseId) throw new Error('A database is required.')
+  const notionDbId = parseNotionDatabaseId(args.url)
+
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('Not authenticated')
+
+  // Load the HQ schema + records (RLS-scoped to the caller's org).
+  const [{ data: db }, { data: props }, { data: recs }] = await Promise.all([
+    (supabase as any).from('hq_databases').select('id').eq('id', args.databaseId).maybeSingle(),
+    (supabase as any).from('hq_db_properties').select('*').eq('database_id', args.databaseId),
+    (supabase as any).from('hq_db_records').select('*').eq('database_id', args.databaseId),
+  ])
+  if (!db) throw new Error('Database not found.')
+  const properties = (props ?? []) as DbProperty[]
+  const records = (recs ?? []) as DbRecord[]
+
+  // Re-fetch Notion pages → (id, title), then match by title.
+  const pages = await fetchAllRows(notionDbId, token)
+  const notionPages = pages
+    .filter((p) => p.id)
+    .map((p) => ({ id: p.id as string, title: notionPageTitle(p) }))
+  const hqRecords = records.map((r) => ({ id: r.id, title: recordTitle(properties, r) }))
+  const { pageIdByRecordId, unmatchedRecordTitles } = matchRecordsToPageIds(hqRecords, notionPages)
+
+  // Persist: the database's source Notion id + each matched record's page id.
+  await (supabase as any)
+    .from('hq_databases')
+    .update({ notion_database_id: notionDbId })
+    .eq('id', args.databaseId)
+
+  const entries = Object.entries(pageIdByRecordId)
+  for (const [recordId, pageId] of entries) {
+    const { error } = await (supabase as any)
+      .from('hq_db_records')
+      .update({ notion_page_id: pageId })
+      .eq('id', recordId)
+    if (error) throw new Error(`Could not update a record: ${error.message ?? error}`)
+  }
+
+  revalidatePath('/dashboard/knowledge')
+
+  return {
+    total: records.length,
+    matched: entries.length,
+    unmatched: unmatchedRecordTitles.length,
+    unmatchedTitles: unmatchedRecordTitles,
   }
 }

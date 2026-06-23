@@ -305,6 +305,54 @@ function snapshotArrayEntry(e: unknown): string {
   return Array.isArray(v) ? v.join(', ') : String(v)
 }
 
+export interface BackfillMatchResult {
+  /** HQ record id → its source Notion page id. */
+  pageIdByRecordId: Record<string, string>
+  /** Titles of HQ records that found no Notion page to pair with. */
+  unmatchedRecordTitles: string[]
+}
+
+/**
+ * Match HQ records to Notion pages by normalized title, for the page-id
+ * backfill. Duplicate titles are paired in input order — HQ records in their
+ * given order, Notion pages in fetch order — via a per-title FIFO queue, so a
+ * re-fetch that preserves order resolves dups deterministically. A record whose
+ * title has no remaining same-title page left is reported unmatched.
+ */
+export function matchRecordsToPageIds(
+  hqRecords: { id: string; title: string }[],
+  notionPages: { id: string; title: string }[],
+): BackfillMatchResult {
+  const norm = (s: string) => s.trim().toLowerCase()
+  const pagesByTitle = new Map<string, string[]>()
+  for (const p of notionPages) {
+    const k = norm(p.title)
+    if (!k || !p.id) continue
+    const q = pagesByTitle.get(k) ?? []
+    q.push(p.id)
+    pagesByTitle.set(k, q)
+  }
+  const pageIdByRecordId: Record<string, string> = {}
+  const unmatchedRecordTitles: string[] = []
+  for (const r of hqRecords) {
+    const q = r.title ? pagesByTitle.get(norm(r.title)) : undefined
+    const pid = q && q.length > 0 ? q.shift() : undefined
+    if (pid) pageIdByRecordId[r.id] = pid
+    else unmatchedRecordTitles.push(r.title)
+  }
+  return { pageIdByRecordId, unmatchedRecordTitles }
+}
+
+/** The plain-text title of a Notion page = the value of its title-typed
+ *  property. Used by the page-id backfill to match a re-fetched Notion page to
+ *  the HQ record that shares its title. */
+export function notionPageTitle(page: { properties?: Record<string, NotionPropertyValue> }): string {
+  for (const pv of Object.values(page.properties ?? {})) {
+    if (pv?.type === 'title') return richTextToPlain(pv.title)
+  }
+  return ''
+}
+
 /**
  * Map a Notion page → record values keyed by the *Notion* property id. The
  * orchestrator remaps Notion ids → HQ property ids after the columns are
