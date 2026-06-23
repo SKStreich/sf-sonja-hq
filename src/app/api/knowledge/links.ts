@@ -455,6 +455,42 @@ export async function detachEntry(linkId: string): Promise<void> {
   if (error) throw new Error('Failed to detach document: ' + error.message)
 }
 
+/**
+ * Pins knowledge entry `entryId` to task `taskId` (relation='attached'). Both
+ * must be in the caller's org. A duplicate attach (partial-unique kl_unique_task
+ * on from_entry/to_task/relation) is swallowed as a safe no-op. The task-side
+ * mirror of attachEntryToProject — the `knowledge_links.to_task` target and its
+ * RLS were already in place (the mentions scanner writes to_task rows).
+ */
+export async function attachEntryToTask(entryId: string, taskId: string): Promise<void> {
+  const { supabase, user, org_id } = await getCtx()
+
+  const { data: entry } = await (supabase as any)
+    .from('knowledge_entries')
+    .select('id, org_id')
+    .eq('id', entryId)
+    .maybeSingle()
+  if (!entry) throw new Error('Entry not found')
+  if (entry.org_id !== org_id) throw new Error('Entry in different org')
+
+  const { data: task } = await (supabase as any)
+    .from('tasks')
+    .select('id, org_id')
+    .eq('id', taskId)
+    .maybeSingle()
+  if (!task) throw new Error('Task not found')
+  if (task.org_id !== org_id) throw new Error('Task in different org')
+
+  const { error } = await (supabase as any).from('knowledge_links').insert({
+    from_entry: entryId, to_entry: null, to_project: null, to_task: taskId,
+    relation: 'attached', created_by: user.id,
+  })
+  // 23505 = unique_violation — already attached. Safe no-op.
+  if (error && error.code !== '23505') {
+    throw new Error('Failed to attach document: ' + error.message)
+  }
+}
+
 export interface ProjectAttachment {
   linkId: string             // knowledge_links row id (for detach)
   id: string                 // from_entry id (a knowledge_entries row)
@@ -464,6 +500,9 @@ export interface ProjectAttachment {
   vault: boolean
   updated_at: string
 }
+
+/** A knowledge entry attached to a task — same shape as ProjectAttachment. */
+export type TaskAttachment = ProjectAttachment
 
 /**
  * Knowledge entries deliberately attached to `projectId`. Org-scoped, active
@@ -480,6 +519,36 @@ export async function getProjectAttachments(projectId: string): Promise<ProjectA
   const rows = (data ?? []) as any[]
   const entityMap = await fetchEntryEntityMap(supabase, rows.map((r) => r.knowledge_entries?.id).filter(Boolean))
   const out: ProjectAttachment[] = []
+  rows.forEach((row: any) => {
+    const e = row.knowledge_entries
+    if (!e) return
+    if (e.org_id !== org_id) return
+    if (e.status !== 'active') return
+    out.push({
+      linkId: row.id, id: e.id, title: e.title, kind: e.kind,
+      entity: (entityMap[e.id] ?? [])[0] ?? '—', vault: e.access === 'vault', updated_at: e.updated_at,
+    })
+  })
+  out.sort((a, b) => b.updated_at.localeCompare(a.updated_at))
+  return out
+}
+
+/**
+ * Knowledge entries deliberately attached to `taskId`. Org-scoped, active
+ * entries only. Vault entries ARE returned (OQ6) and flagged. Task-side mirror
+ * of getProjectAttachments.
+ */
+export async function getTaskAttachments(taskId: string): Promise<TaskAttachment[]> {
+  const { supabase, org_id } = await getCtx()
+  const { data, error } = await (supabase as any)
+    .from('knowledge_links')
+    .select('id, from_entry, knowledge_entries!knowledge_links_from_entry_fkey(id, title, kind, updated_at, org_id, access, status)')
+    .eq('to_task', taskId)
+    .eq('relation', 'attached')
+  if (error) throw new Error('Failed to load attachments: ' + error.message)
+  const rows = (data ?? []) as any[]
+  const entityMap = await fetchEntryEntityMap(supabase, rows.map((r) => r.knowledge_entries?.id).filter(Boolean))
+  const out: TaskAttachment[] = []
   rows.forEach((row: any) => {
     const e = row.knowledge_entries
     if (!e) return

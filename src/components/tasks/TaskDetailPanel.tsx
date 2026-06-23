@@ -1,9 +1,14 @@
 'use client'
 import { useState, useEffect, useRef, useTransition } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { addTaskNote, deleteTaskNote, saveTaskFile, deleteTaskFile, completeTask, cancelTask, reopenTask, reassignTaskProject } from '@/app/api/tasks/actions'
 import { assignTask } from '@/app/api/members/actions'
 import { createProject } from '@/app/api/projects/actions'
+import {
+  searchAttachableEntries, attachEntryToTask, detachEntry, getTaskAttachments,
+  type AttachTarget, type TaskAttachment,
+} from '@/app/api/knowledge/links'
 import { entityLabel } from '@/lib/entities/config'
 
 interface TaskNote {
@@ -65,9 +70,10 @@ const BUCKET_LABELS: Record<string, string> = {
 }
 
 export function TaskDetailPanel({ task, onClose, members = [], projects = [], entities = [] }: Props) {
-  const [tab, setTab] = useState<'notes' | 'files'>('notes')
+  const [tab, setTab] = useState<'notes' | 'files' | 'docs'>('notes')
   const [notes, setNotes] = useState<TaskNote[]>([])
   const [files, setFiles] = useState<TaskFile[]>([])
+  const [docs, setDocs] = useState<TaskAttachment[] | null>(null)
   const [noteText, setNoteText] = useState('')
   const [uploading, setUploading] = useState(false)
   const [loadingNotes, setLoadingNotes] = useState(true)
@@ -85,6 +91,8 @@ export function TaskDetailPanel({ task, onClose, members = [], projects = [], en
     ;(sb as any).from('task_files')
       .select('*').eq('task_id', task.id).order('created_at', { ascending: false })
       .then(({ data }: any) => { setFiles(data ?? []); setLoadingFiles(false) })
+    setDocs(null)
+    getTaskAttachments(task.id).then(setDocs).catch(() => setDocs([]))
   }, [task.id])
 
   const handleAddNote = () => {
@@ -315,10 +323,10 @@ export function TaskDetailPanel({ task, onClose, members = [], projects = [], en
 
         {/* Tabs */}
         <div className="flex border-b border-gray-200 px-5">
-          {(['notes', 'files'] as const).map(t => (
+          {(['notes', 'files', 'docs'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
               className={`py-2.5 mr-4 text-sm font-medium border-b-2 transition-colors capitalize ${tab === t ? 'border-indigo-500 text-gray-900' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>
-              {t}{t === 'files' ? ` (${files.length})` : ` (${notes.length})`}
+              {t} ({t === 'files' ? files.length : t === 'docs' ? (docs?.length ?? 0) : notes.length})
             </button>
           ))}
         </div>
@@ -389,8 +397,119 @@ export function TaskDetailPanel({ task, onClose, members = [], projects = [], en
               )}
             </div>
           )}
+
+          {tab === 'docs' && (
+            <TaskAttachDocs taskId={task.id} attachments={docs} setAttachments={setDocs} />
+          )}
         </div>
       </div>
     </>
+  )
+}
+
+/**
+ * "Docs" tab — deliberately pin knowledge entries to this task (and unpin them)
+ * via relation='attached'. Task-side mirror of the project AttachDocsBlock.
+ * Vault docs are allowed as targets (OQ6) and badged.
+ */
+function TaskAttachDocs({ taskId, attachments, setAttachments }: {
+  taskId: string
+  attachments: TaskAttachment[] | null
+  setAttachments: React.Dispatch<React.SetStateAction<TaskAttachment[] | null>>
+}) {
+  const [picking, setPicking] = useState(false)
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<AttachTarget[]>([])
+  const [busy, startBusy] = useTransition()
+
+  // Debounced search while the picker is open. Empty query returns recent docs.
+  useEffect(() => {
+    if (!picking) return
+    const t = setTimeout(() => {
+      searchAttachableEntries(query).then(setResults).catch(() => setResults([]))
+    }, 250)
+    return () => clearTimeout(t)
+  }, [query, picking])
+
+  const attachedIds = new Set((attachments ?? []).map(a => a.id))
+
+  const attach = (t: AttachTarget) => {
+    if (attachedIds.has(t.id)) { setPicking(false); setQuery('') ; return }
+    startBusy(async () => {
+      await attachEntryToTask(t.id, taskId)
+      const fresh = await getTaskAttachments(taskId)
+      setAttachments(fresh)
+      setQuery(''); setResults([]); setPicking(false)
+    })
+  }
+
+  const detach = (linkId: string) => {
+    setAttachments(a => a?.filter(x => x.linkId !== linkId) ?? null)
+    startBusy(async () => { await detachEntry(linkId) })
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {!picking ? (
+        <button onClick={() => { setPicking(true); setResults([]) }}
+          className="w-full rounded-lg border border-dashed border-gray-300 py-3 text-sm text-gray-400 hover:text-gray-600 hover:border-gray-400 transition-colors">
+          + Attach a document
+        </button>
+      ) : (
+        <div className="rounded-lg border border-gray-200 bg-white p-2">
+          <div className="flex items-center gap-2">
+            <input autoFocus value={query} onChange={e => setQuery(e.target.value)}
+              placeholder="Search knowledge docs by title…"
+              onKeyDown={e => { if (e.key === 'Escape') { setPicking(false); setQuery('') } }}
+              className="flex-1 rounded-md border border-gray-200 px-2 py-1.5 text-sm text-gray-900 outline-none focus:border-indigo-400" />
+            <button onClick={() => { setPicking(false); setQuery('') }}
+              className="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+          </div>
+          <ul className="mt-2 max-h-64 overflow-y-auto">
+            {results.length === 0 ? (
+              <li className="px-2 py-2 text-xs text-gray-400">No matching documents</li>
+            ) : results.map(r => {
+              const already = attachedIds.has(r.id)
+              return (
+                <li key={r.id}>
+                  <button onClick={() => attach(r)} disabled={busy || already}
+                    className="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-sm hover:bg-gray-50 disabled:opacity-50">
+                    <span className="flex-1 truncate text-gray-900">{r.title}</span>
+                    {r.vault && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700">Vault</span>}
+                    <span className="text-[10px] uppercase tracking-wider text-gray-400">{r.kind} · {r.entity}</span>
+                    {already && <span className="text-[10px] text-gray-400">attached</span>}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
+        </div>
+      )}
+
+      {attachments === null ? (
+        <p className="text-xs text-gray-400 text-center py-4">Loading…</p>
+      ) : attachments.length === 0 ? (
+        <p className="text-xs text-gray-400 italic text-center py-4">No documents attached — use “+ Attach a document” to pin a knowledge doc to this task.</p>
+      ) : (
+        <ul className="divide-y divide-gray-100">
+          {attachments.map(a => (
+            <li key={a.linkId} className="group flex items-center gap-2 py-2">
+              <Link href={`/dashboard/knowledge/${a.id}`}
+                className="flex flex-1 items-center gap-2 truncate text-sm text-gray-900 hover:text-indigo-700">
+                <span className="text-gray-400">📌</span>
+                <span className="flex-1 truncate">{a.title || 'Untitled'}</span>
+                {a.vault && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-amber-700">Vault</span>}
+                <span className="text-[10px] uppercase tracking-wider text-gray-400">{a.kind} · {a.entity}</span>
+              </Link>
+              <button onClick={() => detach(a.linkId)} disabled={busy}
+                title="Detach"
+                className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 transition-all text-base leading-none shrink-0">
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   )
 }
