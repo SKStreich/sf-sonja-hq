@@ -2,7 +2,7 @@
 // No React, no I/O — fully unit-testable. The table view turns each
 // (property, raw value) pair into a CellModel and renders dumbly from it.
 
-import type { DbProperty, DbRecord } from './types'
+import type { DbProperty, DbRecord, RelationTarget } from './types'
 
 // Notion-style color name → Tailwind pill classes. Unknown / missing → gray.
 const COLOR_CLASS: Record<string, string> = {
@@ -28,12 +28,23 @@ export interface Chip {
   className: string
 }
 
+export interface RelationItem {
+  label: string // resolved record title, or the raw id when unresolved
+  recordId?: string // the HQ record this points at, when resolved
+  resolved: boolean
+}
+
 export type CellModel =
   | { kind: 'empty' }
   | { kind: 'text'; text: string }
   | { kind: 'checkbox'; checked: boolean }
   | { kind: 'url'; href: string; text: string }
   | { kind: 'chips'; chips: Chip[] }
+  | { kind: 'relation'; items: RelationItem[] }
+
+/** Resolve one stored relation id (an HQ record id or a Notion page id) to its
+ *  target record + title, or null when it can't be resolved. */
+export type RelationResolver = (rawId: string) => RelationTarget | null
 
 function isEmpty(value: unknown): boolean {
   return (
@@ -68,8 +79,9 @@ function chipClassFor(name: string, options?: { name: string; color?: string }[]
 }
 
 // The core render model. `value` is the raw JSONB value stored for this
-// property on a record.
-export function cellModel(property: DbProperty, value: unknown): CellModel {
+// property on a record. `resolve` (optional) turns a relation cell's stored ids
+// into target records + titles; without it, relation ids render raw.
+export function cellModel(property: DbProperty, value: unknown, resolve?: RelationResolver): CellModel {
   if (isEmpty(value) && property.type !== 'checkbox') return { kind: 'empty' }
 
   switch (property.type) {
@@ -105,9 +117,18 @@ export function cellModel(property: DbProperty, value: unknown): CellModel {
     }
 
     case 'relation': {
-      // v1 stores related row ids / labels; resolution to titles is B2.
+      // Stored as an array of ids — Notion page ids (from import) and/or HQ
+      // record ids (from the in-app editor). `resolve` maps either to the target
+      // record's title; unresolved ids fall back to the raw id.
       const arr = Array.isArray(value) ? value : [value]
-      return { kind: 'text', text: arr.map((v) => String(v)).join(', ') }
+      const items: RelationItem[] = arr.map((v) => {
+        const id = String(v)
+        const hit = resolve?.(id) ?? null
+        return hit
+          ? { label: hit.title, recordId: hit.recordId, resolved: true }
+          : { label: id, resolved: false }
+      })
+      return { kind: 'relation', items }
     }
 
     case 'text':
@@ -128,6 +149,22 @@ export function orderedProperties(properties: DbProperty[]): DbProperty[] {
 
 export function titleProperty(properties: DbProperty[]): DbProperty | undefined {
   return properties.find((p) => p.is_title)
+}
+
+// Build a relation-resolution map for one target database: every stored id a
+// relation cell might hold (the record's HQ id and its Notion page id) → that
+// record's title. Pure so the reader's index assembly is unit-testable.
+export function buildRelationMap(
+  targetProperties: DbProperty[],
+  targetRecords: DbRecord[],
+): Record<string, RelationTarget> {
+  const map: Record<string, RelationTarget> = {}
+  for (const rec of targetRecords) {
+    const entry: RelationTarget = { recordId: rec.id, title: recordTitle(targetProperties, rec) }
+    map[rec.id] = entry
+    if (rec.notion_page_id) map[rec.notion_page_id] = entry
+  }
+  return map
 }
 
 // The display label for a record (its title-property value), with a fallback so

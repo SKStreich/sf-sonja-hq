@@ -22,10 +22,15 @@ import {
   updateProperty,
   deleteProperty,
 } from '@/app/api/knowledge/database-edit'
-import { importNotionDatabase, type ImportNotionReport } from '@/app/api/knowledge/database-import'
+import {
+  importNotionDatabase,
+  backfillNotionPageIds,
+  type ImportNotionReport,
+  type BackfillPageIdsReport,
+} from '@/app/api/knowledge/database-import'
 import { EntityChips } from '@/components/shared/EntityChips'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
-import { cellModel, orderedProperties } from '@/lib/databases/format'
+import { cellModel, orderedProperties, type RelationResolver } from '@/lib/databases/format'
 import {
   PROPERTY_TYPES,
   typeUsesOptions,
@@ -43,14 +48,45 @@ import type {
   DbSelectOption,
 } from '@/lib/databases/types'
 
-// ── Read-only cell display (unchanged from B1) ─────────────────────────────────
-function CellDisplay({ property, record }: { property: DbProperty; record: DbRecord }) {
-  const model = cellModel(property, record.values[property.id])
+/** A relation resolver for one property, from the detail's prebuilt index. */
+function relationResolverFor(detail: DatabaseDetail, propertyId: string): RelationResolver | undefined {
+  const map = detail.relationIndex?.[propertyId]
+  if (!map) return undefined
+  return (id) => map[id] ?? null
+}
+
+// ── Read-only cell display ─────────────────────────────────────────────────────
+function CellDisplay({
+  property,
+  record,
+  resolve,
+}: {
+  property: DbProperty
+  record: DbRecord
+  resolve?: RelationResolver
+}) {
+  const model = cellModel(property, record.values[property.id], resolve)
   const titleCls = property.is_title ? 'font-medium text-gray-900' : 'text-gray-700'
 
   switch (model.kind) {
     case 'empty':
       return <span className="text-gray-300">—</span>
+    case 'relation':
+      return (
+        <span className="inline-flex flex-wrap gap-1">
+          {model.items.map((it, i) => (
+            <span
+              key={i}
+              title={it.resolved ? undefined : 'Unresolved — related record not found'}
+              className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                it.resolved ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-400 italic'
+              }`}
+            >
+              {it.label}
+            </span>
+          ))}
+        </span>
+      )
     case 'checkbox':
       return (
         <span className={model.checked ? 'text-green-600' : 'text-gray-300'}>
@@ -94,11 +130,13 @@ function EditableCell({
   record,
   disabled,
   onCommit,
+  resolve,
 }: {
   property: DbProperty
   record: DbRecord
   disabled: boolean
   onCommit: (raw: unknown) => void
+  resolve?: RelationResolver
 }) {
   const [editing, setEditing] = useState(false)
   const value = record.values[property.id]
@@ -126,7 +164,7 @@ function EditableCell({
         onClick={() => setEditing(true)}
         className="block w-full text-left disabled:cursor-default"
       >
-        <CellDisplay property={property} record={record} />
+        <CellDisplay property={property} record={record} resolve={resolve} />
       </button>
     )
   }
@@ -430,6 +468,7 @@ function EditableRecordsTable({
                     record={rec}
                     disabled={disabled}
                     onCommit={(raw) => onCellCommit(rec, p, raw)}
+                    resolve={relationResolverFor(detail, p.id)}
                   />
                 </td>
               ))}
@@ -561,6 +600,91 @@ function ImportPanel({ onImported }: { onImported: (r: ImportNotionReport) => vo
   )
 }
 
+/** Detail-view panel: re-fetch the source Notion database to recover each row's
+ *  page id (so relation columns pointing here resolve to titles). For databases
+ *  imported before page ids were captured. */
+function BackfillPanel({ databaseId, onDone, onClose }: { databaseId: string; onDone: () => void; onClose: () => void }) {
+  const [url, setUrl] = useState('')
+  const [token, setToken] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<BackfillPageIdsReport | null>(null)
+  const [pending, startTransition] = useTransition()
+
+  function submit() {
+    setError(null)
+    startTransition(async () => {
+      try {
+        const report = await backfillNotionPageIds({ databaseId, url, token })
+        setToken('')
+        setResult(report)
+        onDone()
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Backfill failed.')
+      }
+    })
+  }
+
+  return (
+    <div className="mb-4 rounded-xl border border-gray-200 bg-white p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-gray-900">Recover Notion page ids</h3>
+        <button onClick={onClose} className="text-sm text-gray-400 hover:text-gray-700">
+          Close
+        </button>
+      </div>
+      <p className="mb-3 text-xs text-gray-500">
+        Re-fetches this database from Notion and matches each row to its source page by title, so
+        relation columns elsewhere can show titles instead of raw ids. Rows are matched by title.
+      </p>
+      <div className="space-y-3">
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-gray-600">Source Notion database URL</span>
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://www.notion.so/…?v=…"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+          />
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-gray-600">
+            Notion integration token
+            <span className="font-normal text-gray-400"> — used once, not stored</span>
+          </span>
+          <input
+            type="password"
+            value={token}
+            onChange={(e) => setToken(e.target.value)}
+            placeholder="secret_… or ntn_…"
+            autoComplete="off"
+            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+          />
+        </label>
+        {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {result && (
+          <div className="rounded-lg bg-green-50 px-3 py-2 text-sm text-green-800">
+            Matched {result.matched} of {result.total} rows.
+            {result.unmatched > 0 && (
+              <span className="text-green-700">
+                {' '}{result.unmatched} unmatched
+                {result.unmatchedTitles.length > 0 && `: ${result.unmatchedTitles.slice(0, 5).join(', ')}${result.unmatchedTitles.length > 5 ? '…' : ''}`}
+              </span>
+            )}
+          </div>
+        )}
+        <button
+          onClick={submit}
+          disabled={pending || !url.trim() || !token.trim()}
+          className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+        >
+          {pending ? 'Recovering…' : 'Recover page ids'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function ReportBanner({ report, onDismiss }: { report: ImportNotionReport; onDismiss: () => void }) {
   return (
     <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
@@ -599,6 +723,7 @@ export function DatabasesView({
   const [detail, setDetail] = useState<DatabaseDetail | null>(null)
   const [report, setReport] = useState<ImportNotionReport | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [showBackfill, setShowBackfill] = useState(false)
   const [pending, startTransition] = useTransition()
 
   function open(id: string) {
@@ -665,15 +790,29 @@ export function DatabasesView({
             {db.icon && <span className="text-xl">{db.icon}</span>}
             <h2 className="text-lg font-semibold text-gray-900">{db.title}</h2>
             <EntityChips entities={db.entities} />
-            <button
-              onClick={() =>
-                downloadText(safeDownloadName(db.title, 'csv'), databaseToCsv(detail), 'text/csv')
-              }
-              className="ml-auto rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
-            >
-              ⤓ Download CSV
-            </button>
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => setShowBackfill((v) => !v)}
+                title="Recover Notion page ids so relations to this database resolve to titles"
+                className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+              >
+                ↻ Backfill page ids
+              </button>
+              <button
+                onClick={() =>
+                  downloadText(safeDownloadName(db.title, 'csv'), databaseToCsv(detail), 'text/csv')
+                }
+                className="rounded-md border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-50"
+              >
+                ⤓ Download CSV
+              </button>
+            </div>
           </div>
+          {showBackfill && (
+            <div className="mt-3">
+              <BackfillPanel databaseId={db.id} onDone={() => open(db.id)} onClose={() => setShowBackfill(false)} />
+            </div>
+          )}
           {db.description && <p className="mt-1 text-sm text-gray-500">{db.description}</p>}
           <p className="mt-1 text-xs text-gray-400">
             {detail.records.length} {detail.records.length === 1 ? 'record' : 'records'} ·{' '}

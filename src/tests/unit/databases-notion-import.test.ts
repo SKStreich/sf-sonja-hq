@@ -6,6 +6,8 @@ import {
   mapDatabaseSchema,
   extractCellValue,
   mapRecordValues,
+  notionPageTitle,
+  matchRecordsToPageIds,
 } from '@/lib/databases/notion-import'
 
 describe('parseNotionDatabaseId', () => {
@@ -193,5 +195,50 @@ describe('mapRecordValues', () => {
     }).properties
     const page = { properties: { Tags: { type: 'multi_select', multi_select: [] } } }
     expect(mapRecordValues(page, propsMs)).toEqual({})
+  })
+})
+
+describe('notionPageTitle', () => {
+  it('returns the value of the title-typed property', () => {
+    const page = {
+      properties: {
+        Status: { type: 'select', select: { name: 'Done' } },
+        'Section Name': { type: 'title', title: [{ plain_text: 'In Transit ' }, { plain_text: 'Modal' }] },
+      },
+    }
+    expect(notionPageTitle(page)).toBe('In Transit Modal')
+  })
+
+  it('returns an empty string when there is no title property', () => {
+    expect(notionPageTitle({ properties: { X: { type: 'rich_text', rich_text: [] } } })).toBe('')
+    expect(notionPageTitle({})).toBe('')
+  })
+})
+
+describe('matchRecordsToPageIds', () => {
+  it('matches records to page ids by title, case/space-insensitively', () => {
+    const res = matchRecordsToPageIds(
+      [{ id: 'rec-a', title: 'In Transit Modal' }, { id: 'rec-b', title: 'Sourced Equipment Modal' }],
+      [{ id: 'page-1', title: 'in transit modal' }, { id: 'page-2', title: 'Sourced Equipment Modal ' }],
+    )
+    expect(res.pageIdByRecordId).toEqual({ 'rec-a': 'page-1', 'rec-b': 'page-2' })
+    expect(res.unmatchedRecordTitles).toEqual([])
+  })
+
+  it('reports records with no matching page', () => {
+    const res = matchRecordsToPageIds(
+      [{ id: 'rec-a', title: 'Known' }, { id: 'rec-b', title: 'Missing' }],
+      [{ id: 'page-1', title: 'Known' }],
+    )
+    expect(res.pageIdByRecordId).toEqual({ 'rec-a': 'page-1' })
+    expect(res.unmatchedRecordTitles).toEqual(['Missing'])
+  })
+
+  it('pairs duplicate titles deterministically in input order (FIFO)', () => {
+    const res = matchRecordsToPageIds(
+      [{ id: 'rec-1', title: 'Dup' }, { id: 'rec-2', title: 'Dup' }],
+      [{ id: 'page-x', title: 'Dup' }, { id: 'page-y', title: 'Dup' }],
+    )
+    expect(res.pageIdByRecordId).toEqual({ 'rec-1': 'page-x', 'rec-2': 'page-y' })
   })
 })

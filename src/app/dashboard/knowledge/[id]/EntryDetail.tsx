@@ -2284,12 +2284,23 @@ function EmbedCell({ model }: { model: ReturnType<typeof cellModel> }) {
         {model.chips.map((c, i) => <span key={i} className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${c.className}`}>{c.label}</span>)}
       </span>
     )
+    case 'relation': return (
+      <span className="inline-flex flex-wrap gap-1">
+        {model.items.map((it, i) => (
+          <span key={i} className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${it.resolved ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-400 italic'}`}>{it.label}</span>
+        ))}
+      </span>
+    )
     default: return <span className="text-gray-700">{model.text}</span>
   }
 }
 
 function EmbeddedDatabase({ detail }: { detail: DatabaseDetail }) {
   const cols = orderedProperties(detail.properties)
+  const resolveFor = (propertyId: string) => {
+    const map = detail.relationIndex?.[propertyId]
+    return map ? (id: string) => map[id] ?? null : undefined
+  }
   return (
     <div className="overflow-hidden rounded-lg border border-indigo-100 bg-white">
       <div className="flex items-center gap-2 border-b border-indigo-100 bg-indigo-50/50 px-3 py-2">
@@ -2305,7 +2316,7 @@ function EmbeddedDatabase({ detail }: { detail: DatabaseDetail }) {
           <tbody className="divide-y divide-gray-100">
             {detail.records.map(rec => (
               <tr key={rec.id} className="align-top">
-                {cols.map(p => <td key={p.id} className="px-3 py-1.5"><EmbedCell model={cellModel(p, rec.values[p.id])} /></td>)}
+                {cols.map(p => <td key={p.id} className="px-3 py-1.5"><EmbedCell model={cellModel(p, rec.values[p.id], resolveFor(p.id))} /></td>)}
               </tr>
             ))}
             {detail.records.length === 0 && (

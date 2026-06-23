@@ -6,6 +6,7 @@ import {
   orderedProperties,
   titleProperty,
   recordTitle,
+  buildRelationMap,
 } from '@/lib/databases/format'
 import type { DbProperty, DbRecord } from '@/lib/databases/types'
 
@@ -92,8 +93,53 @@ describe('cellModel', () => {
     }
   })
 
-  it('relation joins ids/labels as text', () => {
-    expect(cellModel(prop({ type: 'relation' }), ['r1', 'r2'])).toEqual({ kind: 'text', text: 'r1, r2' })
+  it('relation without a resolver shows raw ids, unresolved', () => {
+    expect(cellModel(prop({ type: 'relation' }), ['r1', 'r2'])).toEqual({
+      kind: 'relation',
+      items: [
+        { label: 'r1', resolved: false },
+        { label: 'r2', resolved: false },
+      ],
+    })
+  })
+
+  it('relation with a resolver renders target titles, falling back to raw id', () => {
+    const resolve = (id: string) =>
+      id === 'page-1' ? { recordId: 'rec-1', title: 'In Transit Modal' } : null
+    expect(cellModel(prop({ type: 'relation' }), ['page-1', 'page-x'], resolve)).toEqual({
+      kind: 'relation',
+      items: [
+        { label: 'In Transit Modal', recordId: 'rec-1', resolved: true },
+        { label: 'page-x', resolved: false },
+      ],
+    })
+  })
+
+  it('relation coerces a non-array value into a single item', () => {
+    const m = cellModel(prop({ type: 'relation' }), 'page-1')
+    expect(m).toEqual({ kind: 'relation', items: [{ label: 'page-1', resolved: false }] })
+  })
+})
+
+describe('buildRelationMap', () => {
+  const props = [
+    prop({ id: 't', type: 'text', is_title: true, name: 'Section Name' }),
+    prop({ id: 'x', type: 'text' }),
+  ]
+  const rec = (id: string, title: string, notion_page_id?: string | null): DbRecord => ({
+    id, database_id: 'db1', position: 0, values: { t: title }, notion_page_id,
+    created_at: '', updated_at: '',
+  })
+
+  it('keys a record by both its HQ id and its Notion page id', () => {
+    const map = buildRelationMap(props, [rec('rec-1', 'In Transit Modal', 'page-1')])
+    expect(map['rec-1']).toEqual({ recordId: 'rec-1', title: 'In Transit Modal' })
+    expect(map['page-1']).toEqual({ recordId: 'rec-1', title: 'In Transit Modal' })
+  })
+
+  it('omits the page-id key when a record has no notion_page_id', () => {
+    const map = buildRelationMap(props, [rec('rec-2', 'Sourced Equipment Modal', null)])
+    expect(Object.keys(map)).toEqual(['rec-2'])
   })
 })
 

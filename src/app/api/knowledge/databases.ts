@@ -11,7 +11,8 @@
  */
 import { createClient } from '@/lib/supabase/server'
 import { sortEntitySlugs } from '@/lib/entities/multi-entity'
-import type { HqDatabase, DbProperty, DbRecord, DatabaseDetail } from '@/lib/databases/types'
+import { buildRelationMap } from '@/lib/databases/format'
+import type { HqDatabase, DbProperty, DbRecord, DatabaseDetail, RelationTarget } from '@/lib/databases/types'
 
 /** List the org's databases (RLS-scoped), newest-touched first, with entity
  *  tags + a record count for the list view. */
@@ -59,7 +60,7 @@ export async function getDatabaseDetail(id: string): Promise<DatabaseDetail | nu
     await Promise.all([
       (supabase as any)
         .from('hq_databases')
-        .select('id, org_id, title, icon, description, created_by, created_at, updated_at')
+        .select('id, org_id, title, icon, description, created_by, created_at, updated_at, notion_database_id')
         .eq('id', id)
         .maybeSingle(),
       (supabase as any).from('hq_db_properties').select('*').eq('database_id', id).order('position'),
@@ -69,12 +70,66 @@ export async function getDatabaseDetail(id: string): Promise<DatabaseDetail | nu
   if (dbErr) throw dbErr
   if (!db) return null
 
+  const properties = (props ?? []) as DbProperty[]
+  const relationIndex = await buildRelationIndex(supabase, properties)
+
   return {
     database: {
       ...(db as Omit<HqDatabase, 'entities'>),
       entities: sortEntitySlugs(((ents ?? []) as { entity: string }[]).map((e) => e.entity)),
     },
-    properties: (props ?? []) as DbProperty[],
+    properties,
     records: (records ?? []) as DbRecord[],
+    ...(relationIndex ? { relationIndex } : {}),
   }
+}
+
+/** For each relation property whose target database is also in the org, load the
+ *  target's records and build a {stored-id → target} map (keyed by both HQ record
+ *  id and Notion page id). The target HQ database is found via the property's
+ *  explicit `relationDatabaseId`, else by matching the imported source Notion db
+ *  id — so resolution works regardless of which database was imported first. */
+async function buildRelationIndex(
+  supabase: any,
+  properties: DbProperty[],
+): Promise<Record<string, Record<string, RelationTarget>> | undefined> {
+  const relationProps = properties.filter((p) => p.type === 'relation')
+  if (relationProps.length === 0) return undefined
+
+  const index: Record<string, Record<string, RelationTarget>> = {}
+  // Cache target-db resolution so two relations to the same db query once.
+  const mapByDbId = new Map<string, Record<string, RelationTarget>>()
+
+  for (const prop of relationProps) {
+    const targetDbId = await resolveTargetDbId(supabase, prop.config)
+    if (!targetDbId) continue
+
+    let map = mapByDbId.get(targetDbId)
+    if (!map) {
+      const [{ data: tProps }, { data: tRecs }] = await Promise.all([
+        supabase.from('hq_db_properties').select('*').eq('database_id', targetDbId),
+        supabase.from('hq_db_records').select('*').eq('database_id', targetDbId),
+      ])
+      map = buildRelationMap((tProps ?? []) as DbProperty[], (tRecs ?? []) as DbRecord[])
+      mapByDbId.set(targetDbId, map)
+    }
+    if (Object.keys(map).length > 0) index[prop.id] = map
+  }
+
+  return Object.keys(index).length > 0 ? index : undefined
+}
+
+/** The HQ database a relation property targets: its explicit `relationDatabaseId`
+ *  when set, else the HQ database imported from `notionRelationDatabaseId`. */
+async function resolveTargetDbId(supabase: any, config: DbProperty['config']): Promise<string | null> {
+  if (config?.relationDatabaseId) return config.relationDatabaseId as string
+  const notionDbId = config?.notionRelationDatabaseId as string | undefined
+  if (!notionDbId) return null
+  const { data } = await supabase
+    .from('hq_databases')
+    .select('id')
+    .eq('notion_database_id', notionDbId)
+    .limit(1)
+    .maybeSingle()
+  return data?.id ?? null
 }
