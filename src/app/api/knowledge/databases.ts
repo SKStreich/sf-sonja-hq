@@ -11,7 +11,7 @@
  */
 import { createClient } from '@/lib/supabase/server'
 import { sortEntitySlugs } from '@/lib/entities/multi-entity'
-import { buildRelationMap } from '@/lib/databases/format'
+import { buildRelationMap, recordTitle } from '@/lib/databases/format'
 import type { HqDatabase, DbProperty, DbRecord, DatabaseDetail, RelationTarget } from '@/lib/databases/types'
 
 /** List the org's databases (RLS-scoped), newest-touched first, with entity
@@ -71,7 +71,7 @@ export async function getDatabaseDetail(id: string): Promise<DatabaseDetail | nu
   if (!db) return null
 
   const properties = (props ?? []) as DbProperty[]
-  const relationIndex = await buildRelationIndex(supabase, properties)
+  const { index, targets } = await buildRelationIndex(supabase, properties)
 
   return {
     database: {
@@ -80,29 +80,35 @@ export async function getDatabaseDetail(id: string): Promise<DatabaseDetail | nu
     },
     properties,
     records: (records ?? []) as DbRecord[],
-    ...(relationIndex ? { relationIndex } : {}),
+    ...(index ? { relationIndex: index } : {}),
+    ...(targets ? { relationTargets: targets } : {}),
   }
 }
 
-/** For each relation property whose target database is also in the org, load the
- *  target's records and build a {stored-id → target} map (keyed by both HQ record
- *  id and Notion page id). The target HQ database is found via the property's
- *  explicit `relationDatabaseId`, else by matching the imported source Notion db
- *  id — so resolution works regardless of which database was imported first. */
+/** For each relation property whose target database is also in the org, resolve
+ *  the target db id (the picker's search scope) and build a {stored-id → target}
+ *  map (keyed by both HQ record id and Notion page id, for rendering). The target
+ *  is found via the property's explicit `relationDatabaseId`, else by matching the
+ *  imported source Notion db id — so resolution works regardless of import order. */
 async function buildRelationIndex(
   supabase: any,
   properties: DbProperty[],
-): Promise<Record<string, Record<string, RelationTarget>> | undefined> {
+): Promise<{
+  index?: Record<string, Record<string, RelationTarget>>
+  targets?: Record<string, string>
+}> {
   const relationProps = properties.filter((p) => p.type === 'relation')
-  if (relationProps.length === 0) return undefined
+  if (relationProps.length === 0) return {}
 
   const index: Record<string, Record<string, RelationTarget>> = {}
+  const targets: Record<string, string> = {}
   // Cache target-db resolution so two relations to the same db query once.
   const mapByDbId = new Map<string, Record<string, RelationTarget>>()
 
   for (const prop of relationProps) {
     const targetDbId = await resolveTargetDbId(supabase, prop.config)
     if (!targetDbId) continue
+    targets[prop.id] = targetDbId
 
     let map = mapByDbId.get(targetDbId)
     if (!map) {
@@ -116,7 +122,37 @@ async function buildRelationIndex(
     if (Object.keys(map).length > 0) index[prop.id] = map
   }
 
-  return Object.keys(index).length > 0 ? index : undefined
+  return {
+    index: Object.keys(index).length > 0 ? index : undefined,
+    targets: Object.keys(targets).length > 0 ? targets : undefined,
+  }
+}
+
+export interface RelationOption {
+  id: string
+  title: string
+}
+
+/** Records in a target database whose title matches `query` (case-insensitive),
+ *  for the relation picker. RLS-scoped; an empty query returns the first records.
+ *  Target databases are small, so titles are computed + filtered in-process. */
+export async function searchRelationOptions(
+  databaseId: string,
+  query: string,
+  limit = 20,
+): Promise<RelationOption[]> {
+  if (!databaseId) return []
+  const supabase = createClient()
+  const [{ data: props }, { data: recs }] = await Promise.all([
+    (supabase as any).from('hq_db_properties').select('*').eq('database_id', databaseId),
+    (supabase as any).from('hq_db_records').select('*').eq('database_id', databaseId).order('position'),
+  ])
+  const properties = (props ?? []) as DbProperty[]
+  const records = (recs ?? []) as DbRecord[]
+  const q = query.trim().toLowerCase()
+  const options = records.map((r) => ({ id: r.id, title: recordTitle(properties, r) }))
+  const filtered = q ? options.filter((o) => o.title.toLowerCase().includes(q)) : options
+  return filtered.slice(0, Math.max(1, limit))
 }
 
 /** The HQ database a relation property targets: its explicit `relationDatabaseId`

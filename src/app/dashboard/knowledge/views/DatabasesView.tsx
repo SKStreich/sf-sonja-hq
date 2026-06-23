@@ -13,7 +13,7 @@
  */
 import { useState, useTransition, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { getDatabaseDetail } from '@/app/api/knowledge/databases'
+import { getDatabaseDetail, searchRelationOptions, type RelationOption } from '@/app/api/knowledge/databases'
 import {
   addRecord,
   updateCell,
@@ -121,22 +121,143 @@ function CellDisplay({
   }
 }
 
+// ── Relation picker ────────────────────────────────────────────────────────────
+// Search the target database by title and store HQ record ids. Current values
+// (which may be Notion page ids from import) are normalized to record ids on
+// load, so any save migrates the cell to record-id storage. Both forms still
+// resolve on the read side.
+function RelationEditor({
+  targetDbId,
+  value,
+  resolve,
+  onCommit,
+  onCancel,
+}: {
+  targetDbId: string
+  value: unknown
+  resolve?: RelationResolver
+  onCommit: (ids: string[]) => void
+  onCancel: () => void
+}) {
+  const initial = (Array.isArray(value) ? value : value == null ? [] : [value]).map(String)
+  const [selected, setSelected] = useState<string[]>(() =>
+    initial.map((id) => resolve?.(id)?.recordId ?? id),
+  )
+  const [titleById, setTitleById] = useState<Record<string, string>>(() => {
+    const m: Record<string, string> = {}
+    for (const id of initial) {
+      const hit = resolve?.(id)
+      if (hit) m[hit.recordId] = hit.title
+    }
+    return m
+  })
+  const [query, setQuery] = useState('')
+  const [results, setResults] = useState<RelationOption[]>([])
+  const [pending, startTransition] = useTransition()
+
+  useEffect(() => {
+    let cancelled = false
+    startTransition(async () => {
+      try {
+        const opts = await searchRelationOptions(targetDbId, query)
+        if (!cancelled) setResults(opts)
+      } catch {
+        if (!cancelled) setResults([])
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [targetDbId, query])
+
+  function add(opt: RelationOption) {
+    setTitleById((m) => ({ ...m, [opt.id]: opt.title }))
+    setSelected((s) => (s.includes(opt.id) ? s : [...s, opt.id]))
+    setQuery('')
+  }
+  const labelFor = (id: string) => titleById[id] ?? resolve?.(id)?.title ?? id
+  const available = results.filter((o) => !selected.includes(o.id))
+
+  return (
+    <div className="w-64 rounded-lg border border-indigo-300 bg-white p-2 text-left shadow-lg">
+      {selected.length > 0 && (
+        <div className="mb-2 flex flex-wrap gap-1">
+          {selected.map((id) => (
+            <span
+              key={id}
+              className="inline-flex items-center gap-1 rounded bg-indigo-100 px-1.5 py-0.5 text-[11px] font-medium text-indigo-700"
+            >
+              {labelFor(id)}
+              <button
+                type="button"
+                onClick={() => setSelected((s) => s.filter((x) => x !== id))}
+                className="text-indigo-400 hover:text-indigo-800"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <input
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onCancel()
+        }}
+        placeholder="Search to link…"
+        className="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:border-indigo-400 focus:outline-none"
+      />
+      <div className="mt-1 max-h-40 overflow-auto">
+        {pending && available.length === 0 && <p className="px-1 py-1 text-xs text-gray-400">Searching…</p>}
+        {!pending && available.length === 0 && <p className="px-1 py-1 text-xs text-gray-400">No matches.</p>}
+        {available.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            onClick={() => add(o)}
+            className="block w-full truncate rounded px-2 py-1 text-left text-sm text-gray-700 hover:bg-indigo-50"
+          >
+            {o.title}
+          </button>
+        ))}
+      </div>
+      <div className="mt-2 flex justify-end gap-2">
+        <button type="button" onClick={onCancel} className="rounded px-2 py-1 text-xs text-gray-500 hover:text-gray-800">
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => onCommit(selected)}
+          className="rounded bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700"
+        >
+          Done
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Editable cell ──────────────────────────────────────────────────────────────
 // Click to edit; the editor shape follows the column type. Checkbox + select /
-// status commit immediately; text-like editors commit on blur / Enter, cancel
-// on Escape. `raw` is whatever the editor holds; the server normalizes it.
+// status commit immediately; relation opens a picker; text-like editors commit
+// on blur / Enter, cancel on Escape. `raw` is whatever the editor holds; the
+// server normalizes it.
 function EditableCell({
   property,
   record,
   disabled,
   onCommit,
   resolve,
+  relationTargetDbId,
 }: {
   property: DbProperty
   record: DbRecord
   disabled: boolean
   onCommit: (raw: unknown) => void
   resolve?: RelationResolver
+  relationTargetDbId?: string
 }) {
   const [editing, setEditing] = useState(false)
   const value = record.values[property.id]
@@ -196,6 +317,20 @@ function EditableCell({
           <option value={String(value)}>{String(value)}</option>
         )}
       </select>
+    )
+  }
+
+  // Relation: a title-search picker when the target database is in the org;
+  // otherwise (relation to a non-imported db) falls through to free-text ids.
+  if (property.type === 'relation' && relationTargetDbId) {
+    return (
+      <RelationEditor
+        targetDbId={relationTargetDbId}
+        value={value}
+        resolve={resolve}
+        onCommit={(ids) => commit(ids)}
+        onCancel={() => setEditing(false)}
+      />
     )
   }
 
@@ -469,6 +604,7 @@ function EditableRecordsTable({
                     disabled={disabled}
                     onCommit={(raw) => onCellCommit(rec, p, raw)}
                     resolve={relationResolverFor(detail, p.id)}
+                    relationTargetDbId={detail.relationTargets?.[p.id]}
                   />
                 </td>
               ))}
