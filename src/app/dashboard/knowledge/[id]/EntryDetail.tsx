@@ -46,7 +46,10 @@ import { getMergedFrom, getMergedInto, type MergedRef } from '@/app/api/knowledg
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 
-const KINDS: Kind[] = ['idea', 'doc', 'chat', 'note', 'critique']
+// 'workspace' (a Page) is included so a converted page's Kind field renders
+// correctly — without it the <select value="workspace"> falls back to showing
+// the first option ('idea'), and a stray Save would revert the page to an idea.
+const KINDS: Kind[] = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace']
 
 interface Props {
   entry: KnowledgeEntry
