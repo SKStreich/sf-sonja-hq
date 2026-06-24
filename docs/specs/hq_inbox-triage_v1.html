@@ -51,7 +51,7 @@
 <header class="doc">
   <p class="eyebrow">Sonja HQ · Sprint 13 · Scoping Spec · DRAFT for review</p>
   <h1>HQ Inbox &amp; Triage</h1>
-  <p class="meta">Version 1 · 2026-06-24 · Owner: Sonja Streich · Status: <span class="tag">DRAFT — 3 decisions locked, 3 open</span></p>
+  <p class="meta">Version 1 · 2026-06-24 · Owner: Sonja Streich · Status: <span class="tag lock">✅ LOCKED 2026-06-24 — all 6 decisions</span></p>
   <p class="meta">North star: <em>HQ is the master of truth.</em> Today, anything captured quickly (Siri, the agent, the capture API) drops straight into the main feed with a guessed entity and is easy to lose. This spec adds a lightweight <strong>triage queue</strong> — one surface where un-filed items wait until you give them a home — without disturbing the lifecycle (<code>active</code>/<code>archived</code>) and idea-maturity workflows that already exist.</p>
 </header>
 
@@ -109,7 +109,7 @@ CREATE INDEX knowledge_entries_inbox_idx
 <h2>5 · UI</h2>
 <ul class="tight">
   <li><strong>📥 Inbox type filter</strong> in <code>KnowledgeHub</code>'s Type row (peer of All·Pages·…·Vault). Selecting it lists <code>triage_status='inbox'</code> nodes via <code>listNodes({triage:'inbox'})</code>, newest-first.</li>
-  <li><strong>Inline triage</strong> on each inbox node in <code>NodeView</code>: an entity multi-select (reuses <code>EntityMultiSelect</code>) + a <strong>"File"</strong> button that writes the entity junction and flips <code>triage_status='filed'</code> in one action. Optional "File &amp; open".</li>
+  <li><strong>Inline triage</strong> on each inbox node in <code>NodeView</code>: an entity multi-select (reuses <code>EntityMultiSelect</code>), <strong>pre-selected with the AI's guess</strong> when present (D6), + a <strong>"File"</strong> button — disabled until ≥1 entity is chosen (D5) — that writes the entity junction and flips <code>triage_status='filed'</code> in one action. Optional "File &amp; open".</li>
   <li><strong>Dashboard chip:</strong> a "📥 N to triage" Insight on <code>/dashboard</code> linking into the Inbox filter — turns the queue into a visible, shrinking number (mirrors the planned staleness "needs review" chip).</li>
   <li><strong>Keyboard-light:</strong> v1 is click-driven (pick entity → File). A j/k + "f to file" keyboard pass is a fast-follow, not v1.</li>
 </ul>
@@ -124,18 +124,13 @@ CREATE INDEX knowledge_entries_inbox_idx
   </tbody>
 </table>
 
-<h2>7 · Open questions</h2>
-<div class="oq">
-  <h3>OQ-1 · Does the main feed hide inbox items?</h3>
-  <p>When 📥 Inbox is its own filter, should the default <strong>All</strong> view <em>exclude</em> <code>triage_status='inbox'</code> (so the feed stays "filed, trustworthy" content and the inbox is the only place unfiled items appear), or <em>include</em> them with an "unfiled" badge? <span class="rec">Recommendation: exclude from All — the whole point is to keep un-triaged captures out of the main feed.</span></p>
-</div>
-<div class="oq">
-  <h3>OQ-2 · Can an item be filed with no entity?</h3>
-  <p>Is picking ≥1 entity <strong>required</strong> to file, or can you "file as-is" (entity stays empty, just leaves the queue)? <span class="rec">Recommendation: require ≥1 entity to file — filing <em>is</em> "give it a home"; an entity-less filed item recreates the original problem.</span></p>
-</div>
-<div class="oq">
-  <h3>OQ-3 · Does the agent still guess an entity?</h3>
-  <p>Today the agent/capture may infer an entity. Under D2 they create as <code>inbox</code> with no entity. Should they instead <strong>pre-fill a suggested entity</strong> in the triage UI (you confirm/correct), per the standing "ingestion learns from corrections" rule? <span class="rec">Recommendation: yes — land in inbox, but carry the AI's guess as a pre-selected suggestion you confirm, so triage is one click when the guess is right and the model still sees corrections.</span></p>
+<h2>7 · Resolved decisions (were open questions)</h2>
+<div class="callout ok">
+  <ul class="tight">
+    <li><strong>D4 — The default <em>All</em> view excludes inbox items.</strong> <code>triage_status='inbox'</code> appears <em>only</em> in the 📥 Inbox filter; the main feed stays filed, trustworthy content. <code>listNodes</code> filters <code>triage_status='filed'</code> on every type-scope except Inbox. <span class="tag lock">LOCKED</span></li>
+    <li><strong>D5 — Filing requires ≥1 entity.</strong> The "File" action is disabled until at least one entity is selected — filing <em>is</em> "give it a home". <span class="tag lock">LOCKED</span></li>
+    <li><strong>D6 — Carry the AI guess as a pre-selected suggestion.</strong> Capture/Siri/agent still infer an entity, but instead of auto-applying it they land the item in <code>inbox</code> with the guess <strong>pre-selected</strong> in the triage UI. One click confirms a right guess; corrections still flow to the model (the standing "ingestion learns from corrections" rule). Implementation note: store the suggested entity so the inbox UI can pre-fill it — a nullable <code>suggested_entity TEXT</code> on the entry (cleared on file), or reuse the existing AI-classification field if one already carries it. <span class="tag lock">LOCKED</span></li>
+  </ul>
 </div>
 
 <h2>8 · Why this is the right first Sprint-13 slice</h2>
