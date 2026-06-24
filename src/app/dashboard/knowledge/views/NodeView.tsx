@@ -8,9 +8,11 @@
  * forwards, summary/tags/idea-status). Database + vault nodes get their own
  * cards/rows and open via callbacks. This replaces CardView + ListView.
  */
-import { useState } from 'react'
+import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { EntityChips } from '@/components/shared/EntityChips'
+import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
+import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 import { TYPE_META, type KnowledgeNode } from '@/lib/knowledge/nodes'
 import { buildTree, type TreeNode, type NodeEdge } from '@/lib/knowledge/tree'
 import type { KnowledgeEntry } from '@/app/api/knowledge/actions'
@@ -27,6 +29,9 @@ interface Props {
   onDelete?: (id: string) => void
   onOpenDatabase?: (id: string) => void
   onOpenVault?: (node: KnowledgeNode) => void
+  /** Inbox triage (Sprint 13 T2): file an un-filed entry with ≥1 entity. When
+   *  set, inbox cards render an inline entity-picker + File button. */
+  onFile?: (id: string, entities: string[]) => Promise<void>
 }
 
 /** Hide workspace child pages (shown as a count pill on their parent, reachable
@@ -140,7 +145,7 @@ function TreeRow({ item, ...props }: { item: TreeNode } & Props) {
 
 function CardsGrid({
   visible, childCount, pendingForwards = {}, selectable = false, selectedIds,
-  onToggleSelect, onChat, onDelete, onOpenDatabase, onOpenVault,
+  onToggleSelect, onChat, onDelete, onOpenDatabase, onOpenVault, onFile,
 }: Props & { visible: KnowledgeNode[]; childCount: Map<string, number> }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -158,6 +163,7 @@ function CardsGrid({
             onToggleSelect={onToggleSelect}
             onChat={onChat}
             onDelete={onDelete}
+            onFile={onFile}
           />
         )
       })}
@@ -175,17 +181,21 @@ function TypeBadge({ type }: { type: KnowledgeNode['type'] }) {
 }
 
 function EntryCard({
-  node, childCount, pending, selectable, selected, onToggleSelect, onChat, onDelete,
+  node, childCount, pending, selectable, selected, onToggleSelect, onChat, onDelete, onFile,
 }: {
   node: KnowledgeNode; childCount: number; pending: number
   selectable: boolean; selected: boolean
   onToggleSelect?: (id: string) => void
   onChat?: (entry: KnowledgeEntry) => void
   onDelete?: (id: string) => void
+  onFile?: (id: string, entities: string[]) => Promise<void>
 }) {
   const e = node.entry!
+  const isInbox = e.triage_status === 'inbox' && !!onFile
   return (
-    <article className={`group flex flex-col rounded-xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${selected ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200'}`}>
+    <article className={`group flex flex-col rounded-xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${
+      isInbox ? 'border-indigo-200 ring-1 ring-indigo-100' : selected ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200'
+    }`}>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         {selectable && (
           <input
@@ -226,6 +236,7 @@ function EntryCard({
           ))}
         </div>
       )}
+      {isInbox && onFile && <TriageBar node={node} onFile={onFile} />}
       <div className="mt-auto flex items-center justify-between border-t border-gray-100 pt-2 text-[11px] text-gray-400">
         <span>{new Date(node.updatedAt).toLocaleDateString()}</span>
         <div className="flex items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
@@ -238,6 +249,33 @@ function EntryCard({
         </div>
       </div>
     </article>
+  )
+}
+
+/** Inline triage controls on an inbox card (Sprint 13 T2). Pre-selects the AI's
+ *  entity guess (D6); File is disabled until ≥1 entity is chosen (D5). */
+function TriageBar({ node, onFile }: { node: KnowledgeNode; onFile: (id: string, entities: string[]) => Promise<void> }) {
+  const suggested = node.entry?.suggested_entity
+  const [selected, setSelected] = useState<string[]>(suggested ? [suggested] : [])
+  const [busy, startFile] = useTransition()
+  const file = () => {
+    if (selected.length === 0) return
+    startFile(async () => { await onFile(node.id, selected) })
+  }
+  return (
+    <div className="mt-2 rounded-lg border border-indigo-100 bg-indigo-50/60 p-2.5">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-indigo-700">📥 File to…</span>
+        {suggested && <span className="text-[10px] text-indigo-500">suggested: {suggested}</span>}
+      </div>
+      <EntityMultiSelect options={ENTITY_SELECT_OPTIONS} selected={selected} onChange={setSelected} />
+      <div className="mt-2 flex justify-end">
+        <button onClick={file} disabled={busy || selected.length === 0}
+          className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40">
+          {busy ? 'Filing…' : 'File'}
+        </button>
+      </div>
+    </div>
   )
 }
 

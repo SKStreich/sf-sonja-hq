@@ -1,8 +1,8 @@
 'use client'
 import { useState, useTransition, useMemo, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  createEntry, deleteEntry,
+  createEntry, deleteEntry, fileEntry,
   type KnowledgeEntry, type Kind, type Entity,
 } from '@/app/api/knowledge/actions'
 import { uploadKnowledgeFile } from '@/app/api/knowledge/upload'
@@ -47,6 +47,7 @@ interface Props {
 
 export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, metrics }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [nodes, setNodes] = useState<KnowledgeNode[]>(() =>
     buildNodes({ entries: initialEntries, databases: initialDatabases, vault: initialVault }),
   )
@@ -96,6 +97,17 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
     return () => { cancelled = true }
   }, [])
 
+  // Deep-link from the dashboard "📥 N to triage" chip lands on the Inbox filter.
+  useEffect(() => {
+    if (searchParams.get('filter') === 'inbox') setType('inbox')
+  }, [searchParams])
+
+  // Reload the inbox queue + badge count (after filing, or a delete).
+  const refreshInbox = () => {
+    listNodes({ triage: 'inbox' }).then(setInboxNodes).catch(() => {})
+    countInbox().then(setInboxCount).catch(() => {})
+  }
+
   const [loading, startLoad] = useTransition()
 
   // Entity + search hit the one server reader (OQ-2 app-code union). The Type
@@ -122,7 +134,13 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
   const openVault = async (node: KnowledgeNode) => {
     window.open(await getVaultDownloadUrl(node.id), '_blank', 'noopener,noreferrer')
   }
-  const handleDelete = async (id: string) => { await deleteEntry(id); reload() }
+  const handleDelete = async (id: string) => { await deleteEntry(id); reload(); refreshInbox() }
+  // Filing moves an item out of the inbox and into the filed feed (D4) — refresh both.
+  const handleFile = async (id: string, entities: string[]) => {
+    await fileEntry(id, entities as Entity[])
+    refreshInbox()
+    reload()
+  }
 
   const counts = useMemo(() => countNodesByType(nodes), [nodes])
   const entryList = useMemo(() => nodes.filter(n => n.entry).map(n => n.entry!), [nodes])
@@ -194,7 +212,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
       {/* Display + actions */}
       <div className="mb-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {showingNodeView && (
+          {showingNodeView && type !== 'inbox' && (
             <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
               {([['cards', '▦ Cards'], ['list', '☰ List'], ['tree', '⛬ Tree']] as const).map(([d, label]) => (
                 <button key={d} onClick={() => setDisplay(d)}
@@ -214,7 +232,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
           </button>
         </div>
         <div className="flex items-center gap-2">
-          {showingNodeView && (
+          {showingNodeView && type !== 'inbox' && (
             <button onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
               className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
                 selectMode
@@ -251,7 +269,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
         ) : (
           <NodeView
             nodes={shownNodes}
-            display={display}
+            display={type === 'inbox' ? 'cards' : display}
             treeLinks={treeLinks}
             pendingForwards={pendingForwards}
             selectable={selectMode}
@@ -261,6 +279,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
             onDelete={handleDelete}
             onOpenDatabase={openDatabase}
             onOpenVault={openVault}
+            onFile={type === 'inbox' ? handleFile : undefined}
           />
         )}
       </div>

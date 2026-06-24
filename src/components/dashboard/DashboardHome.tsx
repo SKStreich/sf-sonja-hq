@@ -61,6 +61,7 @@ interface InsightData {
   overdueTaskCount: number
   rawIdeaCount: number
   todayTaskCount: number
+  inboxCount: number
 }
 
 interface KnowledgeItem {
@@ -170,6 +171,11 @@ export function DashboardHome({
         {insights.overdueTaskCount > 0 && (
           <Link href="/dashboard/tasks" className="flex items-center gap-1.5 rounded-full border border-red-200 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 transition-colors">
             <span>⚠</span> {insights.overdueTaskCount} overdue task{insights.overdueTaskCount !== 1 ? 's' : ''}
+          </Link>
+        )}
+        {insights.inboxCount > 0 && (
+          <Link href="/dashboard/knowledge?filter=inbox" className="flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors">
+            <span>📥</span> {insights.inboxCount} to triage
           </Link>
         )}
         {insights.rawIdeaCount > 0 && (
