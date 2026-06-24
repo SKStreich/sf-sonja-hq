@@ -67,3 +67,54 @@ jobs:
           done
           export SMOKE_BASE_URL=http://localhost:3001
           npm run smoke
+
+  # Integration: boots a throwaway local Supabase (Docker), replays ALL
+  # committed migrations onto an empty database (a clean `db reset` — this alone
+  # catches migrations that don't reconstruct prod, e.g. a column ALTERed but
+  # never CREATEd, or an enum value used in the same transaction that added it),
+  # then runs the RLS tenant-isolation suite against that canonical schema — the
+  # policy-level checks the unit lane can't make. Hard requirement before the
+  # first external HQ user (every change then passes the RLS gate).
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.90.0
+
+      # ubuntu-latest ships Docker. Exclude services the suite doesn't need to
+      # cut boot time.
+      - name: Boot local Supabase
+        run: supabase start -x edge-runtime,imgproxy,studio,logflare,vector
+
+      # Deterministic clean replay of every migration onto an empty DB. Fails the
+      # job on any replay error.
+      - name: Replay migrations (clean)
+        run: supabase db reset
+
+      # Map the local stack credentials into the names the RLS helpers expect
+      # (src/tests/rls/helpers.ts + the suites).
+      - name: Export local stack credentials
+        run: |
+          eval "$(supabase status -o env | grep -E '^[A-Z_]+=')"
+          {
+            echo "SUPABASE_TEST_URL=$API_URL"
+            echo "SUPABASE_TEST_ANON_KEY=$ANON_KEY"
+            echo "SUPABASE_TEST_SERVICE_KEY=$SERVICE_ROLE_KEY"
+          } >> "$GITHUB_ENV"
+
+      - name: RLS integration suite
+        run: npm run test:rls
+
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop

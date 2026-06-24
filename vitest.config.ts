@@ -35,12 +35,14 @@ export default defineConfig({
         resolve: { alias },
       },
       {
-        // Integration: real local Supabase (no global mock setup)
+        // Integration: real local Supabase (no global mock setup). load-env
+        // picks up .env.test locally; CI exports SUPABASE_TEST_* directly.
         test: {
           name: 'rls',
           globals: true,
           environment: 'node',
           include: ['src/tests/rls/**/*.test.ts'],
+          setupFiles: ['./src/tests/rls/load-env.ts'],
           testTimeout: 20_000,
           hookTimeout: 20_000,
         },

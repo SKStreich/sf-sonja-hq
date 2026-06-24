@@ -32,6 +32,29 @@ ALTER TABLE resource_usage
   ADD COLUMN IF NOT EXISTS entity_id UUID REFERENCES entities(id) ON DELETE SET NULL;
 CREATE INDEX IF NOT EXISTS idx_resource_usage_entity ON resource_usage (entity_id, created_at DESC);
 
+-- service_configs was originally created out-of-band (an MCP apply_migration
+-- that was never committed as a migration file), so a clean replay reached the
+-- ALTER below with no table to alter. Recreate the base table here (idempotent)
+-- so fresh environments match prod. On prod this migration is already recorded
+-- as applied and will not re-run; IF NOT EXISTS / DROP-then-CREATE keep a manual
+-- re-run a no-op. The ALTER below then adds the subscription columns.
+CREATE TABLE IF NOT EXISTS service_configs (
+  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id           UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  service          TEXT NOT NULL,
+  status           TEXT NOT NULL DEFAULT 'active',
+  last_activity_at TIMESTAMPTZ,
+  updated_at       TIMESTAMPTZ DEFAULT now(),
+  UNIQUE (org_id, service)
+);
+ALTER TABLE service_configs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS service_configs_all ON service_configs;
+CREATE POLICY service_configs_all ON service_configs
+  FOR ALL USING (org_id = get_my_org_id());
+DROP POLICY IF EXISTS service_configs_select ON service_configs;
+CREATE POLICY service_configs_select ON service_configs
+  FOR SELECT USING (org_id = get_my_org_id());
+
 ALTER TABLE service_configs
   ADD COLUMN IF NOT EXISTS monthly_fee_usd      NUMERIC(10,2) NOT NULL DEFAULT 0,
   ADD COLUMN IF NOT EXISTS billing_anchor_day   INT,                     -- day of month the bill resets, 1-28
