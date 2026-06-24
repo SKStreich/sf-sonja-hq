@@ -31,20 +31,22 @@ async function createUserAndOrg(email: string) {
 
   const { data: org, error: orgErr } = await admin
     .from('orgs')
-    .insert({ name: `Test org ${email}` })
+    .insert({ name: `Test org ${email}`, slug: `eh-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })
     .select('id')
     .single()
   if (orgErr) throw orgErr
   const orgId = (org as { id: string }).id
 
+  // handle_new_user() already created a profile (role 'member', arbitrary org) —
+  // upsert to pin it to this test's org + role.
   const { error: profErr } = await admin
     .from('user_profiles')
-    .insert({ id: userId, org_id: orgId, full_name: `User ${email}`, role: 'platform_owner' })
+    .upsert({ id: userId, org_id: orgId, full_name: `User ${email}`, email, role: 'platform_owner' }, { onConflict: 'id' })
   if (profErr) throw profErr
 
   const { data: entity, error: entErr } = await admin
     .from('entities')
-    .insert({ org_id: orgId, name: 'Personal', type: 'personal' })
+    .insert({ org_id: orgId, created_by: userId, name: 'Personal', type: 'personal' })
     .select('id')
     .single()
   if (entErr) throw entErr
@@ -124,7 +126,6 @@ async function createProject(user: typeof userA): Promise<string> {
     .insert({
       org_id: user.orgId,
       created_by: user.userId,
-      entity_id: user.entityId,
       name: 'Test project',
       status: 'planning',
       priority: 'medium',

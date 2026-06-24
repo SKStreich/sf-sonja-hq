@@ -29,26 +29,30 @@ async function createUserAndOrg(email: string) {
   const userId = data.user.id
 
   const { data: org, error: orgErr } = await admin
-    .from('orgs').insert({ name: `Test org ${email}` }).select('id').single()
+    .from('orgs')
+    .insert({ name: `Test org ${email}`, slug: `me-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` })
+    .select('id').single()
   if (orgErr) throw orgErr
   const orgId = (org as { id: string }).id
 
+  // handle_new_user() already created a profile (role 'member', arbitrary org) —
+  // upsert to pin it to this test's org + role.
   const { error: profErr } = await admin
     .from('user_profiles')
-    .insert({ id: userId, org_id: orgId, full_name: `User ${email}`, role: 'platform_owner' })
+    .upsert({ id: userId, org_id: orgId, full_name: `User ${email}`, email, role: 'platform_owner' }, { onConflict: 'id' })
   if (profErr) throw profErr
 
   // Two entities so we can test multi-membership on projects (which FK to entities).
   const { data: ents, error: entErr } = await admin
     .from('entities')
     .insert([
-      { org_id: orgId, name: 'Personal', type: 'personal' },
-      { org_id: orgId, name: 'SF Solutions', type: 'sf' },
+      { org_id: orgId, created_by: userId, name: 'Personal', type: 'personal' },
+      { org_id: orgId, created_by: userId, name: 'SF Solutions', type: 'sfs' },
     ])
     .select('id, type')
   if (entErr) throw entErr
   const personalId = (ents as any[]).find((e) => e.type === 'personal').id
-  const sfId = (ents as any[]).find((e) => e.type === 'sf').id
+  const sfId = (ents as any[]).find((e) => e.type === 'sfs').id
 
   const signInClient = createClient(URL, ANON, { auth: { autoRefreshToken: false, persistSession: false } })
   const { data: sess, error: sErr } = await signInClient.auth.signInWithPassword({ email, password })
@@ -141,11 +145,11 @@ describe('multi-entity membership', () => {
   it('a second entity can be added to a knowledge entry', async () => {
     const id = await createEntry(userA, 'personal')
     const { error } = await userA.authed
-      .from('knowledge_entry_entities').insert({ entry_id: id, entity: 'sf', org_id: userA.orgId })
+      .from('knowledge_entry_entities').insert({ entry_id: id, entity: 'sfs', org_id: userA.orgId })
     expect(error).toBeNull()
     const { data } = await userA.authed
       .from('knowledge_entry_entities').select('entity').eq('entry_id', id)
-    expect(new Set((data ?? []).map((r: any) => r.entity))).toEqual(new Set(['personal', 'sf']))
+    expect(new Set((data ?? []).map((r: any) => r.entity))).toEqual(new Set(['personal', 'sfs']))
   })
 
   it('a second entity can be added to a project', async () => {
@@ -177,7 +181,7 @@ describe('junction RLS — visibility mirrors the parent', () => {
   it('user B cannot insert a junction row onto user A entry', async () => {
     const id = await createEntry(userA, 'personal')
     const { error } = await userB.authed
-      .from('knowledge_entry_entities').insert({ entry_id: id, entity: 'sf', org_id: userB.orgId })
+      .from('knowledge_entry_entities').insert({ entry_id: id, entity: 'sfs', org_id: userB.orgId })
     expect(error).not.toBeNull()
   })
 })
