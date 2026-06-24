@@ -160,6 +160,22 @@ describe('listEntries', () => {
     expect(seenOr).toBe('title.ilike.%hello%,body.ilike.%hello%')
   })
 
+  it('applies the triage filter when requested, and omits it otherwise', async () => {
+    wireAuth()
+    const seenEq: Array<[string, any]> = []
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'user_profiles') return makeChain({ single: { data: MOCK_PROFILE, error: null } })
+      if (table === 'knowledge_entry_entities') return makeChain({ default: { data: [], error: null } })
+      return makeChain({ default: { data: [], error: null }, onEq: (col, val) => seenEq.push([col, val]) })
+    })
+    await listEntries({ triage: 'inbox' })
+    expect(seenEq).toContainEqual(['triage_status', 'inbox'])
+
+    seenEq.length = 0
+    await listEntries()
+    expect(seenEq.find(([c]) => c === 'triage_status')).toBeUndefined()
+  })
+
   it('surfaces a Postgres error wrapped in a clear message', async () => {
     wireAuth()
     mockFrom.mockImplementation((table: string) => {

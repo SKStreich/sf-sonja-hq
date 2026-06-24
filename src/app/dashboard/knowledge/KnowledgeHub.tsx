@@ -8,7 +8,7 @@ import {
 import { uploadKnowledgeFile } from '@/app/api/knowledge/upload'
 import { uploadVaultFile, getVaultDownloadUrl, deleteVaultEntry, type VaultEntry } from '@/app/api/knowledge/vault'
 import { listPendingForwardCountsByEntry } from '@/app/api/knowledge/shares'
-import { listNodes } from '@/app/api/knowledge/nodes'
+import { listNodes, countInbox } from '@/app/api/knowledge/nodes'
 import { listNodeLinks } from '@/app/api/knowledge/containment'
 import type { NodeEdge } from '@/lib/knowledge/tree'
 import { InsightsView } from './views/InsightsView'
@@ -60,6 +60,11 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
   const [chatTarget, setChatTarget] = useState<{ id: string | null; title?: string } | null>(null)
   const [pendingForwards, setPendingForwards] = useState<Record<string, number>>({})
   const [treeLinks, setTreeLinks] = useState<NodeEdge[]>([])
+  // Inbox (triage_status='inbox') is a disjoint server scope from the main filed
+  // feed (D4), loaded separately. Items have no entity until filed, so the queue
+  // isn't narrowed by the entity/search filters — it's a global "to file" list.
+  const [inboxNodes, setInboxNodes] = useState<KnowledgeNode[]>([])
+  const [inboxCount, setInboxCount] = useState(0)
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [mergeOpen, setMergeOpen] = useState(false)
@@ -81,6 +86,12 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
       .catch(() => {})
     listNodeLinks()
       .then(l => { if (!cancelled) setTreeLinks(l) })
+      .catch(() => {})
+    listNodes({ triage: 'inbox' })
+      .then(n => { if (!cancelled) setInboxNodes(n) })
+      .catch(() => {})
+    countInbox()
+      .then(c => { if (!cancelled) setInboxCount(c) })
       .catch(() => {})
     return () => { cancelled = true }
   }, [])
@@ -117,7 +128,10 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
   const entryList = useMemo(() => nodes.filter(n => n.entry).map(n => n.entry!), [nodes])
   const vaultEntries = useMemo(() => nodes.filter(n => n.type === 'vault').map(n => n.vault!), [nodes])
   const databaseList = useMemo(() => nodes.filter(n => n.type === 'database').map(n => n.database!), [nodes])
-  const shownNodes = useMemo(() => filterNodesByType(nodes, type), [nodes, type])
+  const shownNodes = useMemo(
+    () => (type === 'inbox' ? inboxNodes : filterNodesByType(nodes, type)),
+    [nodes, inboxNodes, type],
+  )
   const showingNodeView = !insights && type !== 'database' && type !== 'vault'
 
   return (
@@ -143,7 +157,10 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
         <div className="flex flex-wrap items-center gap-1">
           {TYPE_FILTERS.map(t => {
             const active = !insights && type === t.value
-            const count = t.value === 'all' ? nodes.length : counts[t.value]
+            const count =
+              t.value === 'all' ? nodes.length
+              : t.value === 'inbox' ? inboxCount
+              : counts[t.value]
             return (
               <button key={t.value} onClick={() => selectType(t.value)}
                 className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${

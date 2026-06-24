@@ -13,7 +13,7 @@ export default async function KnowledgePage() {
   if (!user) redirect('/login')
 
   const [entries, vault, databases, metrics] = await Promise.all([
-    listEntries({ limit: 200 }),
+    listEntries({ limit: 200, triage: 'filed' }),
     listVaultEntries(),
     listDatabases(),
     getHubMetrics(),
