@@ -315,7 +315,8 @@ export async function resolveNotificationTarget(notificationId: string): Promise
     case 'task':
       return '/dashboard/tasks'
     case 'capture':
-      return '/dashboard/captures'
+      // The captures surface was retired (Sprint 13); send to the triage inbox.
+      return '/dashboard/knowledge?filter=inbox'
     case 'knowledge_entry':
       return notif.entity_id ? `/dashboard/knowledge/${notif.entity_id}` : '/dashboard/knowledge'
     case 'knowledge_share':
