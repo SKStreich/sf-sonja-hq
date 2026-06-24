@@ -37,6 +37,9 @@ export interface KnowledgeEntry {
   type_hint: TypeHint | null
   idea_status: IdeaStatus | null
   status: 'active' | 'archived'
+  /** Triage lifecycle (Sprint 13), separate from `status`. Default 'filed';
+   *  quick-capture paths land items in 'inbox' until they're given a home. */
+  triage_status: 'inbox' | 'filed'
   tags: string[]
   source: string
   source_ref: string | null
@@ -67,6 +70,9 @@ export async function listEntries(opts: {
   entity?: Entity | null
   query?: string | null
   status?: 'active' | 'archived'
+  /** Triage scope (Sprint 13). Omit = no triage filter (all rows);
+   *  'filed'/'inbox' restrict to that triage_status. */
+  triage?: 'filed' | 'inbox'
   limit?: number
 } = {}): Promise<KnowledgeEntry[]> {
   const { supabase } = await getCtx()
@@ -78,6 +84,7 @@ export async function listEntries(opts: {
     .order('updated_at', { ascending: false })
     .limit(opts.limit ?? 200)
 
+  if (opts.triage) q = q.eq('triage_status', opts.triage)
   if (opts.kind) q = q.eq('kind', opts.kind)
   else q = q.neq('kind', 'critique')
   // Entity filter routes through the junction (OR-semantics): an entry matches

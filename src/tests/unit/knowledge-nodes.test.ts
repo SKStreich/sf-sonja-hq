@@ -92,6 +92,11 @@ describe('filterNodesByType', () => {
     expect(filterNodesByType(nodes, 'page').map(n => n.id)).toEqual(['p1'])
     expect(filterNodesByType(nodes, 'database').map(n => n.id)).toEqual(['d1'])
   })
+  it('passes the inbox set through unchanged (it is scoped server-side)', () => {
+    // Inbox isn't a node type — the hub feeds an already-scoped list, so the
+    // filter must not narrow by type (it would otherwise return []).
+    expect(filterNodesByType(nodes, 'inbox')).toHaveLength(3)
+  })
 })
 
 describe('countNodesByType', () => {
@@ -116,5 +121,10 @@ describe('TYPE_FILTERS', () => {
     expect(values).toContain('page')
     expect(values).toContain('database')
     expect(values).toContain('vault')
+  })
+  it('includes the 📥 Inbox triage filter as a peer of Vault', () => {
+    const inbox = TYPE_FILTERS.find(t => t.value === 'inbox')
+    expect(inbox).toBeDefined()
+    expect(inbox!.label).toContain('Inbox')
   })
 })
