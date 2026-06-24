@@ -3,6 +3,7 @@ import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { regenerateCaptureKey, regenerateUploadKey } from '@/app/api/captures/actions'
 import { inviteOrgMember, revokeInvitation, resendInvitation, removeMember, updateMemberRole } from '@/app/api/members/actions'
+import { testGranolaConnection, type GranolaConnectionStatus } from '@/app/api/integrations/granola/actions'
 
 interface Member { id: string; full_name: string | null; email: string; role: string; created_at: string; active: boolean }
 interface Invitation { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; accepted_at?: string; token: string }
@@ -62,6 +63,17 @@ export function SettingsClient({ captureApiKey: initialKey, uploadApiKey: initia
 
   const endpoint = `${appUrl}/api/siri`
   const uploadEndpoint = `${appUrl}/api/knowledge/upload`
+
+  // Granola integration (Sprint 13 foundation) — connection test only.
+  const [granolaTesting, startGranolaTest] = useTransition()
+  const [granolaStatus, setGranolaStatus] = useState<GranolaConnectionStatus | null>(null)
+  const runGranolaTest = () => {
+    setGranolaStatus(null)
+    startGranolaTest(async () => {
+      try { setGranolaStatus(await testGranolaConnection()) }
+      catch (e: any) { setGranolaStatus({ ok: false, configured: false, message: e?.message ?? 'Test failed' }) }
+    })
+  }
 
   const handleInvite = () => {
     if (!inviteEmail.trim()) return
@@ -369,6 +381,30 @@ export function SettingsClient({ captureApiKey: initialKey, uploadApiKey: initia
             <code className="text-indigo-700">entity</code> is one of <code className="text-indigo-700">tm · sf · sfe · personal</code>;
             <code className="text-indigo-700"> kind</code> defaults to <code className="text-indigo-700">doc</code>.
           </p>
+        </div>
+      </section>
+
+      {/* Granola integration (Sprint 13 foundation) */}
+      <section className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
+        <h2 className="text-base font-semibold text-gray-900 mb-1">Granola</h2>
+        <p className="text-sm text-gray-500 mb-4">
+          Set <code className="text-indigo-700">GRANOLA_API_KEY</code> in Vercel (Settings → Environment Variables,
+          Production scope) to your <code className="text-indigo-700">grn_…</code> token. The Granola → triage-inbox
+          importer ships next session; this just verifies the token reaches the API.
+        </p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={runGranolaTest}
+            disabled={granolaTesting}
+            className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          >
+            {granolaTesting ? 'Testing…' : 'Test connection'}
+          </button>
+          {granolaStatus && (
+            <span className={`text-sm ${granolaStatus.ok ? 'text-emerald-600' : 'text-red-600'}`}>
+              {granolaStatus.ok ? '✓ ' : '✕ '}{granolaStatus.message}
+            </span>
+          )}
         </div>
       </section>
 
