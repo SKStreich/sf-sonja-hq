@@ -4,6 +4,9 @@ import Anthropic from '@anthropic-ai/sdk'
 import { revalidatePath } from 'next/cache'
 import { getAnthropicApiKey, anthropicKeyEnvName } from '@/lib/anthropic-key'
 import { fetchEntryEntityMap, fetchEntryIdsForEntity } from '@/lib/entities/multi-entity'
+import { classifyEntry } from '@/lib/knowledge/classify'
+import { insertInboxEntry } from '@/lib/knowledge/inbox-create'
+import { ENTITY_SLUGS } from '@/lib/entities/config'
 
 async function getContext() {
   const supabase = createClient()
@@ -72,13 +75,13 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'log_capture',
-    description: 'Add a quick capture / idea / note to the captures inbox.',
+    description: 'Add a quick idea / note to the Knowledge triage inbox. It lands un-filed (no entity) for Sonja to file later; if you know the entity, pass it as entity_context so it is pre-selected.',
     input_schema: {
       type: 'object' as const,
       properties: {
         content: { type: 'string', description: 'The capture text' },
-        type: { type: 'string', description: 'idea, task, or note' },
-        entity_context: { type: 'string', description: 'Optional entity context label' },
+        type: { type: 'string', description: 'idea or note (default note)' },
+        entity_context: { type: 'string', description: 'Optional entity slug: tm, cthq, sfe, sfo, sfs, sfc, personal' },
       },
       required: ['content'],
     },
@@ -154,17 +157,18 @@ async function executeTool(name: string, input: Record<string, any>, ctx: Awaite
 
   if (name === 'get_workspace_summary') {
     const today = new Date().toISOString().slice(0, 10)
-    const [tasksRes, projectsRes, capturesRes] = await Promise.all([
+    const [tasksRes, projectsRes, inboxRes] = await Promise.all([
       (supabase as any).from('tasks').select('title, status, priority, due_date, gtd_bucket')
         .eq('archived', false).not('status', 'in', '("done","cancelled")').limit(20),
       supabase.from('projects').select('name, status, next_action, entities(name,type)')
         .eq('status', 'active').limit(15),
-      supabase.from('captures').select('content, type').eq('reviewed', false).limit(10),
+      (supabase as any).from('knowledge_entries').select('title, kind')
+        .eq('access', 'standard').eq('status', 'active').eq('triage_status', 'inbox').limit(10),
     ])
-    const lines = [`Today: ${today}`, `Open tasks: ${tasksRes.data?.length ?? 0}`, `Active projects: ${projectsRes.data?.length ?? 0}`, `Unreviewed captures: ${capturesRes.data?.length ?? 0}`, '']
+    const lines = [`Today: ${today}`, `Open tasks: ${tasksRes.data?.length ?? 0}`, `Active projects: ${projectsRes.data?.length ?? 0}`, `Inbox to triage: ${inboxRes.data?.length ?? 0}`, '']
     tasksRes.data?.forEach((t: any) => lines.push(`Task: ${t.title} [${t.status}${t.priority ? ` ${t.priority}` : ''}${t.due_date ? ` due:${t.due_date}` : ''}]`))
     projectsRes.data?.forEach((p: any) => lines.push(`Project: ${p.name} — next: ${p.next_action ?? '(none set)'})`))
-    capturesRes.data?.forEach((c: any) => lines.push(`Capture: [${c.type ?? 'note'}] ${c.content}`))
+    inboxRes.data?.forEach((c: any) => lines.push(`Inbox: [${c.kind ?? 'note'}] ${c.title ?? '(untitled)'}`))
     return lines.join('\n')
   }
 
@@ -220,18 +224,31 @@ async function executeTool(name: string, input: Record<string, any>, ctx: Awaite
   }
 
   if (name === 'log_capture') {
-    const { error } = await (supabase as any).from('captures').insert({
-      org_id,
-      user_id: user.id,
-      content: input.content,
-      type: input.type ?? 'note',
-      entity_context: input.entity_context ?? null,
-      reviewed: false,
-    })
-    if (error) return `Failed to log capture: ${error.message}`
+    const content = String(input.content ?? '').trim()
+    if (!content) return 'Failed to log capture: content is required'
+    const kind = input.type === 'idea' ? 'idea' : 'note'
+    const c = await classifyEntry(content, { apiKey: getAnthropicApiKey() })
+    const hinted = typeof input.entity_context === 'string' ? input.entity_context.trim().toLowerCase() : null
+    const suggestedEntity = (hinted && (ENTITY_SLUGS as readonly string[]).includes(hinted))
+      ? hinted
+      : c.suggested_entity
+    try {
+      await insertInboxEntry(supabase, user.id, org_id, {
+        body: content,
+        kind,
+        title: c.title,
+        summary: c.summary,
+        typeHint: c.type_hint,
+        tags: c.tags,
+        suggestedEntity,
+        source: 'agent',
+      })
+    } catch (e: any) {
+      return `Failed to log capture: ${e.message}`
+    }
     revalidatePath('/dashboard')
-    revalidatePath('/dashboard/captures')
-    return `Capture logged: "${input.content}"`
+    revalidatePath('/dashboard/knowledge')
+    return `Added to the triage inbox: "${content}"${suggestedEntity ? ` (suggested entity: ${suggestedEntity})` : ''}`
   }
 
   if (name === 'update_project_next_action') {

@@ -30,6 +30,7 @@ export default async function DashboardPage() {
     { data: allEntities },
     { data: calendarTasks },
     { data: calendarProjects },
+    { count: inboxCount },
   ] = await Promise.all([
     (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
       .eq('gtd_bucket', 'today').eq('archived', false)
@@ -47,7 +48,7 @@ export default async function DashboardPage() {
     loadInitialActivity(),
     (supabase as any).from('knowledge_entries')
       .select('id,kind,title,summary,body,idea_status,created_at,knowledge_entry_entities(entity)')
-      .eq('access', 'standard').eq('status', 'active')
+      .eq('access', 'standard').eq('status', 'active').eq('triage_status', 'filed')
       .order('created_at', { ascending: false }).limit(5),
     (supabase as any).from('tasks').select('*', { count: 'exact', head: true })
       .eq('archived', false).not('status', 'in', '("done","cancelled")'),
@@ -56,7 +57,7 @@ export default async function DashboardPage() {
       .lt('due_date', today).eq('archived', false)
       .not('status', 'in', '("done","cancelled")'),
     (supabase as any).from('knowledge_entries').select('id', { count: 'exact', head: true })
-      .eq('kind', 'idea').eq('idea_status', 'raw').eq('status', 'active'),
+      .eq('kind', 'idea').eq('idea_status', 'raw').eq('status', 'active').eq('triage_status', 'filed'),
     (supabase as any).from('tasks').select('entity_id, entities(id,name,type)')
       .eq('archived', false).not('status', 'in', '("done","cancelled")'),
     supabase.from('projects').select('project_entities(entities(id,name,type))').eq('status', 'active'),
@@ -72,6 +73,9 @@ export default async function DashboardPage() {
       .not('due_date', 'is', null).eq('archived', false),
     supabase.from('projects').select('id,name,due_date')
       .not('due_date', 'is', null).eq('archived', false as any).neq('status', 'complete'),
+    // Triage inbox count (Sprint 13) — un-filed quick captures awaiting a home.
+    (supabase as any).from('knowledge_entries').select('id', { count: 'exact', head: true })
+      .eq('access', 'standard').eq('status', 'active').eq('triage_status', 'inbox'),
   ])
 
   // Normalize junction embeds back to the shapes the UI expects:
@@ -114,6 +118,7 @@ export default async function DashboardPage() {
     overdueTaskCount: overdueTaskCount ?? 0,
     rawIdeaCount: rawIdeaCount ?? 0,
     todayTaskCount: (todayTasks ?? []).length,
+    inboxCount: inboxCount ?? 0,
   }
 
   // Calendar events — dated tasks (any status, to show completed too) + dated

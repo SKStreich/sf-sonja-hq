@@ -7,11 +7,11 @@
  */
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
-import Anthropic from '@anthropic-ai/sdk'
 import { getAnthropicApiKey } from '@/lib/anthropic-key'
 import { fetchEntryEntityMap, fetchEntryIdsForEntity, setEntryEntities, sortEntitySlugs } from '@/lib/entities/multi-entity'
 import { ENTITY_SLUGS } from '@/lib/entities/config'
 import { htmlToMarkdown } from '@/lib/knowledge/html-to-markdown'
+import { classifyEntry } from '@/lib/knowledge/classify'
 
 const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
@@ -40,6 +40,9 @@ export interface KnowledgeEntry {
   /** Triage lifecycle (Sprint 13), separate from `status`. Default 'filed';
    *  quick-capture paths land items in 'inbox' until they're given a home. */
   triage_status: 'inbox' | 'filed'
+  /** AI's entity guess for an inbox item, pre-selected in the triage UI and
+   *  cleared on file (D6). A suggestion only — membership lives in the junction. */
+  suggested_entity: string | null
   tags: string[]
   source: string
   source_ref: string | null
@@ -117,63 +120,6 @@ export async function getEntry(id: string): Promise<KnowledgeEntry | null> {
   return { ...data, entities: entityMap[id] ?? [] } as KnowledgeEntry
 }
 
-async function classify(body: string, entityHint: Entity): Promise<{
-  title: string; type_hint: TypeHint; tags: string[]; confidence: number; summary: string | null
-}> {
-  const fallback = {
-    title: body.split('\n')[0].slice(0, 120),
-    type_hint: 'strategy' as TypeHint,
-    tags: [] as string[],
-    confidence: 0.3,
-    summary: null as string | null,
-  }
-  const apiKey = getAnthropicApiKey()
-  if (!apiKey) return fallback
-
-  let text = '{}'
-  try {
-    const client = new Anthropic({ apiKey })
-    const res = await client.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 400,
-      messages: [{
-        role: 'user',
-        content: `Classify this note into JSON with schema:
-{
-  "title": "short title (max 80 chars)",
-  "type_hint": one of ["decision","strategy","primer","brand","marketing","business","idea"],
-  "tags": ["lowercase","short","topical"],
-  "confidence": 0.0 to 1.0,
-  "summary": "one-sentence preview (max 160 chars)"
-}
-
-Entity context: ${entityHint}
-Content:
-${body.slice(0, 4000)}`,
-      }],
-    })
-    text = res.content[0].type === 'text' ? res.content[0].text : '{}'
-  } catch (err) {
-    console.error('[classify] Anthropic call failed; saving with fallback metadata:', err)
-    return fallback
-  }
-
-  const jsonStr = text.replace(/^```(?:json)?\n?/m, '').replace(/\n?```$/m, '').trim()
-  try {
-    const p = JSON.parse(jsonStr)
-    const type_hint: TypeHint = (TYPE_HINTS_CONST as readonly string[]).includes(p.type_hint) ? p.type_hint : 'strategy'
-    return {
-      title: String(p.title ?? '').slice(0, 120) || fallback.title,
-      type_hint,
-      tags: Array.isArray(p.tags) ? p.tags.map((t: any) => String(t).toLowerCase()).slice(0, 8) : [],
-      confidence: typeof p.confidence === 'number' ? Math.max(0, Math.min(1, p.confidence)) : 0.5,
-      summary: typeof p.summary === 'string' ? p.summary.slice(0, 200) : null,
-    }
-  } catch {
-    return fallback
-  }
-}
-
 export async function createEntry(input: {
   body: string
   /** Legacy single-entity input (back-compat). Prefer `entities`. */
@@ -200,7 +146,8 @@ export async function createEntry(input: {
 
   let classified = { title: '', type_hint: 'strategy' as TypeHint, tags: [] as string[], confidence: 0.5, summary: null as string | null }
   if (!input.title || !input.type_hint) {
-    classified = await classify(body, primary)
+    const c = await classifyEntry(body, { apiKey: getAnthropicApiKey(), entityHint: primary })
+    classified = { ...c, type_hint: c.type_hint as TypeHint }
   }
 
   const title = input.title?.trim() || classified.title
@@ -227,6 +174,34 @@ export async function createEntry(input: {
   await setEntryEntities(supabase, data.id as string, org_id, entitySet)
   revalidatePath('/dashboard/knowledge')
   return { id: data.id as string }
+}
+
+/**
+ * File an inbox item (Sprint 13 T2 — the triage action). Gives an un-filed entry
+ * a home: writes its entity junction (≥1 required — D5) and flips
+ * triage_status → 'filed', clearing the AI suggestion (D6). The human's chosen
+ * entities ARE the correction signal for the standing "ingestion learns from
+ * corrections" rule. Throws on 0 rows so an RLS-blocked file doesn't silently
+ * no-op (mirrors deleteEntry).
+ */
+export async function fileEntry(id: string, entities: Entity[]): Promise<void> {
+  const { supabase, org_id } = await getCtx()
+  const entitySet = sortEntitySlugs(entities) as Entity[]
+  if (entitySet.length === 0) throw new Error('At least one entity is required to file an entry')
+  if (!entitySet.every(e => (ENTITIES_CONST as readonly string[]).includes(e))) throw new Error('Invalid entity')
+
+  await setEntryEntities(supabase, id, org_id, entitySet)
+  const { data, error } = await (supabase as any)
+    .from('knowledge_entries')
+    .update({ triage_status: 'filed', suggested_entity: null })
+    .eq('id', id)
+    .select('id')
+  if (error) throw new Error('Failed to file entry: ' + error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Nothing was filed — you may not have permission to file this entry.')
+  }
+  revalidatePath('/dashboard/knowledge')
+  revalidatePath('/dashboard')
 }
 
 export async function updateEntry(id: string, patch: {

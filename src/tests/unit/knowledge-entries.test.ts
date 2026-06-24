@@ -69,7 +69,7 @@ function wireAuth() {
   mockGetUser.mockResolvedValue({ data: { user: MOCK_USER } })
 }
 
-import { createEntry, listEntries, deleteEntry } from '@/app/api/knowledge/actions'
+import { createEntry, listEntries, deleteEntry, fileEntry } from '@/app/api/knowledge/actions'
 
 beforeEach(() => { vi.clearAllMocks() })
 
@@ -302,5 +302,38 @@ describe('deleteEntry', () => {
   it('wraps a Postgres delete error in a clear message', async () => {
     wire({ data: null, error: { message: 'permission denied for relation knowledge_entries' } })
     await expect(deleteEntry('e1')).rejects.toThrow(/Failed to delete.*permission denied/)
+  })
+})
+
+// ────────────────────────────────────────────────────────────────────────────
+// fileEntry (Sprint 13 T2) — the triage action: write the entity junction +
+// flip triage_status to 'filed' + clear the AI suggestion. ≥1 entity required.
+// ────────────────────────────────────────────────────────────────────────────
+
+describe('fileEntry', () => {
+  function wire(updateResult: { data?: any; error?: any }, cap?: { update?: any }) {
+    wireAuth()
+    mockFrom.mockImplementation((table: string) => {
+      if (table === 'user_profiles') return makeChain({ single: { data: MOCK_PROFILE, error: null } })
+      if (table === 'knowledge_entry_entities') return makeChain({ default: { data: [], error: null } })
+      return makeChain({ default: updateResult, onUpdate: (p) => { if (cap) cap.update = p } })
+    })
+  }
+
+  it('throws if no entity is provided (filing requires a home — D5)', async () => {
+    wireAuth()
+    await expect(fileEntry('e1', [])).rejects.toThrow(/At least one entity/)
+  })
+
+  it('files an entry: flips triage_status to filed and clears the suggestion', async () => {
+    const cap: { update?: any } = {}
+    wire({ data: [{ id: 'e1' }], error: null }, cap)
+    await expect(fileEntry('e1', ['tm'])).resolves.toBeUndefined()
+    expect(cap.update).toMatchObject({ triage_status: 'filed', suggested_entity: null })
+  })
+
+  it('throws when nothing was filed (RLS matched 0 rows)', async () => {
+    wire({ data: [], error: null })
+    await expect(fileEntry('not-mine', ['tm'])).rejects.toThrow(/Nothing was filed.*permission/)
   })
 })
