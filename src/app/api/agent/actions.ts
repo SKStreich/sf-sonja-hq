@@ -147,7 +147,6 @@ const PAGE_URLS: Record<string, string> = {
   documents: '/dashboard/documents',
   chats: '/dashboard/chats',
   digest: '/dashboard/digest',
-  captures: '/dashboard/captures',
   settings: '/dashboard/settings',
   cost: '/dashboard/cost',
 }

@@ -9,6 +9,8 @@ import { uploadKnowledgeFile } from '@/app/api/knowledge/upload'
 import { uploadVaultFile, getVaultDownloadUrl, deleteVaultEntry, type VaultEntry } from '@/app/api/knowledge/vault'
 import { listPendingForwardCountsByEntry } from '@/app/api/knowledge/shares'
 import { listNodes, countInbox } from '@/app/api/knowledge/nodes'
+import { importInboxBatch } from '@/app/api/knowledge/import'
+import { parseBulkItems, type SplitMode } from '@/lib/knowledge/bulk-import'
 import { listNodeLinks } from '@/app/api/knowledge/containment'
 import type { NodeEdge } from '@/lib/knowledge/tree'
 import { InsightsView } from './views/InsightsView'
@@ -58,6 +60,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
   const [entity, setEntity] = useState<Entity | null>(null)
   const [query, setQuery] = useState('')
   const [composerOpen, setComposerOpen] = useState(false)
+  const [bulkOpen, setBulkOpen] = useState(false)
   const [chatTarget, setChatTarget] = useState<{ id: string | null; title?: string } | null>(null)
   const [pendingForwards, setPendingForwards] = useState<Record<string, number>>({})
   const [treeLinks, setTreeLinks] = useState<NodeEdge[]>([])
@@ -246,6 +249,10 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
             className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100">
             ✦ Ask Claude
           </button>
+          <button onClick={() => setBulkOpen(true)}
+            className="rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50">
+            ⇪ Bulk import
+          </button>
           <button onClick={() => setComposerOpen(true)}
             className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500">
             + New entry
@@ -321,6 +328,12 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
       )}
 
       {composerOpen && <Composer onClose={() => setComposerOpen(false)} onCreated={() => { setComposerOpen(false); reload() }} />}
+      {bulkOpen && (
+        <BulkImportModal
+          onClose={() => setBulkOpen(false)}
+          onImported={() => { setBulkOpen(false); refreshInbox(); setType('inbox') }}
+        />
+      )}
       {chatTarget && (
         <ChatDrawer
           sourceEntryId={chatTarget.id}
@@ -328,6 +341,93 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
           onClose={() => setChatTarget(null)}
         />
       )}
+    </div>
+  )
+}
+
+function BulkImportModal({ onClose, onImported }: { onClose: () => void; onImported: () => void }) {
+  const [text, setText] = useState('')
+  const [mode, setMode] = useState<SplitMode>('lines')
+  const [kind, setKind] = useState<Kind>('note')
+  const [busy, startBusy] = useTransition()
+  const [error, setError] = useState('')
+  const [result, setResult] = useState<{ created: number; skipped: number } | null>(null)
+
+  const items = useMemo(() => parseBulkItems(text, mode), [text, mode])
+
+  const onFile = async (file: File) => {
+    setError('')
+    try { setText(await file.text()) }
+    catch { setError(`Could not read ${file.name}`) }
+  }
+
+  const handleImport = () => {
+    if (items.length === 0) return
+    setError('')
+    startBusy(async () => {
+      try {
+        const res = await importInboxBatch({ items, kind: kind === 'idea' ? 'idea' : 'note' })
+        setResult(res)
+        if (res.created > 0) onImported()
+      } catch (e: any) {
+        setError(e.message ?? 'Import failed')
+      }
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/30 p-6">
+      <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-5 py-3">
+          <h2 className="text-sm font-semibold text-gray-900">⇪ Bulk import to inbox</h2>
+          <button onClick={onClose} className="text-xl text-gray-400 hover:text-gray-600">×</button>
+        </div>
+        <div className="p-5">
+          <p className="mb-2 text-xs text-gray-500">
+            Paste a list or upload a text file. Each item lands in the 📥 Inbox un-filed for you to triage.
+            Re-importing the same items is safe — duplicates are skipped.
+          </p>
+          <textarea
+            value={text}
+            onChange={e => { setText(e.target.value); setResult(null) }}
+            placeholder={'One item per line, e.g.\nCall back the supplier about pallet pricing\nIdea: weekly ops digest email'}
+            rows={9}
+            className="w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-indigo-400"
+          />
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+            <label className="cursor-pointer rounded-md border border-gray-300 bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50">
+              Choose .txt / .md / .csv
+              <input type="file" accept=".txt,.md,.csv,text/plain,text/markdown,text/csv" className="hidden"
+                onChange={e => { if (e.target.files?.[0]) void onFile(e.target.files[0]); e.target.value = '' }} />
+            </label>
+            <select value={mode} onChange={e => setMode(e.target.value as SplitMode)}
+              className="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-900">
+              <option value="lines">Split: one per line</option>
+              <option value="paragraphs">Split: one per paragraph</option>
+            </select>
+            <select value={kind} onChange={e => setKind(e.target.value as Kind)}
+              className="rounded border border-gray-300 px-2 py-1.5 text-sm text-gray-900">
+              <option value="note">As notes</option>
+              <option value="idea">As ideas</option>
+            </select>
+            <span className="text-xs text-gray-500">{items.length} item{items.length === 1 ? '' : 's'} detected</span>
+          </div>
+          {result && (
+            <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              Imported {result.created} new item{result.created === 1 ? '' : 's'}
+              {result.skipped > 0 ? `, skipped ${result.skipped} duplicate${result.skipped === 1 ? '' : 's'}` : ''}.
+            </p>
+          )}
+          {error && <p className="mt-3 text-xs text-red-600">{error}</p>}
+          <div className="mt-4 flex justify-end gap-2">
+            <button onClick={onClose} className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100">Close</button>
+            <button onClick={handleImport} disabled={busy || items.length === 0}
+              className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-40">
+              {busy ? 'Importing…' : `Import ${items.length || ''}`.trim()}
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

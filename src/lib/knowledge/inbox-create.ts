@@ -24,6 +24,10 @@ export interface InboxEntryInput {
   suggestedEntity?: string | null
   /** Origin label stored in knowledge_entries.source (e.g. 'siri'). */
   source: string
+  /** External lineage (T3) — set by bulk importers so re-runs can dedupe. */
+  externalSource?: string | null
+  externalRef?: string | null
+  externalLastEditedAt?: string | null
 }
 
 export async function insertInboxEntry(
@@ -53,6 +57,9 @@ export async function insertInboxEntry(
       source: input.source,
       triage_status: 'inbox',
       suggested_entity: input.suggestedEntity ?? null,
+      external_source: input.externalSource ?? null,
+      external_ref: input.externalRef ?? null,
+      external_last_edited_at: input.externalLastEditedAt ?? null,
     })
     .select('id')
     .single()
