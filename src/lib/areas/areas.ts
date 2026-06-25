@@ -15,6 +15,9 @@ export interface Area {
   sort_order: number
 }
 
+/** Sentinel for the "No area" filter option (items with zero area links). */
+export const NO_AREA = '__none__'
+
 /** Turn a display name into a URL/storage-safe slug: lowercase, alphanumerics
  *  kept, every other run collapsed to a single hyphen, edges trimmed. Returns
  *  '' for names with no slug-able characters (caller should reject). */

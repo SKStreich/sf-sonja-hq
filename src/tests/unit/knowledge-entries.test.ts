@@ -121,8 +121,8 @@ describe('listEntries', () => {
     })
     const out = await listEntries()
     expect(out).toEqual([
-      { ...rows[0], entities: ['sf'] },
-      { ...rows[1], entities: ['tm'] },
+      { ...rows[0], entities: ['sf'], areas: [] },
+      { ...rows[1], entities: ['tm'], areas: [] },
     ])
     // Default: scoped to standard access + active + non-critique.
     expect(seenEq).toContainEqual(['access', 'standard'])

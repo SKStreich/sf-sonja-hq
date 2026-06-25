@@ -25,7 +25,10 @@ import type { HqDatabase } from '@/lib/databases/types'
 import { ChatDrawer } from './ChatDrawer'
 import { MergeReviewModal } from './MergeReviewModal'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
+import { AreaMultiSelect } from '@/components/shared/AreaMultiSelect'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
+import { listAreas } from '@/app/api/areas/actions'
+import { groupAreasByEntity, NO_AREA, type Area } from '@/lib/areas/areas'
 
 const ENTITIES: { value: Entity | null; label: string }[] = [
   { value: null, label: 'All' },
@@ -58,6 +61,10 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
   const [insights, setInsights] = useState(false)
   const [openDbId, setOpenDbId] = useState<string | null>(null)
   const [entity, setEntity] = useState<Entity | null>(null)
+  // Area (Sprint 13 A2): the Entity→Area sub-filter — an area id, NO_AREA, or null
+  // (all). Only meaningful when a single entity is selected (D7).
+  const [area, setArea] = useState<string | null>(null)
+  const [areas, setAreas] = useState<Area[]>([])
   const [query, setQuery] = useState('')
   const [composerOpen, setComposerOpen] = useState(false)
   const [bulkOpen, setBulkOpen] = useState(false)
@@ -103,6 +110,9 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
     listNodes({ stale: true })
       .then(n => { if (!cancelled) setStaleNodes(n) })
       .catch(() => {})
+    listAreas()
+      .then(a => { if (!cancelled) setAreas(a) })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [])
 
@@ -127,16 +137,24 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
 
   // Entity + search hit the one server reader (OQ-2 app-code union). The Type
   // filter is a pure client-side narrowing of the already-loaded node set.
-  const reload = (over: { entity?: Entity | null; query?: string } = {}) => {
+  const reload = (over: { entity?: Entity | null; query?: string; area?: string | null } = {}) => {
     startLoad(async () => {
       setNodes(await listNodes({
         entity: over.entity !== undefined ? over.entity : entity,
         query: over.query !== undefined ? over.query : query,
+        area: over.area !== undefined ? over.area : area,
       }))
     })
   }
   const handleSearch = (value: string) => { setQuery(value); reload({ query: value }) }
-  const handleEntityChange = (e: Entity | null) => { setEntity(e); reload({ entity: e }) }
+  // Changing entity clears the area sub-filter (areas are entity-specific, D7).
+  const handleEntityChange = (e: Entity | null) => { setEntity(e); setArea(null); reload({ entity: e, area: null }) }
+  const handleAreaChange = (a: string | null) => { setArea(a); reload({ area: a }) }
+  const areaNames = useMemo(() => Object.fromEntries(areas.map(a => [a.id, a.name])), [areas])
+  const entityAreas = useMemo(
+    () => (entity ? (groupAreasByEntity(areas)[entity] ?? []) : []),
+    [areas, entity],
+  )
 
   // Selecting a content type clears the Insights overlay; leaving Databases
   // drops any open-database target.
@@ -236,6 +254,22 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
         />
       </div>
 
+      {/* Entity→Area sub-filter (Sprint 13 A2, D7): appears under a single
+          selected entity; areas are entity-specific so they're hidden otherwise. */}
+      {entity && type !== 'inbox' && type !== 'stale' && entityAreas.length > 0 && (
+        <div className="mb-4 -mt-1 flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Area</span>
+          {[{ id: null as string | null, name: 'All' }, ...entityAreas, { id: NO_AREA, name: 'No area' }].map(a => (
+            <button key={a.id ?? 'all'} onClick={() => handleAreaChange(a.id)}
+              className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                area === a.id ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+              }`}>
+              {a.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Display + actions */}
       <div className="mb-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -312,6 +346,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
             onOpenVault={openVault}
             onFile={type === 'inbox' ? handleFile : undefined}
             onReview={type === 'stale' ? handleReview : undefined}
+            areaNames={areaNames}
           />
         )}
       </div>
@@ -352,7 +387,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
         />
       )}
 
-      {composerOpen && <Composer onClose={() => setComposerOpen(false)} onCreated={() => { setComposerOpen(false); reload() }} />}
+      {composerOpen && <Composer areas={areas} onClose={() => setComposerOpen(false)} onCreated={() => { setComposerOpen(false); reload() }} />}
       {bulkOpen && (
         <BulkImportModal
           onClose={() => setBulkOpen(false)}
@@ -468,10 +503,16 @@ function Metric({ label, value, hint, tone }: { label: string; value: number; hi
   )
 }
 
-function Composer({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function Composer({ areas, onClose, onCreated }: { areas: Area[]; onClose: () => void; onCreated: () => void }) {
   const [body, setBody] = useState('')
   const [entities, setEntities] = useState<Entity[]>(['personal'])
+  const [selectedAreas, setSelectedAreas] = useState<string[]>([])
   const [kind, setKind] = useState<Kind>('note')
+  // Areas are scoped to the chosen entities (D6); prune any that fall out of scope.
+  const availableAreas = useMemo(() => areas.filter(a => entities.includes(a.entity as Entity)), [areas, entities])
+  useEffect(() => {
+    setSelectedAreas(prev => prev.filter(id => availableAreas.some(a => a.id === id)))
+  }, [availableAreas])
   const [busy, startBusy] = useTransition()
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
@@ -482,7 +523,7 @@ function Composer({ onClose, onCreated }: { onClose: () => void; onCreated: () =
     setError('')
     startBusy(async () => {
       try {
-        await createEntry({ body, entities, kind })
+        await createEntry({ body, entities, kind, areas: selectedAreas })
         onCreated()
       } catch (e: any) {
         setError(e.message ?? 'Failed to create')
@@ -586,6 +627,13 @@ function Composer({ onClose, onCreated }: { onClose: () => void; onCreated: () =
               {busy ? 'Saving…' : 'Save'}
             </button>
           </div>
+
+          {availableAreas.length > 0 && (
+            <div className="mt-3 border-t border-gray-100 pt-3">
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Areas (optional)</p>
+              <AreaMultiSelect available={availableAreas} selected={selectedAreas} onChange={setSelectedAreas} />
+            </div>
+          )}
         </div>
       </div>
     </div>
