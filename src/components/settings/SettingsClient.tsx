@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { regenerateCaptureKey, regenerateUploadKey } from '@/app/api/captures/actions'
 import { inviteOrgMember, revokeInvitation, resendInvitation, removeMember, updateMemberRole } from '@/app/api/members/actions'
 import { testGranolaConnection, type GranolaConnectionStatus } from '@/app/api/integrations/granola/actions'
+import { AreasManager } from '@/components/settings/AreasManager'
 
 interface Member { id: string; full_name: string | null; email: string; role: string; created_at: string; active: boolean }
 interface Invitation { id: string; email: string; role: string; status: string; created_at: string; expires_at: string; accepted_at?: string; token: string }
@@ -407,6 +408,9 @@ export function SettingsClient({ captureApiKey: initialKey, uploadApiKey: initia
           )}
         </div>
       </section>
+
+      {/* Areas (Sprint 13 A1) — the per-entity area catalogue */}
+      <AreasManager />
 
       {/* Team Members */}
       <section className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
