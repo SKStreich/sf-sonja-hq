@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonja HQ — Areas · Spec v1</title>
+<style>
+  :root {
+    --ink: #1c1c28; --muted: #5b5b6b; --line: #e4e4ee; --bg: #fbfbfd;
+    --accent: #4338ca; --accent-soft: #eef2ff; --ok: #15803d; --warn: #b45309;
+    --code-bg: #f4f4f8;
+  }
+  * { box-sizing: border-box; }
+  body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         color: var(--ink); background: var(--bg); margin: 0; padding: 0 1.25rem 5rem; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  header.doc { padding: 2.5rem 0 1.25rem; border-bottom: 2px solid var(--ink); margin-bottom: 2rem; }
+  .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; font-weight: 700;
+             color: var(--accent); margin: 0 0 .5rem; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; }
+  h2 { font-size: 1.3rem; margin: 2.6rem 0 .8rem; padding-top: .4rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; }
+  .meta { color: var(--muted); font-size: .9rem; }
+  p, li { color: #2a2a38; }
+  code { background: var(--code-bg); padding: .1rem .35rem; border-radius: 4px; font-size: .86em;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: var(--code-bg); padding: 1rem; border-radius: 8px; overflow:auto; font-size: .82rem;
+        border: 1px solid var(--line); }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 700; white-space: normal; }
+  td { white-space: normal; }
+  .callout { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--accent);
+             padding: .9rem 1.1rem; border-radius: 8px; margin: 1.1rem 0; }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.ok { border-left-color: var(--ok); }
+  .tag { display:inline-block; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+         padding:.12rem .45rem; border-radius:999px; background:var(--accent-soft); color:var(--accent); }
+  .oq { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .oq h3 { margin-top:0; }
+  .rec { color: var(--ok); font-weight:600; }
+  ul.tight { margin:.4rem 0; } ul.tight li { margin:.15rem 0; }
+  .small { font-size:.85rem; color:var(--muted); }
+  .lock { background:#dcfce7; color:#15803d; }
+  .draft { background:#fef3c7; color:#b45309; }
+  .pill { display:inline-block; font-size:.72rem; font-weight:600; padding:.1rem .5rem; border-radius:999px;
+          background:var(--accent-soft); color:var(--accent); margin:.1rem .2rem .1rem 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <p class="eyebrow">Sonja HQ · Sprint 13 · Scoping Spec · DRAFT for review</p>
+  <h1>HQ Areas — an Entity→Area middle layer</h1>
+  <p class="meta">Version 1 · 2026-06-25 · Owner: Sonja Streich · Status: <span class="tag lock">✅ LOCKED 2026-06-25</span></p>
+  <p class="meta">Concept <strong>#2</strong> of the preserved-architecture note (<code>ae15bcf5</code>). Staleness (#1) and Inbox &amp; Triage (#3) are shipped; Areas is the last unbuilt concept. North star: <em>HQ is the master of truth.</em> Today the only structural axis is <strong>entity</strong> (a platform/personality) + flat <strong>tags</strong>. Tags multiply and impose no order; there is no "area within an entity" tier. This spec adds that tier so "where does this belong?" is one short navigation, not a search.</p>
+</header>
+
+<h2>1 · The problem</h2>
+<p>
+  HQ structure today is two-level: an item belongs to one or more <strong>entities</strong>
+  (<code>tm</code>, <code>cthq</code>, <code>sfe</code>, <code>sfo</code>, <code>sfs</code>, <code>sfc</code>,
+  <code>personal</code> — 7 platforms) and carries flat <strong>tags</strong>. That's too coarse on top
+  and too unstructured below: a single entity like <em>Streich Force Operations</em> spans Work Orders,
+  Invoicing, Field Ops, Comms, Platform — all jumbled together — while tags (<code>#invoice</code>,
+  <code>#stripe</code>, …) don't group into anything navigable. There's no canonical answer to
+  "show me everything under <em>SF&nbsp;Ops → Invoicing</em>."
+</p>
+<p>
+  <strong>Areas</strong> are that missing middle tier: a small, ordered, per-entity set of buckets that
+  knowledge entries, projects, and tasks can be filed under. They complement tags (areas impose order;
+  tags stay free-form) and complement entities (an area lives inside exactly one entity).
+</p>
+
+<h2>2 · Reconciliation with what already exists</h2>
+<ul>
+  <li><strong>Entities are multi-valued</strong> via junctions: <code>knowledge_entry_entities(entry_id, entity TEXT)</code>
+    and <code>project_entities(project_id, entity_id)</code>; <strong>tasks are single-entity</strong>
+    (<code>tasks.entity_id</code> NOT NULL → <code>entities.id</code>). Areas must coexist with this, not replace it.</li>
+  <li><strong>The original May-2026 proposal is obsolete</strong> on two points the concept note already flagged:
+    it predates the multi-entity cutover (so its single <code>area_id</code> FK is too rigid) and predates the
+    current 7-entity registry (its "SF Core / SF Facilities / SF Solutions" examples map onto today's
+    <code>sfo</code>/<code>sfs</code>/<code>sfc</code>/<code>cthq</code> split). This v1 re-grounds both.</li>
+  <li><strong>Areas are a filter axis, not a new kind.</strong> Like the 📥 Inbox and 🕓 Review filters shipped
+    earlier this sprint, Area is a <em>scope over a relationship</em>, layered onto the existing
+    Knowledge / Projects / Tasks surfaces — no new top-level navigation.</li>
+</ul>
+
+<h2>3 · Locked decisions</h2>
+<p class="small">D1–D4 were chosen by Sonja on 2026-06-25; D5–D8 follow from them.</p>
+<table>
+  <tr><th style="width:8%">#</th><th style="width:32%">Decision</th><th>Detail</th></tr>
+  <tr><td><strong>D1</strong></td><td>An area belongs to exactly one entity</td>
+    <td><code>areas(org_id, entity, name, slug, sort_order)</code>, unique on <code>(org_id, entity, slug)</code>.
+    <code>entity</code> is the TEXT slug (same convention as <code>knowledge_entry_entities</code>). Org-scoped.</td></tr>
+  <tr><td><strong>D2</strong></td><td><span class="tag lock">Sonja</span> Multi-area via junctions</td>
+    <td>An item may sit in several areas. One junction per item type — <code>knowledge_entry_areas</code>,
+    <code>project_areas</code>, <code>task_areas</code> — mirroring the multi-entity junction + RLS pattern.
+    No single <code>area_id</code> FK.</td></tr>
+  <tr><td><strong>D3</strong></td><td><span class="tag lock">Sonja</span> All three item types in v1</td>
+    <td>Knowledge entries, projects, AND tasks get areas — phased A1 (substrate + manage) → A2 (knowledge)
+    → A3 (projects + tasks).</td></tr>
+  <tr><td><strong>D4</strong></td><td><span class="tag lock">Sonja</span> Seed + manage UI</td>
+    <td>A migration seeds a starter set for the high-traffic entities; a Settings surface lets Sonja
+    add / rename / reorder / delete areas per entity. Sonja owns the taxonomy from day one.</td></tr>
+  <tr><td><strong>D5</strong></td><td>Seed high-traffic entities only</td>
+    <td><span class="tag lock">Sonja</span> Seed <code>tm</code>, <code>sfo</code>, <code>sfs</code>,
+    <code>personal</code> (§5). The other three (<code>sfe</code>, <code>sfc</code>, <code>cthq</code>) start
+    empty and Sonja adds areas via the manage UI when needed.</td></tr>
+  <tr><td><strong>D6</strong></td><td>Area picker is scoped to the item's entities (soft rule)</td>
+    <td>When tagging an item, the area picker offers only areas whose entity is one of the item's current
+    entities. This is enforced in the app, NOT a DB constraint — entities can change after filing, and we
+    never want a membership edit to strand an existing area tag.</td></tr>
+  <tr><td><strong>D7</strong></td><td>Area filter appears under a selected entity</td>
+    <td>In each surface (Knowledge / Projects / Tasks) the Area filter shows when a single entity is
+    selected, listing that entity's areas + "No area". With entity = All, the Area filter is hidden
+    (areas across 7 entities would be noise). Selecting areas narrows with OR semantics.</td></tr>
+  <tr><td><strong>D8</strong></td><td>Delete cascades the junction, never the item</td>
+    <td>Junctions are <code>ON DELETE CASCADE</code> from both parents. Deleting an area removes its tags
+    (items lose that area) but touches no items; deleting an item removes its area links.</td></tr>
+</table>
+
+<h2>4 · Data model</h2>
+<p>One new table + three junctions, all additive. Mirrors the multi-entity junction RLS pattern
+(<code>20260531000001</code>): junctions carry <code>org_id</code>, read visibility rides the parent, writes
+are org-scoped.</p>
+<pre><code>-- The areas catalogue (one row per area; an area lives in exactly one entity).
+CREATE TABLE areas (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  entity      TEXT NOT NULL CHECK (entity = ANY (ARRAY
+                ['tm','cthq','sfe','sfo','sfs','sfc','personal'])),
+  name        TEXT NOT NULL,
+  slug        TEXT NOT NULL,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_by  UUID REFERENCES auth.users(id),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (org_id, entity, slug)
+);
+ALTER TABLE areas ENABLE ROW LEVEL SECURITY;
+CREATE POLICY areas_all ON areas FOR ALL
+  USING (org_id = get_my_org_id()) WITH CHECK (org_id = get_my_org_id());
+
+-- One junction per item type (multi-area). PK dedupes; index serves the filter.
+CREATE TABLE knowledge_entry_areas (
+  entry_id UUID NOT NULL REFERENCES knowledge_entries(id) ON DELETE CASCADE,
+  area_id  UUID NOT NULL REFERENCES areas(id)            ON DELETE CASCADE,
+  org_id   UUID NOT NULL REFERENCES orgs(id)             ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (entry_id, area_id)
+);
+-- …project_areas(project_id, area_id, org_id) and task_areas(task_id, area_id, org_id)
+--   follow the identical shape. Each: RLS on, read via parent subquery, write org-scoped.
+CREATE INDEX idx_kea_area ON knowledge_entry_areas (org_id, area_id);
+</code></pre>
+<p class="small">Helpers mirror <code>src/lib/entities/multi-entity.ts</code>:
+<code>setEntryAreas</code> / <code>fetchEntryAreaMap</code> / <code>fetchEntryIdsForArea</code> (+ project/task
+equivalents). A pure <code>src/lib/areas/config.ts</code> is unnecessary — areas are data, not a compile-time
+registry — but a small typed reader module is.</p>
+
+<h2>5 · Seed taxonomy <span class="tag lock">✅ approved</span></h2>
+<p>Starter areas for the four high-traffic entities (D5), approved by Sonja 2026-06-25. Fully editable
+afterward in the manage UI (D4 / A1) — add, rename, reorder, delete per entity — so this is only the
+day-one seed, not a commitment.</p>
+<table>
+  <tr><th style="width:22%">Entity</th><th>Proposed areas (in order)</th></tr>
+  <tr><td><strong>Triplemeter</strong> <code>tm</code></td>
+    <td><span class="pill">Migration</span><span class="pill">Product</span><span class="pill">Operations</span><span class="pill">Customers</span></td></tr>
+  <tr><td><strong>SF Operations</strong> <code>sfo</code></td>
+    <td><span class="pill">Work Orders</span><span class="pill">Invoicing</span><span class="pill">Field Ops</span><span class="pill">Comms</span><span class="pill">Platform</span></td></tr>
+  <tr><td><strong>SF Solutions</strong> <code>sfs</code></td>
+    <td><span class="pill">Clients</span><span class="pill">Connectors</span><span class="pill">Metrics</span><span class="pill">Engagements</span></td></tr>
+  <tr><td><strong>Personal</strong> <code>personal</code></td>
+    <td><span class="pill">Sonja HQ</span><span class="pill">KRC</span><span class="pill">Learning</span><span class="pill">Admin</span></td></tr>
+</table>
+<p class="callout">The seed runs as an <strong>orgs-driven INSERT</strong> (one set per org, idempotent on
+<code>(org_id, entity, slug)</code>) so it replays clean on a fresh DB in the integration lane — the pattern
+established when that lane caught prod-specific seed drift.</p>
+
+<h2>6 · UI</h2>
+<ul>
+  <li><strong>Manage (Settings → Areas):</strong> per-entity lists with add / rename / reorder (sort_order)
+    / delete; delete confirms "<em>N items will lose this area</em>". The one place the catalogue is edited.</li>
+  <li><strong>Assign:</strong> an <code>AreaMultiSelect</code> (sibling of <code>EntityMultiSelect</code>) on
+    the Knowledge composer + EntryDetail, the project detail, and the task detail — scoped to the item's
+    entities (D6). Area chips render on cards / rows next to the entity chips.</li>
+  <li><strong>Filter:</strong> in Knowledge / Projects / Tasks, an Area sub-filter appears when one entity is
+    selected (D7): that entity's areas + "No area", OR-narrowing. Deep-linkable
+    (<code>?entity=sfo&amp;area=invoicing</code>).</li>
+</ul>
+
+<h2>7 · Phased plan</h2>
+<table>
+  <tr><th style="width:14%">Slice</th><th>Scope</th></tr>
+  <tr><td><strong>A1 — substrate + manage</strong></td>
+    <td>Migration (<code>areas</code> + 3 junctions + RLS + indexes) · orgs-driven seed (§5) · area reader
+      helpers · <strong>Settings → Areas</strong> management UI (add/rename/reorder/delete). No item
+      assignment yet. Unit-test the pure helpers; integration lane replays the seed clean.</td></tr>
+  <tr><td><strong>A2 — knowledge</strong></td>
+    <td><code>AreaMultiSelect</code> on composer + EntryDetail · area chips on node cards · the Knowledge hub
+      <strong>Entity→Area</strong> filter (D7) · <code>listNodes</code>/<code>listEntries</code> area scope.</td></tr>
+  <tr><td><strong>A3 — projects + tasks</strong></td>
+    <td>Area assignment + chips + list filters on the Projects and Tasks surfaces, reusing A2's component
+      and reader patterns.</td></tr>
+</table>
+
+<h2>8 · Resolved questions <span class="tag lock">✅ all settled 2026-06-25</span></h2>
+<div class="oq">
+  <h3>OQ-1 · Seed taxonomy (§5) — <span class="rec">RESOLVED</span></h3>
+  <p>Proposed area names per entity approved as-is; all areas remain editable in the manage UI (A1).</p>
+</div>
+<div class="oq">
+  <h3>OQ-2 · Dashboard area rollups — <span class="rec">DEFERRED past v1</span></h3>
+  <p>Per-area dashboard tallies (like the entity cards) are a later idea; prove the filter first.</p>
+</div>
+<div class="oq">
+  <h3>OQ-3 · "No area" backlog nudge — <span class="rec">DEFERRED</span></h3>
+  <p>A per-entity "N items with no area" nudge revisits after A2 shows the real volume.</p>
+</div>
+
+<h2>9 · Why this is the right next slice</h2>
+<p>
+  It's the last unbuilt concept from <code>ae15bcf5</code>, and it completes the "HQ as source of truth"
+  structural story: entity (where it lives) → area (what part of it) → the item. It reuses patterns already
+  proven this sprint — the multi-entity junction + RLS shape, the filter-as-scope toolbar idiom, the
+  orgs-driven replay-clean seed — so the risk is in the taxonomy, not the mechanics. And it directly answers
+  the cross-project audit's "where do documents live?" question with one canonical navigation.
+</p>
+
+<p class="meta" style="margin-top:3rem">Spec mirrored to HQ Knowledge on lock · supersedes the relevant
+slice of the preserved-architecture note <code>ae15bcf5</code>.</p>
+
+</div>
+</body>
+</html>
