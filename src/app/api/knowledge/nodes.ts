@@ -13,7 +13,7 @@
  * are never un-filed, so they're skipped entirely for the inbox scope.
  */
 import { createClient } from '@/lib/supabase/server'
-import { listEntries, type Entity } from './actions'
+import { listEntries, listStaleEntries, type Entity } from './actions'
 import { listDatabases } from './databases'
 import { listVaultEntries } from './vault'
 import { buildNodes, type KnowledgeNode } from '@/lib/knowledge/nodes'
@@ -22,10 +22,18 @@ export async function listNodes(opts: {
   entity?: Entity | null
   query?: string | null
   triage?: 'filed' | 'inbox'
+  /** Stale scope (Sprint 13): the "needs review" queue — entries-only, like inbox. */
+  stale?: boolean
 } = {}): Promise<KnowledgeNode[]> {
   const entity = opts.entity ?? null
   const query = (opts.query ?? '').trim().toLowerCase()
   const triage = opts.triage ?? 'filed'
+
+  // Stale is entries-only (databases/vault have no review cadence) — skip them.
+  if (opts.stale) {
+    const entries = await listStaleEntries({ entity, query: opts.query })
+    return buildNodes({ entries, databases: [], vault: [] })
+  }
 
   // Inbox is entries-only — skip the database + vault reads entirely.
   if (triage === 'inbox') {

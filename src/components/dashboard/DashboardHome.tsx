@@ -62,6 +62,7 @@ interface InsightData {
   rawIdeaCount: number
   todayTaskCount: number
   inboxCount: number
+  staleCount: number
 }
 
 interface KnowledgeItem {
@@ -181,6 +182,11 @@ export function DashboardHome({
         {insights.rawIdeaCount > 0 && (
           <Link href="/dashboard/knowledge" className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors">
             <span>💡</span> {insights.rawIdeaCount} raw idea{insights.rawIdeaCount !== 1 ? 's' : ''} to review
+          </Link>
+        )}
+        {insights.staleCount > 0 && (
+          <Link href="/dashboard/knowledge?filter=stale" className="flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700 hover:bg-amber-100 transition-colors">
+            <span>🕓</span> {insights.staleCount} to review
           </Link>
         )}
         <Link href="/dashboard/knowledge" className="flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100 transition-colors">

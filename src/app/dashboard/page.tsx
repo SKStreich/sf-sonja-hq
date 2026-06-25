@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { DashboardHome } from '@/components/dashboard/DashboardHome'
 import { loadInitialActivity } from '@/lib/activity-feed.server'
+import { countStale } from '@/app/api/knowledge/actions'
 import { ENTITY_ORDER, sortEntitySlugs } from '@/lib/entities/config'
 
 export default async function DashboardPage() {
@@ -31,6 +32,7 @@ export default async function DashboardPage() {
     { data: calendarTasks },
     { data: calendarProjects },
     { count: inboxCount },
+    staleCount,
   ] = await Promise.all([
     (supabase as any).from('tasks').select('id,title,priority,due_date,project_id,projects(id,name)')
       .eq('gtd_bucket', 'today').eq('archived', false)
@@ -76,6 +78,9 @@ export default async function DashboardPage() {
     // Triage inbox count (Sprint 13) — un-filed quick captures awaiting a home.
     (supabase as any).from('knowledge_entries').select('id', { count: 'exact', head: true })
       .eq('access', 'standard').eq('status', 'active').eq('triage_status', 'inbox'),
+    // Stale "needs review" count (Sprint 13 staleness) — filed entries past their
+    // review cadence. Computed in-app via the shared formula, not a SQL predicate.
+    countStale(),
   ])
 
   // Normalize junction embeds back to the shapes the UI expects:
@@ -119,6 +124,7 @@ export default async function DashboardPage() {
     rawIdeaCount: rawIdeaCount ?? 0,
     todayTaskCount: (todayTasks ?? []).length,
     inboxCount: inboxCount ?? 0,
+    staleCount: staleCount ?? 0,
   }
 
   // Calendar events — dated tasks (any status, to show completed too) + dated

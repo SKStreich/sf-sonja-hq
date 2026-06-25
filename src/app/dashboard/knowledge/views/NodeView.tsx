@@ -15,6 +15,7 @@ import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 import { TYPE_META, type KnowledgeNode } from '@/lib/knowledge/nodes'
 import { buildTree, type TreeNode, type NodeEdge } from '@/lib/knowledge/tree'
+import { staleStatus } from '@/lib/knowledge/staleness'
 import type { KnowledgeEntry } from '@/app/api/knowledge/actions'
 
 interface Props {
@@ -32,6 +33,9 @@ interface Props {
   /** Inbox triage (Sprint 13 T2): file an un-filed entry with ≥1 entity. When
    *  set, inbox cards render an inline entity-picker + File button. */
   onFile?: (id: string, entities: string[]) => Promise<void>
+  /** Stale "needs review" queue (Sprint 13 staleness): mark an entry reviewed.
+   *  When set, entry cards render an inline "✓ Mark reviewed" bar. */
+  onReview?: (id: string) => Promise<void>
 }
 
 /** Hide workspace child pages (shown as a count pill on their parent, reachable
@@ -145,7 +149,7 @@ function TreeRow({ item, ...props }: { item: TreeNode } & Props) {
 
 function CardsGrid({
   visible, childCount, pendingForwards = {}, selectable = false, selectedIds,
-  onToggleSelect, onChat, onDelete, onOpenDatabase, onOpenVault, onFile,
+  onToggleSelect, onChat, onDelete, onOpenDatabase, onOpenVault, onFile, onReview,
 }: Props & { visible: KnowledgeNode[]; childCount: Map<string, number> }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -164,6 +168,7 @@ function CardsGrid({
             onChat={onChat}
             onDelete={onDelete}
             onFile={onFile}
+            onReview={onReview}
           />
         )
       })}
@@ -181,7 +186,7 @@ function TypeBadge({ type }: { type: KnowledgeNode['type'] }) {
 }
 
 function EntryCard({
-  node, childCount, pending, selectable, selected, onToggleSelect, onChat, onDelete, onFile,
+  node, childCount, pending, selectable, selected, onToggleSelect, onChat, onDelete, onFile, onReview,
 }: {
   node: KnowledgeNode; childCount: number; pending: number
   selectable: boolean; selected: boolean
@@ -189,12 +194,20 @@ function EntryCard({
   onChat?: (entry: KnowledgeEntry) => void
   onDelete?: (id: string) => void
   onFile?: (id: string, entities: string[]) => Promise<void>
+  onReview?: (id: string) => Promise<void>
 }) {
   const e = node.entry!
   const isInbox = e.triage_status === 'inbox' && !!onFile
+  // Surface staleness at a glance on every entry card; the inline review bar only
+  // shows in the dedicated 🕓 Review queue (where onReview is wired).
+  const stale = !isInbox && staleStatus(e).stale
+  const showReview = stale && !!onReview
   return (
     <article className={`group flex flex-col rounded-xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${
-      isInbox ? 'border-indigo-200 ring-1 ring-indigo-100' : selected ? 'border-indigo-500 ring-2 ring-indigo-200' : 'border-gray-200'
+      isInbox ? 'border-indigo-200 ring-1 ring-indigo-100'
+      : selected ? 'border-indigo-500 ring-2 ring-indigo-200'
+      : stale ? 'border-amber-200 ring-1 ring-amber-100'
+      : 'border-gray-200'
     }`}>
       <div className="mb-2 flex flex-wrap items-center gap-1.5">
         {selectable && (
@@ -210,6 +223,9 @@ function EntryCard({
         <EntityChips entities={node.entities} />
         {e.idea_status && e.idea_status !== 'raw' && (
           <span className="rounded bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">{e.idea_status}</span>
+        )}
+        {stale && (
+          <span title="Past its review cadence" className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">🕓 stale</span>
         )}
         {node.type === 'page' && childCount > 0 ? (
           <span title={`${childCount} child page${childCount === 1 ? '' : 's'}`}
@@ -237,6 +253,7 @@ function EntryCard({
         </div>
       )}
       {isInbox && onFile && <TriageBar node={node} onFile={onFile} />}
+      {showReview && onReview && <ReviewBar node={node} onReview={onReview} />}
       <div className="mt-auto flex items-center justify-between border-t border-gray-100 pt-2 text-[11px] text-gray-400">
         <span>{new Date(node.updatedAt).toLocaleDateString()}</span>
         <div className="flex items-center gap-3 opacity-0 transition-opacity group-hover:opacity-100">
@@ -273,6 +290,32 @@ function TriageBar({ node, onFile }: { node: KnowledgeNode; onFile: (id: string,
         <button onClick={file} disabled={busy || selected.length === 0}
           className="rounded-md bg-indigo-600 px-3 py-1 text-xs font-medium text-white hover:bg-indigo-500 disabled:opacity-40">
           {busy ? 'Filing…' : 'File'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Inline review control on a stale card (Sprint 13 staleness). Shows how
+ *  overdue the entry is and lets the human re-vouch for it in one click. */
+function ReviewBar({ node, onReview }: { node: KnowledgeNode; onReview: (id: string) => Promise<void> }) {
+  const e = node.entry!
+  const status = staleStatus(e)
+  const overdue = status.dueInDays !== null ? Math.abs(status.dueInDays) : 0
+  const [busy, startReview] = useTransition()
+  const review = () => startReview(async () => { await onReview(node.id) })
+  return (
+    <div className="mt-2 rounded-lg border border-amber-100 bg-amber-50/60 p-2.5">
+      <div className="mb-1.5 flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-amber-800">🕓 Needs review</span>
+        <span className="text-[10px] text-amber-600">
+          {e.last_reviewed_at ? `reviewed ${new Date(e.last_reviewed_at).toLocaleDateString()}` : 'never reviewed'} · {overdue}d overdue
+        </span>
+      </div>
+      <div className="flex justify-end">
+        <button onClick={review} disabled={busy}
+          className="rounded-md bg-amber-600 px-3 py-1 text-xs font-medium text-white hover:bg-amber-500 disabled:opacity-40">
+          {busy ? 'Marking…' : '✓ Mark reviewed'}
         </button>
       </div>
     </div>

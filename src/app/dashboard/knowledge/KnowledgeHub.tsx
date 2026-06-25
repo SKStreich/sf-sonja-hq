@@ -2,7 +2,7 @@
 import { useState, useTransition, useMemo, useEffect } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
-  createEntry, deleteEntry, fileEntry,
+  createEntry, deleteEntry, fileEntry, markEntryReviewed,
   type KnowledgeEntry, type Kind, type Entity,
 } from '@/app/api/knowledge/actions'
 import { uploadKnowledgeFile } from '@/app/api/knowledge/upload'
@@ -69,6 +69,9 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
   // isn't narrowed by the entity/search filters — it's a global "to file" list.
   const [inboxNodes, setInboxNodes] = useState<KnowledgeNode[]>([])
   const [inboxCount, setInboxCount] = useState(0)
+  // Stale ("needs review") is another disjoint server scope (Sprint 13): filed
+  // entries past their review cadence, loaded separately like the inbox queue.
+  const [staleNodes, setStaleNodes] = useState<KnowledgeNode[]>([])
   const [selectMode, setSelectMode] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [mergeOpen, setMergeOpen] = useState(false)
@@ -97,18 +100,27 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
     countInbox()
       .then(c => { if (!cancelled) setInboxCount(c) })
       .catch(() => {})
+    listNodes({ stale: true })
+      .then(n => { if (!cancelled) setStaleNodes(n) })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [])
 
-  // Deep-link from the dashboard "📥 N to triage" chip lands on the Inbox filter.
+  // Deep-link from the dashboard chips: 📥 → Inbox, 🕓 → the stale Review queue.
   useEffect(() => {
-    if (searchParams.get('filter') === 'inbox') setType('inbox')
+    const f = searchParams.get('filter')
+    if (f === 'inbox') setType('inbox')
+    else if (f === 'stale') setType('stale')
   }, [searchParams])
 
   // Reload the inbox queue + badge count (after filing, or a delete).
   const refreshInbox = () => {
     listNodes({ triage: 'inbox' }).then(setInboxNodes).catch(() => {})
     countInbox().then(setInboxCount).catch(() => {})
+  }
+  // Reload the stale queue (after a delete from the hub).
+  const refreshStale = () => {
+    listNodes({ stale: true }).then(setStaleNodes).catch(() => {})
   }
 
   const [loading, startLoad] = useTransition()
@@ -137,11 +149,18 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
   const openVault = async (node: KnowledgeNode) => {
     window.open(await getVaultDownloadUrl(node.id), '_blank', 'noopener,noreferrer')
   }
-  const handleDelete = async (id: string) => { await deleteEntry(id); reload(); refreshInbox() }
+  const handleDelete = async (id: string) => { await deleteEntry(id); reload(); refreshInbox(); refreshStale() }
   // Filing moves an item out of the inbox and into the filed feed (D4) — refresh both.
   const handleFile = async (id: string, entities: string[]) => {
     await fileEntry(id, entities as Entity[])
     refreshInbox()
+    reload()
+  }
+  // Marking reviewed clears the entry from the stale queue and re-touches it
+  // (floats it up the filed feed) — refresh both.
+  const handleReview = async (id: string) => {
+    await markEntryReviewed(id)
+    refreshStale()
     reload()
   }
 
@@ -150,8 +169,12 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
   const vaultEntries = useMemo(() => nodes.filter(n => n.type === 'vault').map(n => n.vault!), [nodes])
   const databaseList = useMemo(() => nodes.filter(n => n.type === 'database').map(n => n.database!), [nodes])
   const shownNodes = useMemo(
-    () => (type === 'inbox' ? inboxNodes : filterNodesByType(nodes, type)),
-    [nodes, inboxNodes, type],
+    () => (
+      type === 'inbox' ? inboxNodes
+      : type === 'stale' ? staleNodes
+      : filterNodesByType(nodes, type)
+    ),
+    [nodes, inboxNodes, staleNodes, type],
   )
   const showingNodeView = !insights && type !== 'database' && type !== 'vault'
 
@@ -181,6 +204,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
             const count =
               t.value === 'all' ? nodes.length
               : t.value === 'inbox' ? inboxCount
+              : t.value === 'stale' ? staleNodes.length
               : counts[t.value]
             return (
               <button key={t.value} onClick={() => selectType(t.value)}
@@ -215,7 +239,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
       {/* Display + actions */}
       <div className="mb-5 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {showingNodeView && type !== 'inbox' && (
+          {showingNodeView && type !== 'inbox' && type !== 'stale' && (
             <div className="flex items-center gap-1 rounded-lg border border-gray-200 bg-white p-1">
               {([['cards', '▦ Cards'], ['list', '☰ List'], ['tree', '⛬ Tree']] as const).map(([d, label]) => (
                 <button key={d} onClick={() => setDisplay(d)}
@@ -235,7 +259,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
           </button>
         </div>
         <div className="flex items-center gap-2">
-          {showingNodeView && type !== 'inbox' && (
+          {showingNodeView && type !== 'inbox' && type !== 'stale' && (
             <button onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
               className={`rounded-md border px-3 py-1.5 text-sm font-medium ${
                 selectMode
@@ -276,7 +300,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
         ) : (
           <NodeView
             nodes={shownNodes}
-            display={type === 'inbox' ? 'cards' : display}
+            display={type === 'inbox' || type === 'stale' ? 'cards' : display}
             treeLinks={treeLinks}
             pendingForwards={pendingForwards}
             selectable={selectMode}
@@ -287,6 +311,7 @@ export function KnowledgeHub({ initialEntries, initialVault, initialDatabases, m
             onOpenDatabase={openDatabase}
             onOpenVault={openVault}
             onFile={type === 'inbox' ? handleFile : undefined}
+            onReview={type === 'stale' ? handleReview : undefined}
           />
         )}
       </div>

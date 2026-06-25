@@ -12,10 +12,11 @@ import type { VaultEntry } from '@/app/api/knowledge/vault'
 import type { HqDatabase } from '@/lib/databases/types'
 
 export type KnowledgeNodeType = 'page' | 'doc' | 'idea' | 'note' | 'chat' | 'database' | 'vault'
-// 'inbox' is NOT a node type — an inbox item is still a page/doc/idea/note. It's
-// a cross-kind triage scope (triage_status='inbox') that the server reader loads
-// separately. Modelled as a TypeFilter peer of 'all' so it sits in the Type row.
-export type TypeFilter = 'all' | 'inbox' | KnowledgeNodeType
+// 'inbox' and 'stale' are NOT node types — the underlying item is still a
+// page/doc/idea/note. They're cross-kind scopes (triage_status='inbox' /
+// computed staleness) the server reader loads separately. Modelled as TypeFilter
+// peers of 'all' so they sit in the Type row.
+export type TypeFilter = 'all' | 'inbox' | 'stale' | KnowledgeNodeType
 
 export interface KnowledgeNode {
   id: string
@@ -54,6 +55,9 @@ export const TYPE_FILTERS: { value: TypeFilter; label: string }[] = [
   // The triage queue — un-filed quick captures (Sprint 13). Peer of Vault: a
   // scope over a column (triage_status), not a kind.
   { value: 'inbox', label: '📥 Inbox' },
+  // The "needs review" queue — filed entries past their review cadence (Sprint 13
+  // staleness). A computed scope, like inbox: the server reader loads it separately.
+  { value: 'stale', label: '🕓 Review' },
 ]
 
 /** Map a knowledge_entries.kind to a node type. Returns null for kinds that
@@ -102,10 +106,10 @@ export function buildNodes(src: {
 }
 
 export function filterNodesByType(nodes: KnowledgeNode[], type: TypeFilter): KnowledgeNode[] {
-  // 'all' and 'inbox' don't narrow by node type: 'all' shows everything, and the
-  // inbox set is already scoped server-side (triage_status='inbox'), so the hub
-  // passes the pre-scoped list straight through.
-  if (type === 'all' || type === 'inbox') return nodes
+  // 'all', 'inbox', and 'stale' don't narrow by node type: 'all' shows everything,
+  // and the inbox / stale sets are already scoped server-side, so the hub passes
+  // the pre-scoped list straight through.
+  if (type === 'all' || type === 'inbox' || type === 'stale') return nodes
   return nodes.filter((n) => n.type === type)
 }
 
