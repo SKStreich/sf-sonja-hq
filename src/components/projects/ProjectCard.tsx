@@ -3,6 +3,7 @@ import type { Database } from '@/types/supabase'
 import { ProjectStatusBadge, ProjectPriorityBadge } from './ProjectStatusBadge'
 import { ProjectEntityChips } from './ProjectEntityChips'
 import { ProjectProgress } from './ProjectProgress'
+import { AreaChips } from '@/components/shared/AreaChips'
 import { ACTION_TYPE_SHORT } from '@/lib/tasks/action-types'
 import type { TaskProgress } from '@/lib/projects/progress'
 
@@ -16,9 +17,11 @@ interface ProjectCardProps {
   project: Project
   entities?: Entity[]
   progress?: TaskProgress
+  /** Area names filed on this project (Sprint 13 A3). */
+  areaNames?: string[]
 }
 
-export function ProjectCard({ project, entities = [], progress }: ProjectCardProps) {
+export function ProjectCard({ project, entities = [], progress, areaNames = [] }: ProjectCardProps) {
   const isOverdue = project.due_date && new Date(project.due_date + 'T23:59:59') < new Date() && project.status !== 'complete'
   const nextActionOverdue = (project as any).next_action_due &&
     new Date((project as any).next_action_due + 'T23:59:59') < new Date() &&
@@ -55,6 +58,9 @@ export function ProjectCard({ project, entities = [], progress }: ProjectCardPro
           <p className="text-xs text-gray-500 line-clamp-1">{project.next_action}</p>
         </div>
       )}
+
+      {/* Areas */}
+      {areaNames.length > 0 && <AreaChips names={areaNames} />}
 
       {/* Completion */}
       {progress && <ProjectProgress progress={progress} />}

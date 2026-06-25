@@ -1,9 +1,12 @@
 'use client'
-import { useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 import { createProject, updateProject } from '@/app/api/projects/actions'
 import { DatePicker } from './DatePicker'
 import { entityLabel } from '@/lib/entities/config'
 import { ACTION_TYPES } from '@/lib/tasks/action-types'
+import { listAreas } from '@/app/api/areas/actions'
+import { AreaMultiSelect } from '@/components/shared/AreaMultiSelect'
+import { type Area } from '@/lib/areas/areas'
 import type { Database, ProjectStatus, ProjectPriority } from '@/types/supabase'
 
 type Entity = Database['public']['Tables']['entities']['Row']
@@ -16,6 +19,8 @@ interface Props {
   project?: Project & { next_action_type?: string | null; next_action_due?: string | null }
   /** Full entity-id set for the project being edited (multi-entity pre-selection). */
   initialEntityIds?: string[]
+  /** Area ids already on the project (Sprint 13 A3 pre-selection). */
+  initialAreaIds?: string[]
 }
 
 
@@ -36,7 +41,7 @@ const PHASES = [
   'Discovery', 'Planning', 'Design', 'Build', 'Testing', 'Launch', 'Maintenance',
 ]
 
-export function ProjectCreateDialog({ open, onClose, entities, project, initialEntityIds }: Props) {
+export function ProjectCreateDialog({ open, onClose, entities, project, initialEntityIds, initialAreaIds }: Props) {
   const isEdit = !!project
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
@@ -54,6 +59,22 @@ export function ProjectCreateDialog({ open, onClose, entities, project, initialE
       return [...ids, id]
     })
   }
+
+  // Areas (Sprint 13 A3) — scoped to the selected entities' slugs (D6).
+  const [areaCatalogue, setAreaCatalogue] = useState<Area[]>([])
+  const [areaIds, setAreaIds] = useState<string[]>(initialAreaIds ?? [])
+  useEffect(() => { listAreas().then(setAreaCatalogue).catch(() => {}) }, [])
+  const selectedSlugs = useMemo(
+    () => new Set(entityIds.map(id => entities.find(e => e.id === id)?.type).filter(Boolean) as string[]),
+    [entityIds, entities],
+  )
+  const availableAreas = useMemo(
+    () => areaCatalogue.filter(a => selectedSlugs.has(a.entity)),
+    [areaCatalogue, selectedSlugs],
+  )
+  useEffect(() => {
+    setAreaIds(prev => prev.filter(id => availableAreas.some(a => a.id === id)))
+  }, [availableAreas])
 
   const [form, setForm] = useState({
     name: project?.name ?? '',
@@ -80,6 +101,7 @@ export function ProjectCreateDialog({ open, onClose, entities, project, initialE
         const payload = {
           entity_id: entityIds[0],
           entity_ids: entityIds,
+          area_ids: areaIds,
           name: form.name.trim(),
           description: form.description.trim() || null,
           status: form.status,
@@ -143,6 +165,14 @@ export function ProjectCreateDialog({ open, onClose, entities, project, initialE
               })}
             </div>
           </div>
+
+          {/* Areas (optional, scoped to the selected entities) */}
+          {availableAreas.length > 0 && (
+            <div>
+              <label className={labelCls}>Areas <span className="normal-case text-gray-400 font-normal">(optional)</span></label>
+              <AreaMultiSelect available={availableAreas} selected={areaIds} onChange={setAreaIds} />
+            </div>
+          )}
 
           {/* Status */}
           <div>

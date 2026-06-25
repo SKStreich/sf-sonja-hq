@@ -6,6 +6,8 @@ import { ProjectStatusBadge, ProjectPriorityBadge } from './ProjectStatusBadge'
 import { ProjectCreateDialog } from './ProjectCreateDialog'
 import { ProjectEntityChips } from './ProjectEntityChips'
 import { ProjectProgress } from './ProjectProgress'
+import { AreaChips } from '@/components/shared/AreaChips'
+import { type Area } from '@/lib/areas/areas'
 import { DatePicker } from './DatePicker'
 import { ACTION_TYPES, ACTION_TYPE_SHORT } from '@/lib/tasks/action-types'
 import { computeProgress } from '@/lib/projects/progress'
@@ -76,12 +78,15 @@ interface Props {
   /** Full multi-entity set for the project (from the project_entities junction). */
   projectEntities: Entity[]
   entities: Entity[]
+  /** All areas + the project's filed area ids (Sprint 13 A3). */
+  areas?: Area[]
+  projectAreaIds?: string[]
   initialCommits?: GitHubCommit[]
   initialGithubUrl?: string | null
   members?: OrgMember[]
 }
 
-export function ProjectDetail({ project, tasks: initialTasks, updates: initialUpdates, files: initialFiles, projectEntities, entities, initialCommits = [], initialGithubUrl = null, members = [] }: Props) {
+export function ProjectDetail({ project, tasks: initialTasks, updates: initialUpdates, files: initialFiles, projectEntities, entities, areas = [], projectAreaIds = [], initialCommits = [], initialGithubUrl = null, members = [] }: Props) {
   const router = useRouter()
   const [editOpen, setEditOpen] = useState(false)
   const [tasks, setTasks] = useState(initialTasks)
@@ -287,6 +292,7 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-2">
               <ProjectEntityChips entities={projectEntities} />
+              <AreaChips names={projectAreaIds.map(id => areas.find(a => a.id === id)?.name).filter(Boolean) as string[]} />
               <ProjectStatusBadge status={project.status} />
               <ProjectPriorityBadge priority={project.priority} />
               {project.phase && (
@@ -726,7 +732,7 @@ export function ProjectDetail({ project, tasks: initialTasks, updates: initialUp
         )}
       </div>
 
-      <ProjectCreateDialog open={editOpen} onClose={() => setEditOpen(false)} entities={entities} project={project} initialEntityIds={projectEntities.map(e => e.id)} />
+      <ProjectCreateDialog open={editOpen} onClose={() => setEditOpen(false)} entities={entities} project={project} initialEntityIds={projectEntities.map(e => e.id)} initialAreaIds={projectAreaIds} />
     </>
   )
 }

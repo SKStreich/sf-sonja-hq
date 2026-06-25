@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import type { TaskStatus, ProjectPriority } from '@/types/supabase'
 import type { EntitySlug } from '@/lib/entities/config'
 import { refreshNextAction } from '@/lib/projects/next-action'
+import { setTaskAreas, fetchTaskAreaMap } from '@/lib/areas/junctions'
 
 async function getContext() {
   const supabase = createClient()
@@ -64,13 +65,26 @@ export async function updateTask(id: string, projectId: string, updates: {
   due_date?: string | null
   gtd_bucket?: string
   action_type?: string | null
+  /** Area ids (Sprint 13 A3). When provided, reconciled into task_areas. */
+  area_ids?: string[]
 }) {
-  const { supabase } = await getContext()
-  const { error } = await (supabase as any).from('tasks').update(updates).eq('id', id)
-  if (error) throw new Error('Failed to update task')
+  const { supabase, org_id } = await getContext()
+  const { area_ids, ...cols } = updates
+  if (Object.keys(cols).length > 0) {
+    const { error } = await (supabase as any).from('tasks').update(cols).eq('id', id)
+    if (error) throw new Error('Failed to update task')
+  }
+  if (area_ids !== undefined) await setTaskAreas(supabase, id, org_id, area_ids)
   if (projectId) await refreshNextAction(supabase, projectId)
   revalidatePath(`/dashboard/projects/${projectId}`)
   revalidatePath('/dashboard/tasks')
+}
+
+/** A task's filed area ids (Sprint 13 A3) — for the detail panel's area picker. */
+export async function getTaskAreaIds(taskId: string): Promise<string[]> {
+  const { supabase } = await getContext()
+  const map = await fetchTaskAreaMap(supabase, [taskId])
+  return map[taskId] ?? []
 }
 
 export async function deleteTask(id: string, projectId: string) {

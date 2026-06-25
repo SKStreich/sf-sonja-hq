@@ -2,9 +2,12 @@
 import { useState, useEffect, useRef, useTransition } from 'react'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { addTaskNote, deleteTaskNote, saveTaskFile, deleteTaskFile, completeTask, cancelTask, reopenTask, reassignTaskProject } from '@/app/api/tasks/actions'
+import { addTaskNote, deleteTaskNote, saveTaskFile, deleteTaskFile, completeTask, cancelTask, reopenTask, reassignTaskProject, updateTask, getTaskAreaIds } from '@/app/api/tasks/actions'
 import { assignTask } from '@/app/api/members/actions'
 import { createProject } from '@/app/api/projects/actions'
+import { listAreas } from '@/app/api/areas/actions'
+import { AreaMultiSelect } from '@/components/shared/AreaMultiSelect'
+import { type Area } from '@/lib/areas/areas'
 import {
   searchAttachableEntries, attachEntryToTask, detachEntry, getTaskAttachments,
   type AttachTarget, type TaskAttachment,
@@ -81,6 +84,19 @@ export function TaskDetailPanel({ task, onClose, members = [], projects = [], en
   const [pending, startTransition] = useTransition()
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Areas (Sprint 13 A3) — a task is single-entity, so scope to its entity slug.
+  const [areaCatalogue, setAreaCatalogue] = useState<Area[]>([])
+  const [taskAreas, setTaskAreas] = useState<string[]>([])
+  const taskSlug = task.entities?.type
+  const availableAreas = areaCatalogue.filter(a => a.entity === taskSlug)
+  const [savingAreas, startAreaSave] = useTransition()
+  const saveAreas = (ids: string[]) => {
+    setTaskAreas(ids)
+    startAreaSave(async () => {
+      try { await updateTask(task.id, task.projects?.id ?? '', { area_ids: ids }) } catch { /* re-load on next open */ }
+    })
+  }
+
   useEffect(() => {
     const sb = createClient()
     setLoadingNotes(true)
@@ -93,6 +109,8 @@ export function TaskDetailPanel({ task, onClose, members = [], projects = [], en
       .then(({ data }: any) => { setFiles(data ?? []); setLoadingFiles(false) })
     setDocs(null)
     getTaskAttachments(task.id).then(setDocs).catch(() => setDocs([]))
+    listAreas().then(setAreaCatalogue).catch(() => {})
+    getTaskAreaIds(task.id).then(setTaskAreas).catch(() => {})
   }, [task.id])
 
   const handleAddNote = () => {
@@ -240,6 +258,16 @@ export function TaskDetailPanel({ task, onClose, members = [], projects = [], en
             </button>
           )}
         </div>
+
+        {/* Areas (Sprint 13 A3) — scoped to the task's entity */}
+        {availableAreas.length > 0 && (
+          <div className="px-5 py-2.5 border-b border-gray-200">
+            <div className="flex items-start gap-3">
+              <span className="text-xs text-gray-500 shrink-0 w-14 pt-1">Areas{savingAreas ? ' …' : ''}</span>
+              <AreaMultiSelect available={availableAreas} selected={taskAreas} onChange={saveAreas} className="flex-1" />
+            </div>
+          </div>
+        )}
 
         {/* Project */}
         <div className="px-5 py-2.5 border-b border-gray-200">

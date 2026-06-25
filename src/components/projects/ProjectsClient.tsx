@@ -5,6 +5,7 @@ import { ProjectCreateDialog } from './ProjectCreateDialog'
 import { ProjectEntityChips } from './ProjectEntityChips'
 import { TimelineView, type TimelineItem } from '@/components/shared/TimelineView'
 import { entityLabel } from '@/lib/entities/config'
+import { groupAreasByEntity, NO_AREA, type Area } from '@/lib/areas/areas'
 import type { TaskProgress } from '@/lib/projects/progress'
 import type { Database, ProjectStatus, ProjectPriority, EntityType } from '@/types/supabase'
 
@@ -26,20 +27,28 @@ interface Props {
   entities: Entity[]
   /** project_id → entity_id[] from the project_entities junction (multi-entity). */
   projectEntities?: Record<string, string[]>
+  /** All areas (Sprint 13 A3) + project_id → area_id[]. */
+  areas?: Area[]
+  projectAreas?: Record<string, string[]>
   /** project_id → completion. */
   progress?: Record<string, TaskProgress>
   /** project_id → its non-archived tasks (for the timeline view). */
   tasksByProject?: Record<string, ProjectTask[]>
 }
 
-export function ProjectsClient({ projects, entities, projectEntities = {}, progress = {}, tasksByProject = {} }: Props) {
+export function ProjectsClient({ projects, entities, projectEntities = {}, areas = [], projectAreas = {}, progress = {}, tasksByProject = {} }: Props) {
   const [view, setView] = useState<'card' | 'list' | 'timeline'>('card')
   const [filterEntity, setFilterEntity] = useState<EntityType | 'all'>('all')
+  const [filterArea, setFilterArea] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<ProjectStatus | 'all'>('all')
   const [filterPriority, setFilterPriority] = useState<ProjectPriority | 'all'>('all')
   const [createOpen, setCreateOpen] = useState(false)
 
   const entityMap = Object.fromEntries(entities.map(e => [e.id, e]))
+  const areaNames = Object.fromEntries(areas.map(a => [a.id, a.name]))
+  // Areas for the selected entity (the Entity→Area sub-filter, D7).
+  const entityAreas = filterEntity === 'all' ? [] : (groupAreasByEntity(areas)[filterEntity] ?? [])
+  const areaNamesOf = (p: Project): string[] => (projectAreas[p.id] ?? []).map(id => areaNames[id]).filter(Boolean) as string[]
 
   // Resolve a project's full entity set from the junction (sole source of truth).
   const entitiesOf = (p: Project): Entity[] => {
@@ -50,6 +59,10 @@ export function ProjectsClient({ projects, entities, projectEntities = {}, progr
   const filtered = projects.filter(p => {
     // OR-semantics: a project matches the entity filter if ANY of its entities matches.
     if (filterEntity !== 'all' && !entitiesOf(p).some(e => e.type === filterEntity)) return false
+    if (filterArea !== null) {
+      const ids = projectAreas[p.id] ?? []
+      if (filterArea === NO_AREA ? ids.length > 0 : !ids.includes(filterArea)) return false
+    }
     if (filterStatus !== 'all' && p.status !== filterStatus) return false
     if (filterPriority !== 'all' && p.priority !== filterPriority) return false
     return true
@@ -92,9 +105,9 @@ export function ProjectsClient({ projects, entities, projectEntities = {}, progr
         <div className="flex flex-wrap items-center gap-3 mb-6">
           {/* Entity filter */}
           <div className="flex items-center rounded-lg border border-gray-200 bg-white p-1 gap-1">
-            <button className={btnCls(filterEntity === 'all')} onClick={() => setFilterEntity('all')}>All</button>
+            <button className={btnCls(filterEntity === 'all')} onClick={() => { setFilterEntity('all'); setFilterArea(null) }}>All</button>
             {entities.map(e => (
-              <button key={e.id} className={btnCls(filterEntity === e.type as EntityType)} onClick={() => setFilterEntity(e.type as EntityType)}>
+              <button key={e.id} className={btnCls(filterEntity === e.type as EntityType)} onClick={() => { setFilterEntity(e.type as EntityType); setFilterArea(null) }}>
                 <span className="inline-block w-2 h-2 rounded-full mr-1.5" style={{ backgroundColor: e.color ?? undefined }} />
                 {entityLabel(e.type)}
               </button>
@@ -127,6 +140,21 @@ export function ProjectsClient({ projects, entities, projectEntities = {}, progr
           </div>
         </div>
 
+        {/* Entity→Area sub-filter (Sprint 13 A3, D7) — under a selected entity. */}
+        {filterEntity !== 'all' && entityAreas.length > 0 && (
+          <div className="-mt-2 mb-5 flex flex-wrap items-center gap-1.5">
+            <span className="mr-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Area</span>
+            {[{ id: null as string | null, name: 'All' }, ...entityAreas, { id: NO_AREA, name: 'No area' }].map(a => (
+              <button key={a.id ?? 'all'} onClick={() => setFilterArea(a.id)}
+                className={`rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                  filterArea === a.id ? 'border-indigo-600 bg-indigo-600 text-white' : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                }`}>
+                {a.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Empty state */}
         {filtered.length === 0 && (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-200 py-20">
@@ -143,7 +171,7 @@ export function ProjectsClient({ projects, entities, projectEntities = {}, progr
         {/* Card view */}
         {view === 'card' && filtered.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filtered.map(p => <ProjectCard key={p.id} project={p} entities={entitiesOf(p)} progress={progress[p.id]} />)}
+            {filtered.map(p => <ProjectCard key={p.id} project={p} entities={entitiesOf(p)} progress={progress[p.id]} areaNames={areaNamesOf(p)} />)}
           </div>
         )}
 
