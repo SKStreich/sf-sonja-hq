@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import { ProjectDetail } from '@/components/projects/ProjectDetail'
 import { fetchGitHubCommits } from '@/app/api/integrations/actions'
 import { fetchProjectEntityMap } from '@/lib/entities/multi-entity'
+import { fetchProjectAreaMap } from '@/lib/areas/junctions'
 
 export default async function ProjectDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient()
@@ -28,6 +29,10 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
   const projectEntityMap = await fetchProjectEntityMap(supabase, [projectResult.data.id])
   const projectEntityIds = projectEntityMap[projectResult.data.id] ?? []
   const projectEntityRows = projectEntityIds.map((id: string) => entityMap[id]).filter(Boolean)
+  const projectAreaMap = await fetchProjectAreaMap(supabase, [projectResult.data.id])
+  const projectAreaIds = projectAreaMap[projectResult.data.id] ?? []
+  const { data: areasData } = await (supabase as any)
+    .from('areas').select('id,entity,name,slug,sort_order').order('entity').order('sort_order')
   const githubUrl: string | null = (projectResult.data as any).github_url ?? null
   const commits = githubUrl ? await fetchGitHubCommits(githubUrl, 20).catch(() => []) : []
 
@@ -39,6 +44,8 @@ export default async function ProjectDetailPage({ params }: { params: { id: stri
       files={filesResult.data ?? []}
       projectEntities={projectEntityRows}
       entities={entitiesResult.data ?? []}
+      areas={areasData ?? []}
+      projectAreaIds={projectAreaIds}
       initialCommits={commits}
       initialGithubUrl={githubUrl}
       members={membersResult.data ?? []}

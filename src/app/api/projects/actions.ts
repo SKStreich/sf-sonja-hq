@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 import type { ProjectStatus, ProjectPriority } from '@/types/supabase'
 import { setProjectEntities } from '@/lib/entities/multi-entity'
+import { setProjectAreas } from '@/lib/areas/junctions'
 import { refreshNextAction } from '@/lib/projects/next-action'
 
 interface ProjectPayload {
@@ -10,6 +11,8 @@ interface ProjectPayload {
   entity_id: string
   /** Multi-entity set (entities.id UUIDs). ≥1 required. */
   entity_ids?: string[]
+  /** Area ids (Sprint 13 A3). Optional; reconciled into project_areas. */
+  area_ids?: string[]
   name: string
   description?: string | null
   status?: ProjectStatus
@@ -52,6 +55,9 @@ export async function createProject(payload: ProjectPayload): Promise<{ id: stri
   if (error) throw new Error('Failed to create project')
   const projectId = (data as any).id
   await setProjectEntities(supabase, projectId, org_id, entityIds)
+  if (payload.area_ids && payload.area_ids.length > 0) {
+    await setProjectAreas(supabase, projectId, org_id, payload.area_ids)
+  }
 
   // The "next action" entered on the create form becomes a real, completable
   // task — pinned first in the project's task list. refreshNextAction then
@@ -84,8 +90,9 @@ export async function createProject(payload: ProjectPayload): Promise<{ id: stri
 
 export async function updateProject(id: string, payload: Partial<ProjectPayload> & { status?: ProjectStatus }) {
   const { supabase, user, org_id } = await getContext()
-  // Strip entity_ids + legacy entity_id (not columns); entities live in the junction.
-  const { entity_ids, entity_id: _legacyEntityId, ...rest } = payload
+  // Strip entity_ids + area_ids + legacy entity_id (not columns); those live in
+  // their junctions.
+  const { entity_ids, area_ids, entity_id: _legacyEntityId, ...rest } = payload
   const update: Record<string, any> = { ...rest }
   if (entity_ids !== undefined && entity_ids.length === 0) {
     throw new Error('At least one entity is required')
@@ -93,6 +100,7 @@ export async function updateProject(id: string, payload: Partial<ProjectPayload>
   const { error } = await (supabase as any).from('projects').update(update).eq('id', id)
   if (error) throw new Error('Failed to update project')
   if (entity_ids !== undefined) await setProjectEntities(supabase, id, org_id, entity_ids)
+  if (area_ids !== undefined) await setProjectAreas(supabase, id, org_id, area_ids)
 
   // Keep the "next action" headline and its backing task in sync. Editing the
   // next-action fields on the project form updates the pinned task (or creates
