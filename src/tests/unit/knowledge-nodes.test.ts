@@ -96,6 +96,7 @@ describe('filterNodesByType', () => {
     // Inbox isn't a node type — the hub feeds an already-scoped list, so the
     // filter must not narrow by type (it would otherwise return []).
     expect(filterNodesByType(nodes, 'inbox')).toHaveLength(3)
+    expect(filterNodesByType(nodes, 'stale')).toHaveLength(3)
   })
 })
 
@@ -126,5 +127,10 @@ describe('TYPE_FILTERS', () => {
     const inbox = TYPE_FILTERS.find(t => t.value === 'inbox')
     expect(inbox).toBeDefined()
     expect(inbox!.label).toContain('Inbox')
+  })
+  it('includes the 🕓 Review (stale) filter', () => {
+    const stale = TYPE_FILTERS.find(t => t.value === 'stale')
+    expect(stale).toBeDefined()
+    expect(stale!.label).toContain('Review')
   })
 })

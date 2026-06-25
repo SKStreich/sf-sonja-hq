@@ -12,6 +12,7 @@ import { fetchEntryEntityMap, fetchEntryIdsForEntity, setEntryEntities, sortEnti
 import { ENTITY_SLUGS } from '@/lib/entities/config'
 import { htmlToMarkdown } from '@/lib/knowledge/html-to-markdown'
 import { classifyEntry } from '@/lib/knowledge/classify'
+import { isStale } from '@/lib/knowledge/staleness'
 
 const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
@@ -43,6 +44,11 @@ export interface KnowledgeEntry {
   /** AI's entity guess for an inbox item, pre-selected in the triage UI and
    *  cleared on file (D6). A suggestion only — membership lives in the junction. */
   suggested_entity: string | null
+  /** Review cadence in days (Sprint 13 staleness). 0 = evergreen / never stale. */
+  staleness_days: number
+  /** When the human last vouched for this entry; null = never explicitly reviewed
+   *  (the staleness formula then ages it from created_at). */
+  last_reviewed_at: string | null
   tags: string[]
   source: string
   source_ref: string | null
@@ -216,6 +222,8 @@ export async function updateEntry(id: string, patch: {
   /** Multi-entity set. When provided, reconciles the junction (≥1 required). */
   entities?: Entity[]
   status?: 'active' | 'archived'
+  /** Review cadence (Sprint 13 staleness). Metadata — not a versioned content edit. */
+  staleness_days?: number
 }) {
   const { supabase, user, org_id } = await getCtx()
   const current = await getEntry(id)
@@ -270,6 +278,8 @@ export async function updateEntry(id: string, patch: {
   if (patch.idea_status !== undefined) update.idea_status = patch.idea_status
   if (patch.tags !== undefined) update.tags = patch.tags
   if (patch.status !== undefined) update.status = patch.status
+  // Cadence is metadata, not versioned content — set it without snapshotting.
+  if (patch.staleness_days !== undefined) update.staleness_days = patch.staleness_days
 
   const { error } = await (supabase as any)
     .from('knowledge_entries').update(update).eq('id', id)
@@ -277,6 +287,46 @@ export async function updateEntry(id: string, patch: {
   if (entitySet !== undefined) await setEntryEntities(supabase, id, org_id, entitySet)
   revalidatePath('/dashboard/knowledge')
   revalidatePath(`/dashboard/knowledge/${id}`)
+}
+
+/**
+ * Mark an entry as reviewed (Sprint 13 staleness, concept #1). Resets
+ * last_reviewed_at = now() so the staleness clock restarts — the human has
+ * just vouched for the content. Not a versioned content edit; the existing
+ * updated_at trigger floats the freshly-reviewed entry to the top of the feed.
+ * Throws on 0 rows so an RLS-blocked review doesn't silently no-op.
+ */
+export async function markEntryReviewed(id: string): Promise<void> {
+  const { supabase } = await getCtx()
+  const { data, error } = await (supabase as any)
+    .from('knowledge_entries')
+    .update({ last_reviewed_at: new Date().toISOString() })
+    .eq('id', id)
+    .select('id')
+  if (error) throw new Error('Failed to mark reviewed: ' + error.message)
+  if (!data || data.length === 0) {
+    throw new Error('Nothing was marked reviewed — you may not have permission for this entry.')
+  }
+  revalidatePath('/dashboard/knowledge')
+  revalidatePath(`/dashboard/knowledge/${id}`)
+  revalidatePath('/dashboard')
+}
+
+/**
+ * The "needs review" queue (Sprint 13 staleness). Filed, active, standard entries
+ * whose review cadence has lapsed — inbox items are pre-triage (their own queue)
+ * and never count as stale. Staleness is computed in-app via the single shared
+ * formula (src/lib/knowledge/staleness.ts) so the badge / filter / count agree.
+ */
+export async function listStaleEntries(opts: { entity?: Entity | null; query?: string | null } = {}): Promise<KnowledgeEntry[]> {
+  const entries = await listEntries({ entity: opts.entity, query: opts.query, triage: 'filed', limit: 500 })
+  const now = Date.now()
+  return entries.filter(e => isStale(e, now))
+}
+
+/** Count of stale entries — the dashboard "🕓 N to review" chip number. */
+export async function countStale(): Promise<number> {
+  return (await listStaleEntries()).length
 }
 
 /**

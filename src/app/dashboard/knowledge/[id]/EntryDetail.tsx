@@ -4,8 +4,10 @@ import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState, useTransition } from 'react'
 import {
   updateEntry, updateEntryOriginal, deleteEntry, convertEntryToPage, reflowPageFromOriginal,
+  markEntryReviewed,
   type KnowledgeEntry, type Kind, type Entity,
 } from '@/app/api/knowledge/actions'
+import { staleStatus, STALENESS_PRESETS } from '@/lib/knowledge/staleness'
 import {
   attachEntryToDatabase, getEntryDatabaseLinks, type EntryDatabaseLink,
 } from '@/app/api/knowledge/links'
@@ -207,6 +209,8 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
         </button>
       </div>
 
+      <StalenessPanel entry={entry} />
+
       {shareOpen && (
         <ShareDialog entryId={entry.id} onClose={() => setShareOpen(false)} />
       )}
@@ -340,6 +344,75 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
       {tab === 'history' && (
         <HistoryTab versions={versions} currentVersion={entry.version} />
       )}
+    </div>
+  )
+}
+
+/**
+ * Staleness panel (Sprint 13, concept #1). Shows whether the entry is still
+ * trustworthy, lets the human re-vouch for it ("Mark as reviewed" → resets the
+ * clock), and sets the per-entry review cadence (0 = evergreen). Uses the shared
+ * formula so the badge matches the hub's 🕓 Review queue and the dashboard chip.
+ */
+function StalenessPanel({ entry }: { entry: KnowledgeEntry }) {
+  const router = useRouter()
+  const [days, setDays] = useState(entry.staleness_days ?? 60)
+  const [saving, startSave] = useTransition()
+  const [reviewing, startReview] = useTransition()
+  // Recompute from the entry's persisted cadence on each render; the local `days`
+  // drives the selector and an optimistic status while a save is in flight.
+  const status = staleStatus({ ...entry, staleness_days: days })
+
+  const review = () => startReview(async () => {
+    try { await markEntryReviewed(entry.id); router.refresh() } catch { /* surfaced on retry */ }
+  })
+  const changeCadence = (value: number) => {
+    setDays(value)
+    startSave(async () => {
+      try { await updateEntry(entry.id, { staleness_days: value }); router.refresh() } catch { setDays(entry.staleness_days ?? 60) }
+    })
+  }
+
+  const reviewedLabel = entry.last_reviewed_at
+    ? `Last reviewed ${new Date(entry.last_reviewed_at).toLocaleDateString()}`
+    : 'Never reviewed'
+  const dueLabel = status.evergreen
+    ? 'Evergreen — never goes stale'
+    : status.stale
+      ? `Stale — ${Math.abs(status.dueInDays!)} day${Math.abs(status.dueInDays!) === 1 ? '' : 's'} overdue`
+      : `Fresh — review due in ${status.dueInDays} day${status.dueInDays === 1 ? '' : 's'}`
+
+  return (
+    <div className={`mb-4 flex flex-wrap items-center gap-3 rounded-lg border px-3 py-2 text-xs ${
+      status.stale ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'
+    }`}>
+      <span className={`font-semibold ${status.stale ? 'text-amber-800' : 'text-gray-700'}`}>
+        {status.stale ? '🕓 ' : status.evergreen ? '♾ ' : '✓ '}{dueLabel}
+      </span>
+      <span className="text-gray-400">·</span>
+      <span className="text-gray-500">{reviewedLabel}</span>
+      <div className="ml-auto flex items-center gap-2">
+        <label className="text-gray-500">
+          Review cadence{' '}
+          <select
+            value={days}
+            onChange={e => changeCadence(Number(e.target.value))}
+            disabled={saving}
+            className="rounded border border-gray-200 bg-white px-1.5 py-1 text-xs text-gray-700 outline-none focus:border-indigo-400 disabled:opacity-50"
+          >
+            {STALENESS_PRESETS.map(p => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+        </label>
+        <button
+          onClick={review}
+          disabled={reviewing}
+          className="rounded-md bg-amber-600 px-3 py-1 font-medium text-white hover:bg-amber-500 disabled:opacity-40"
+        >
+          {reviewing ? 'Marking…' : '✓ Mark as reviewed'}
+        </button>
+      </div>
     </div>
   )
 }
