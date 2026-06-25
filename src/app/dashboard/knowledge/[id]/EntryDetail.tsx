@@ -46,7 +46,10 @@ import {
 import { createTaskFromWorkspace } from '@/app/api/tasks/actions'
 import { getMergedFrom, getMergedInto, type MergedRef } from '@/app/api/knowledge/merge'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
+import { AreaMultiSelect } from '@/components/shared/AreaMultiSelect'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
+import { listAreas } from '@/app/api/areas/actions'
+import { type Area } from '@/lib/areas/areas'
 
 // 'workspace' (a Page) is included so a converted page's Kind field renders
 // correctly — without it the <select value="workspace"> falls back to showing
@@ -77,6 +80,8 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
   const [body, setBody] = useState(entry.body ?? '')
   const [kind, setKind] = useState<Kind>(entry.kind as Kind)
   const [entities, setEntities] = useState<Entity[]>(entry.entities ?? [])
+  const [areaCatalogue, setAreaCatalogue] = useState<Area[]>([])
+  const [areaSel, setAreaSel] = useState<string[]>(entry.areas ?? [])
   const [tagsInput, setTagsInput] = useState((entry.tags ?? []).join(', '))
   const [dirty, setDirty] = useState(false)
   const [saving, startSave] = useTransition()
@@ -91,8 +96,18 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
     listForwardRequests(entry.id)
       .then(reqs => { if (!cancelled) setPendingForwards(reqs.filter(r => r.status === 'pending').length) })
       .catch(() => {})
+    listAreas()
+      .then(a => { if (!cancelled) setAreaCatalogue(a) })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [entry.id, reloadKey])
+
+  // Areas are scoped to the entry's entities (D6); prune any out-of-scope picks.
+  const availableAreas = areaCatalogue.filter(a => entities.includes(a.entity as Entity))
+  useEffect(() => {
+    setAreaSel(prev => prev.filter(id => availableAreas.some(a => a.id === id)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entities, areaCatalogue])
 
   const hasOriginal =
     !!entry.storage_path ||
@@ -112,6 +127,7 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
           kind,
           entities,
           tags,
+          areas: areaSel,
         })
         setDirty(false)
         router.refresh()
@@ -275,6 +291,15 @@ export function EntryDetail({ entry, versions, critiques, followUpNotes }: Props
                 className="w-64 rounded border border-gray-300 px-2 py-1 text-sm text-gray-900"
               />
             </Field>
+            {availableAreas.length > 0 && (
+              <Field label="Areas">
+                <AreaMultiSelect
+                  available={availableAreas}
+                  selected={areaSel}
+                  onChange={v => { setAreaSel(v); markDirty() }}
+                />
+              </Field>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <button onClick={runCritique} disabled={working || entry.kind === 'critique'}
                 className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:opacity-40">

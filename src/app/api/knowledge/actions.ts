@@ -13,6 +13,8 @@ import { ENTITY_SLUGS } from '@/lib/entities/config'
 import { htmlToMarkdown } from '@/lib/knowledge/html-to-markdown'
 import { classifyEntry } from '@/lib/knowledge/classify'
 import { isStale } from '@/lib/knowledge/staleness'
+import { NO_AREA } from '@/lib/areas/areas'
+import { fetchEntryAreaMap, fetchEntryIdsForArea, fetchEntryIdsWithAnyArea, setEntryAreas } from '@/lib/areas/junctions'
 
 const KINDS = ['idea', 'doc', 'chat', 'note', 'critique', 'workspace'] as const
 export type Kind = typeof KINDS[number]
@@ -32,6 +34,8 @@ export interface KnowledgeEntry {
   access: 'standard' | 'vault'
   /** Multi-entity membership from the junction (≥1). */
   entities: Entity[]
+  /** Area ids from knowledge_entry_areas (Sprint 13 A2). Optional — may be empty. */
+  areas: string[]
   title: string | null
   body: string | null
   summary: string | null
@@ -82,6 +86,9 @@ export async function listEntries(opts: {
   /** Triage scope (Sprint 13). Omit = no triage filter (all rows);
    *  'filed'/'inbox' restrict to that triage_status. */
   triage?: 'filed' | 'inbox'
+  /** Area scope (Sprint 13 A2): an area id to filter by, or NO_AREA for entries
+   *  with no area. Intersects with the entity filter. */
+  area?: string | null
   limit?: number
 } = {}): Promise<KnowledgeEntry[]> {
   const { supabase } = await getCtx()
@@ -96,12 +103,22 @@ export async function listEntries(opts: {
   if (opts.triage) q = q.eq('triage_status', opts.triage)
   if (opts.kind) q = q.eq('kind', opts.kind)
   else q = q.neq('kind', 'critique')
-  // Entity filter routes through the junction (OR-semantics): an entry matches
-  // if it is tagged with the selected entity, regardless of its other entities.
-  if (opts.entity) {
-    const entryIds = await fetchEntryIdsForEntity(supabase, opts.entity)
-    if (entryIds.length === 0) return []
-    q = q.in('id', entryIds)
+  // Entity + specific-area filters route through their junctions (OR within a
+  // filter, AND across filters) and intersect into one include-set. "No area"
+  // is an EXCLUDE (entries that have any area are removed).
+  let includeIds: string[] | null = null
+  const addInclude = (ids: string[]) => {
+    includeIds = includeIds === null ? ids : includeIds.filter(id => ids.includes(id))
+  }
+  if (opts.entity) addInclude(await fetchEntryIdsForEntity(supabase, opts.entity))
+  if (opts.area && opts.area !== NO_AREA) addInclude(await fetchEntryIdsForArea(supabase, opts.area))
+  if (includeIds !== null) {
+    if ((includeIds as string[]).length === 0) return []
+    q = q.in('id', includeIds)
+  }
+  if (opts.area === NO_AREA) {
+    const withArea = await fetchEntryIdsWithAnyArea(supabase)
+    if (withArea.length > 0) q = q.not('id', 'in', `(${withArea.join(',')})`)
   }
   if (opts.query && opts.query.trim()) {
     const needle = `%${opts.query.trim()}%`
@@ -110,10 +127,15 @@ export async function listEntries(opts: {
   const { data, error } = await q
   if (error) throw new Error('Failed to list entries: ' + error.message)
   const rows = (data ?? []) as KnowledgeEntry[]
-  const entityMap = await fetchEntryEntityMap(supabase, rows.map(r => r.id))
+  const ids = rows.map(r => r.id)
+  const [entityMap, areaMap] = await Promise.all([
+    fetchEntryEntityMap(supabase, ids),
+    fetchEntryAreaMap(supabase, ids),
+  ])
   return rows.map(r => ({
     ...r,
     entities: (entityMap[r.id] ?? []) as Entity[],
+    areas: areaMap[r.id] ?? [],
   }))
 }
 
@@ -122,8 +144,11 @@ export async function getEntry(id: string): Promise<KnowledgeEntry | null> {
   const { data } = await (supabase as any)
     .from('knowledge_entries').select('*').eq('id', id).maybeSingle()
   if (!data) return null
-  const entityMap = await fetchEntryEntityMap(supabase, [id])
-  return { ...data, entities: entityMap[id] ?? [] } as KnowledgeEntry
+  const [entityMap, areaMap] = await Promise.all([
+    fetchEntryEntityMap(supabase, [id]),
+    fetchEntryAreaMap(supabase, [id]),
+  ])
+  return { ...data, entities: entityMap[id] ?? [], areas: areaMap[id] ?? [] } as KnowledgeEntry
 }
 
 export async function createEntry(input: {
@@ -136,6 +161,8 @@ export async function createEntry(input: {
   title?: string
   type_hint?: TypeHint
   tags?: string[]
+  /** Area ids to file under (Sprint 13 A2). Optional; must belong to the entities. */
+  areas?: string[]
 }): Promise<{ id: string }> {
   const { supabase, user, org_id } = await getCtx()
   const body = input.body?.trim()
@@ -178,6 +205,9 @@ export async function createEntry(input: {
     .single()
   if (error) throw new Error('Failed to create entry: ' + error.message)
   await setEntryEntities(supabase, data.id as string, org_id, entitySet)
+  if (input.areas && input.areas.length > 0) {
+    await setEntryAreas(supabase, data.id as string, org_id, input.areas)
+  }
   revalidatePath('/dashboard/knowledge')
   return { id: data.id as string }
 }
@@ -224,6 +254,9 @@ export async function updateEntry(id: string, patch: {
   status?: 'active' | 'archived'
   /** Review cadence (Sprint 13 staleness). Metadata — not a versioned content edit. */
   staleness_days?: number
+  /** Area ids (Sprint 13 A2). When provided, reconciles knowledge_entry_areas
+   *  to exactly this set (empty = clear all areas). */
+  areas?: string[]
 }) {
   const { supabase, user, org_id } = await getCtx()
   const current = await getEntry(id)
@@ -285,6 +318,7 @@ export async function updateEntry(id: string, patch: {
     .from('knowledge_entries').update(update).eq('id', id)
   if (error) throw new Error('Failed to update: ' + error.message)
   if (entitySet !== undefined) await setEntryEntities(supabase, id, org_id, entitySet)
+  if (patch.areas !== undefined) await setEntryAreas(supabase, id, org_id, patch.areas)
   revalidatePath('/dashboard/knowledge')
   revalidatePath(`/dashboard/knowledge/${id}`)
 }

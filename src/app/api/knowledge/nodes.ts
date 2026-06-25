@@ -24,6 +24,9 @@ export async function listNodes(opts: {
   triage?: 'filed' | 'inbox'
   /** Stale scope (Sprint 13): the "needs review" queue — entries-only, like inbox. */
   stale?: boolean
+  /** Area scope (Sprint 13 A2): an area id, or NO_AREA. Entries-only — databases
+   *  and vault have no area, so they're dropped when an area filter is active. */
+  area?: string | null
 } = {}): Promise<KnowledgeNode[]> {
   const entity = opts.entity ?? null
   const query = (opts.query ?? '').trim().toLowerCase()
@@ -38,6 +41,12 @@ export async function listNodes(opts: {
   // Inbox is entries-only — skip the database + vault reads entirely.
   if (triage === 'inbox') {
     const entries = await listEntries({ entity, query: opts.query, triage: 'inbox', limit: 500 })
+    return buildNodes({ entries, databases: [], vault: [] })
+  }
+
+  // An active area filter is entries-only (databases/vault carry no area).
+  if (opts.area) {
+    const entries = await listEntries({ entity, query: opts.query, triage: 'filed', area: opts.area, limit: 500 })
     return buildNodes({ entries, databases: [], vault: [] })
   }
 

@@ -11,6 +11,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { EntityChips } from '@/components/shared/EntityChips'
+import { AreaChips } from '@/components/shared/AreaChips'
 import { EntityMultiSelect } from '@/components/shared/EntityMultiSelect'
 import { ENTITY_SELECT_OPTIONS } from '@/lib/entities/config'
 import { TYPE_META, type KnowledgeNode } from '@/lib/knowledge/nodes'
@@ -36,6 +37,8 @@ interface Props {
   /** Stale "needs review" queue (Sprint 13 staleness): mark an entry reviewed.
    *  When set, entry cards render an inline "✓ Mark reviewed" bar. */
   onReview?: (id: string) => Promise<void>
+  /** Area id → name (Sprint 13 A2), to render an entry's area chips on cards. */
+  areaNames?: Record<string, string>
 }
 
 /** Hide workspace child pages (shown as a count pill on their parent, reachable
@@ -149,7 +152,7 @@ function TreeRow({ item, ...props }: { item: TreeNode } & Props) {
 
 function CardsGrid({
   visible, childCount, pendingForwards = {}, selectable = false, selectedIds,
-  onToggleSelect, onChat, onDelete, onOpenDatabase, onOpenVault, onFile, onReview,
+  onToggleSelect, onChat, onDelete, onOpenDatabase, onOpenVault, onFile, onReview, areaNames = {},
 }: Props & { visible: KnowledgeNode[]; childCount: Map<string, number> }) {
   return (
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -169,6 +172,7 @@ function CardsGrid({
             onDelete={onDelete}
             onFile={onFile}
             onReview={onReview}
+            areaNames={areaNames}
           />
         )
       })}
@@ -186,7 +190,7 @@ function TypeBadge({ type }: { type: KnowledgeNode['type'] }) {
 }
 
 function EntryCard({
-  node, childCount, pending, selectable, selected, onToggleSelect, onChat, onDelete, onFile, onReview,
+  node, childCount, pending, selectable, selected, onToggleSelect, onChat, onDelete, onFile, onReview, areaNames = {},
 }: {
   node: KnowledgeNode; childCount: number; pending: number
   selectable: boolean; selected: boolean
@@ -195,8 +199,10 @@ function EntryCard({
   onDelete?: (id: string) => void
   onFile?: (id: string, entities: string[]) => Promise<void>
   onReview?: (id: string) => Promise<void>
+  areaNames?: Record<string, string>
 }) {
   const e = node.entry!
+  const areaLabels = (e.areas ?? []).map(id => areaNames[id]).filter(Boolean) as string[]
   const isInbox = e.triage_status === 'inbox' && !!onFile
   // Surface staleness at a glance on every entry card; the inline review bar only
   // shows in the dedicated 🕓 Review queue (where onReview is wired).
@@ -252,6 +258,7 @@ function EntryCard({
           ))}
         </div>
       )}
+      {areaLabels.length > 0 && <AreaChips names={areaLabels} className="mb-2" />}
       {isInbox && onFile && <TriageBar node={node} onFile={onFile} />}
       {showReview && onReview && <ReviewBar node={node} onReview={onReview} />}
       <div className="mt-auto flex items-center justify-between border-t border-gray-100 pt-2 text-[11px] text-gray-400">
