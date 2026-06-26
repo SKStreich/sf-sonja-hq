@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import {
   getGranolaApiKey, isGranolaConfigured, granolaFetch, listGranolaNotes, GRANOLA_API_BASE,
+  extractGranolaSummary,
 } from '@/lib/integrations/granola'
 
 describe('getGranolaApiKey', () => {
@@ -50,5 +51,26 @@ describe('listGranolaNotes', () => {
   it('throws with the status on a non-ok response', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 401, json: async () => ({}) }))
     await expect(listGranolaNotes({ key: 'bad' })).rejects.toThrow('Granola API 401')
+  })
+})
+
+describe('extractGranolaSummary', () => {
+  it('prefers the first present string field in order', () => {
+    expect(extractGranolaSummary({ summary: 'S', ai_summary: 'A' })).toBe('S')
+    expect(extractGranolaSummary({ ai_summary: 'A', overview: 'O' })).toBe('A')
+    expect(extractGranolaSummary({ overview: 'O' })).toBe('O')
+  })
+  it('trims and skips empty/whitespace strings', () => {
+    expect(extractGranolaSummary({ summary: '   ', overview: 'O' })).toBe('O')
+    expect(extractGranolaSummary({ summary: '  hi  ' })).toBe('hi')
+  })
+  it('reads nested { summary: { text|markdown } } shapes', () => {
+    expect(extractGranolaSummary({ summary: { text: 'T' } })).toBe('T')
+    expect(extractGranolaSummary({ summary: { markdown: 'M' } })).toBe('M')
+  })
+  it('returns null when no summary text is present', () => {
+    expect(extractGranolaSummary({ title: 'x' })).toBeNull()
+    expect(extractGranolaSummary(null)).toBeNull()
+    expect(extractGranolaSummary('nope')).toBeNull()
   })
 })

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { regenerateCaptureKey, regenerateUploadKey } from '@/app/api/captures/actions'
 import { inviteOrgMember, revokeInvitation, resendInvitation, removeMember, updateMemberRole } from '@/app/api/members/actions'
 import { testGranolaConnection, type GranolaConnectionStatus } from '@/app/api/integrations/granola/actions'
+import { importGranolaNotes, type GranolaImportResult } from '@/app/api/integrations/granola/import'
 import { AreasManager } from '@/components/settings/AreasManager'
 
 interface Member { id: string; full_name: string | null; email: string; role: string; created_at: string; active: boolean }
@@ -73,6 +74,25 @@ export function SettingsClient({ captureApiKey: initialKey, uploadApiKey: initia
     startGranolaTest(async () => {
       try { setGranolaStatus(await testGranolaConnection()) }
       catch (e: any) { setGranolaStatus({ ok: false, configured: false, message: e?.message ?? 'Test failed' }) }
+    })
+  }
+
+  const [granolaImporting, startGranolaImport] = useTransition()
+  const [granolaImport, setGranolaImport] = useState<{ ok: boolean; message: string } | null>(null)
+  const runGranolaImport = () => {
+    setGranolaImport(null)
+    startGranolaImport(async () => {
+      try {
+        const r: GranolaImportResult = await importGranolaNotes()
+        setGranolaImport({
+          ok: true,
+          message: r.scanned === 0
+            ? 'No Granola notes found to import.'
+            : `Imported ${r.created} new note${r.created === 1 ? '' : 's'}, skipped ${r.skipped} already-imported (scanned ${r.scanned}).`,
+        })
+      } catch (e: any) {
+        setGranolaImport({ ok: false, message: e?.message ?? 'Import failed' })
+      }
     })
   }
 
@@ -385,15 +405,15 @@ export function SettingsClient({ captureApiKey: initialKey, uploadApiKey: initia
         </div>
       </section>
 
-      {/* Granola integration (Sprint 13 foundation) */}
+      {/* Granola integration (Sprint 13) */}
       <section className="rounded-xl border border-gray-200 bg-white p-6 mb-6">
         <h2 className="text-base font-semibold text-gray-900 mb-1">Granola</h2>
         <p className="text-sm text-gray-500 mb-4">
           Set <code className="text-indigo-700">GRANOLA_API_KEY</code> in Vercel (Settings → Environment Variables,
-          Production scope) to your <code className="text-indigo-700">grn_…</code> token. The Granola → triage-inbox
-          importer ships next session; this just verifies the token reaches the API.
+          Production scope) to your <code className="text-indigo-700">grn_…</code> token, then pull your meeting notes
+          into the 📥 triage inbox. Re-running is safe — already-imported notes are skipped.
         </p>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={runGranolaTest}
             disabled={granolaTesting}
@@ -401,12 +421,24 @@ export function SettingsClient({ captureApiKey: initialKey, uploadApiKey: initia
           >
             {granolaTesting ? 'Testing…' : 'Test connection'}
           </button>
+          <button
+            onClick={runGranolaImport}
+            disabled={granolaImporting}
+            className="rounded-md bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
+          >
+            {granolaImporting ? 'Importing…' : '⇪ Import from Granola'}
+          </button>
           {granolaStatus && (
             <span className={`text-sm ${granolaStatus.ok ? 'text-emerald-600' : 'text-red-600'}`}>
               {granolaStatus.ok ? '✓ ' : '✕ '}{granolaStatus.message}
             </span>
           )}
         </div>
+        {granolaImport && (
+          <p className={`mt-3 text-sm ${granolaImport.ok ? 'text-emerald-600' : 'text-red-600'}`}>
+            {granolaImport.ok ? '✓ ' : '✕ '}{granolaImport.message}
+          </p>
+        )}
       </section>
 
       {/* Areas (Sprint 13 A1) — the per-entity area catalogue */}
