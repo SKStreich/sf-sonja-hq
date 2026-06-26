@@ -57,6 +57,38 @@ export async function granolaFetch(
   })
 }
 
+/**
+ * Pull a plain-text summary out of a Granola note-detail payload. The public API
+ * field name isn't pinned in our integration yet, so this is tolerant: it tries
+ * the common summary fields, then a couple of nested shapes, and returns null if
+ * none carry text. PURE so the mapping is unit-tested independently of the API.
+ */
+export function extractGranolaSummary(raw: any): string | null {
+  if (!raw || typeof raw !== 'object') return null
+  // Direct string fields, in preference order.
+  for (const k of ['summary', 'ai_summary', 'aiSummary', 'overview', 'notes', 'content', 'body']) {
+    const v = raw[k]
+    if (typeof v === 'string' && v.trim()) return v.trim()
+  }
+  // Nested { summary: { text } } / { summary: { markdown } } shapes.
+  for (const k of ['summary', 'ai_summary']) {
+    const v = raw[k]
+    if (v && typeof v === 'object') {
+      const t = v.text ?? v.markdown ?? v.content
+      if (typeof t === 'string' && t.trim()) return t.trim()
+    }
+  }
+  return null
+}
+
+/** Fetch a single note's detail (for its AI summary). Returns the raw object so
+ *  the caller can extract via extractGranolaSummary. */
+export async function getGranolaNote(id: string, key: string): Promise<any> {
+  const res = await granolaFetch(`/notes/${encodeURIComponent(id)}`, key)
+  if (!res.ok) throw new Error(`Granola API ${res.status}`)
+  return res.json().catch(() => ({}))
+}
+
 /** List meeting notes (one page). The importer will paginate via the cursor. */
 export async function listGranolaNotes(opts: {
   key: string
