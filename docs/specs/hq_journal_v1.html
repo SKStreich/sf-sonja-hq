@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sonja HQ — Daily Journal · Spec v1</title>
+<style>
+  :root {
+    --ink: #1c1c28; --muted: #5b5b6b; --line: #e4e4ee; --bg: #fbfbfd;
+    --accent: #4338ca; --accent-soft: #eef2ff; --ok: #15803d; --warn: #b45309;
+    --code-bg: #f4f4f8;
+  }
+  * { box-sizing: border-box; }
+  body { font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+         color: var(--ink); background: var(--bg); margin: 0; padding: 0 1.25rem 5rem; }
+  .wrap { max-width: 860px; margin: 0 auto; }
+  header.doc { padding: 2.5rem 0 1.25rem; border-bottom: 2px solid var(--ink); margin-bottom: 2rem; }
+  .eyebrow { text-transform: uppercase; letter-spacing: .12em; font-size: .72rem; font-weight: 700;
+             color: var(--accent); margin: 0 0 .5rem; }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .5rem; }
+  h2 { font-size: 1.3rem; margin: 2.6rem 0 .8rem; padding-top: .4rem; border-top: 1px solid var(--line); }
+  h3 { font-size: 1.05rem; margin: 1.6rem 0 .5rem; }
+  .meta { color: var(--muted); font-size: .9rem; }
+  p, li { color: #2a2a38; }
+  code { background: var(--code-bg); padding: .1rem .35rem; border-radius: 4px; font-size: .86em;
+         font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  pre { background: var(--code-bg); padding: 1rem; border-radius: 8px; overflow:auto; font-size: .82rem;
+        border: 1px solid var(--line); }
+  pre code { background: none; padding: 0; }
+  table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: .9rem; }
+  th, td { border: 1px solid var(--line); padding: .5rem .65rem; text-align: left; vertical-align: top; }
+  th { background: var(--accent-soft); font-weight: 700; white-space: normal; }
+  td { white-space: normal; }
+  .callout { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--accent);
+             padding: .9rem 1.1rem; border-radius: 8px; margin: 1.1rem 0; }
+  .callout.warn { border-left-color: var(--warn); }
+  .callout.ok { border-left-color: var(--ok); }
+  .tag { display:inline-block; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+         padding:.12rem .45rem; border-radius:999px; background:var(--accent-soft); color:var(--accent); }
+  .oq { background:#fff; border:1px solid var(--line); border-radius:8px; padding:1rem 1.2rem; margin:1rem 0; }
+  .oq h3 { margin-top:0; }
+  .rec { color: var(--ok); font-weight:600; }
+  ul.tight { margin:.4rem 0; } ul.tight li { margin:.15rem 0; }
+  .small { font-size:.85rem; color:var(--muted); }
+  .lock { background:#dcfce7; color:#15803d; }
+  .draft { background:#fef3c7; color:#b45309; }
+  .pill { display:inline-block; font-size:.72rem; font-weight:600; padding:.1rem .5rem; border-radius:999px;
+          background:var(--accent-soft); color:var(--accent); margin:.1rem .2rem .1rem 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="doc">
+  <p class="eyebrow">Sonja HQ · Sprint 14 · Scoping Spec · LOCKED</p>
+  <h1>HQ Daily Journal — diary + auto context</h1>
+  <p class="meta">Version 1 · 2026-07-13 · Owner: Sonja Streich · Status: <span class="tag lock">✅ LOCKED 2026-07-13</span></p>
+  <p class="meta">A new feature (not from the <code>ae15bcf5</code> preserved-architecture set). North star: <em>a daily page Sonja writes or dictates on, with that day's HQ activity surfaced alongside as memory and prompts.</em> The journal is a <strong>hybrid</strong>: the left side is a diary (hers, freeform); the right side is an auto-context rail assembled live from what HQ already knows happened that day — completed tasks, filed knowledge, Granola meetings, project activity — plus a placeholder for a future "Daily Spark" section (inspirational quotes, things-you-didn't-know, puzzles).</p>
+</header>
+
+<h2>1 · Why</h2>
+<p>HQ captures what Sonja <em>does</em> (tasks, knowledge, meetings) but nothing captures what she <em>thinks about the day</em>. A journal closes that loop — and because HQ already holds the day's activity, it can do what a paper diary can't: show the day back to her while she writes. Capture friction must be near zero: type, dictate, or speak to Siri from the phone.</p>
+
+<h2>2 · Decisions</h2>
+<p class="small">D1–D4 locked with Sonja in chat 2026-07-13; D5–D9 proposed as defaults and locked as-is at spec review the same day. OQ-1/2/3 resolved per recommendation (see §7).</p>
+<table>
+  <tr><th style="width:4rem">#</th><th>Decision</th><th style="width:7rem">Status</th></tr>
+  <tr><td><strong>D1</strong></td><td><strong>Dedicated <code>journal_days</code> table</strong> — one row per day per user, <code>UNIQUE(org_id, user_id, entry_date)</code>, markdown <code>body</code>, owner-only RLS (per OQ-1). The journal is its own surface, NOT knowledge entries (<code>kind</code> stays 7 values; diary text never mixes into knowledge search, staleness, or triage).</td><td><span class="tag lock">✅ Locked</span></td></tr>
+  <tr><td><strong>D2</strong></td><td><strong>Siri/quick-capture journal items append straight to today's page</strong> — timestamped, no inbox stop, no AI classification. Non-journal captures keep the existing 📥 inbox path unchanged.</td><td><span class="tag lock">✅ Locked</span></td></tr>
+  <tr><td><strong>D3</strong></td><td><strong>Auto-context rail shows all four activity sources</strong> — (a) tasks completed that day, (b) knowledge created/filed that day, (c) Granola meetings that day, (d) that day's slice of the activity feed — <strong>plus a "✨ Daily Spark" placeholder card</strong> (quotes / things-you-didn't-know / puzzles) whose content pipeline is built later.</td><td><span class="tag lock">✅ Locked</span></td></tr>
+  <tr><td><strong>D4</strong></td><td><strong>Dictation ships in v1.</strong> Build the shared <code>VoiceDictateButton</code> (MediaRecorder → existing <code>/api/whisper</code> → insert transcript at cursor). The journal is its first home; the component lives in <code>src/components/shared/</code> for reuse on other HQ text fields later.</td><td><span class="tag lock">✅ Locked</span></td></tr>
+  <tr><td><strong>D5</strong></td><td><strong>Routes &amp; nav:</strong> <code>/dashboard/journal</code> = today; <code>/dashboard/journal/[date]</code> (ISO <code>YYYY-MM-DD</code>) = any day; ‹ prev / next › + a date picker in the header. "Journal" becomes a primary nav item in <code>DashboardNav</code>.</td><td><span class="tag lock">✅ Locked</span></td></tr>
+  <tr><td><strong>D6</strong></td><td><strong>Day boundary = America/Chicago</strong>, a single constant in <code>src/lib/journal/dates.ts</code> used by BOTH the page ("today") and the auto-context day-range queries — one source of truth, no UTC drift at midnight. (HQ has no per-user timezone setting; adding one is a future option.)</td><td><span class="tag lock">✅ Locked</span></td></tr>
+  <tr><td><strong>D7</strong></td><td><strong>No entity/area junctions on the journal in v1.</strong> A journal day is personal by nature — it spans every entity. Cross-links can come later (e.g. auto-linking mentioned items); the auto-context rail already provides the day↔work connection.</td><td><span class="tag lock">✅ Locked</span></td></tr>
+  <tr><td><strong>D8</strong></td><td><strong>Append mechanism is DB-side concat</strong> — captures append <code>\n\n**HH:MM** — text <em>(via Siri)</em></code> via a SQL-level <code>body = COALESCE(body,'') || $chunk</code> (an RPC), never read-modify-write from the app. This makes phone capture safe while the web editor is open, and creates the day row on first touch (upsert).</td><td><span class="tag lock">✅ Locked</span></td></tr>
+  <tr><td><strong>D9</strong></td><td><strong>Siri journal intent:</strong> the Siri payload gains <code>type:'journal'</code> (a dedicated "Journal" shortcut) AND the classifier path short-circuits on a <code>journal:</code> / <code>journal —</code> text prefix as fallback. Either signal → D2 append. The agent-drawer (<code>log_capture</code>) journal route is <strong>out of v1</strong> (Sonja chose web + Siri as the capture paths).</td><td><span class="tag lock">✅ Locked</span></td></tr>
+</table>
+
+<h2>3 · Data model</h2>
+<pre><code>CREATE TABLE journal_days (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id      UUID NOT NULL REFERENCES orgs(id) ON DELETE CASCADE,
+  user_id     UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  entry_date  DATE NOT NULL,
+  body        TEXT NOT NULL DEFAULT '',
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (org_id, user_id, entry_date)
+);
+-- updated_at trigger: handle_updated_at (standard)
+-- RLS — OWNER-ONLY (OQ-1 resolved: stricter than the usual org scope,
+-- because a diary is per-person even inside an org):
+--   journal_days_all FOR ALL
+--     USING (user_id = auth.uid() AND org_id = get_my_org_id())
+--     WITH CHECK (user_id = auth.uid() AND org_id = get_my_org_id());
+-- + append RPC: journal_append(p_entry_date DATE, p_chunk TEXT)
+--   SECURITY INVOKER upsert → INSERT ... ON CONFLICT (org_id,user_id,entry_date)
+--   DO UPDATE SET body = COALESCE(journal_days.body,'') || p_chunk
+</code></pre>
+<ul class="tight">
+  <li><strong>Auto-context is computed, never stored</strong> — assembled live from existing tables (the staleness precedent: compute, don't denormalize).</li>
+  <li>The first unique <strong>date-keyed</strong> pattern in HQ (the external-lineage index is the only prior unique index; nothing day-keyed exists).</li>
+  <li>The <code>knowledge_entries.source</code> CHECK gotcha is <strong>moot for v1</strong> — journal writes never touch <code>knowledge_entries</code>. (Verify the live constraint anyway before any future work leans on <code>source</code>.)</li>
+</ul>
+
+<h2>4 · Auto-context rail (per selected day)</h2>
+<table>
+  <tr><th>Card</th><th>Query</th><th>Notes</th></tr>
+  <tr><td>✅ Tasks completed</td><td><code>tasks.completed_at</code> ∈ [day, day+1) in America/Chicago</td><td><code>completed_at</code> is app-managed (set in <code>api/tasks/actions.ts</code>), exists since Sprint 3. Show title + entity chip, link to task.</td></tr>
+  <tr><td>📄 Knowledge created/filed</td><td><code>knowledge_entries.created_at</code> ∈ day, <code>triage_status='filed'</code> or created-that-day</td><td>Excludes vault-restricted rows the viewer can't read (RLS handles it). Title + kind icon, link to entry.</td></tr>
+  <tr><td>🎙 Granola meetings</td><td><code>external_source='granola'</code> AND <code>external_last_edited_at</code> (fallback <code>created_at</code>) ∈ day</td><td>The meeting trail. Title links to the imported note.</td></tr>
+  <tr><td>📈 Activity</td><td><code>get_recent_activity</code> RPC filtered to the day (extend RPC with an optional date window OR client-side slice)</td><td><code>entity_history</code> + <code>project_updates</code> union view already exists (<code>20260526000003</code>). Prefer extending the RPC with <code>p_after/p_before</code> args (backward-compatible defaults).</td></tr>
+  <tr><td>✨ Daily Spark <span class="tag draft">placeholder</span></td><td>— (static card in v1)</td><td>"Quotes · things you didn't know · puzzles — coming soon." Reserved slot at the top of the rail; content pipeline (curated set vs AI-generated vs external API) is a future slice with its own mini-scoping.</td></tr>
+</table>
+
+<h2>5 · Build plan (phased)</h2>
+<table>
+  <tr><th style="width:4rem">Phase</th><th>Scope</th><th style="width:9rem">Migration?</th></tr>
+  <tr><td><strong>J1</strong></td><td><strong>Substrate + diary page + dictation.</strong> Migration (<code>journal_days</code> + RLS + trigger + <code>journal_append</code> RPC) · pure <code>src/lib/journal/dates.ts</code> (Chicago day-bounds; unit-tested) · server actions <code>getJournalDay</code> / <code>saveJournalDay</code> (debounced autosave upsert) · <code>/dashboard/journal</code> + <code>/dashboard/journal/[date]</code> with ‹ › + date-picker header · <strong><code>VoiceDictateButton</code></strong> (shared component: record → <code>/api/whisper</code> → insert at cursor) · Journal nav item · RLS tests (org isolation on <code>journal_days</code>).</td><td>✅ 1 (55th)</td></tr>
+  <tr><td><strong>J2</strong></td><td><strong>Auto-context rail.</strong> <code>getJournalContext(date)</code> server action running the four day-range queries (Promise.all) · rail UI (cards, right side desktop / below editor mobile) · ✨ Daily Spark placeholder card · dashboard chip <strong>"📓 Journal"</strong> → today (shows ✍️ if today has words, nudge style if empty).</td><td>❌ (unless RPC window args → 1 small)</td></tr>
+  <tr><td><strong>J3</strong></td><td><strong>Siri/quick-capture routing.</strong> <code>type:'journal'</code> + <code>journal:</code> prefix in <code>api/siri/route.ts</code> and <code>submitCapture</code> → <code>journal_append</code> (timestamped chunk, source note) · never inbox, no classification · Siri shortcut update note for Sonja.</td><td>❌</td></tr>
+</table>
+<p class="small">J1 → J3 are each one PR, gates green (verify · smoke · integration), migration confirmed with Sonja before prod apply — the standing agreement.</p>
+
+<h2>6 · Explicitly out of v1</h2>
+<ul class="tight">
+  <li>✨ Daily Spark <em>content</em> (placeholder only; scoping later — source, rotation, AI vs curated).</li>
+  <li>Agent-drawer journaling (<code>log_capture</code> journal route).</li>
+  <li>Streaks / journaling stats, evening reminder cron, mood tracking.</li>
+  <li>Entity/area tagging of journal days (D7) and auto-linking mentioned items.</li>
+  <li>Journal search / export; multi-user visibility rules beyond org RLS (journal is per-user by the unique key; teammates in the org can technically read via RLS — see OQ-1).</li>
+</ul>
+
+<h2>7 · Open questions <span class="tag lock">all resolved 2026-07-13</span></h2>
+<div class="oq">
+  <h3>OQ-1 · Journal privacy vs org RLS</h3>
+  <p>Standard org RLS means a future org teammate could read Sonja's diary. Options: (a) accept for now (single-user org today), (b) tighten the policy to <code>user_id = auth.uid()</code> from day one. <span class="rec">Recommendation: (b) — it's one line in the migration, and a diary is the clearest "owner-only" case in HQ.</span> <strong>✅ Resolved: (b) owner-only.</strong></p>
+</div>
+<div class="oq">
+  <h3>OQ-2 · "Knowledge filed that day" definition</h3>
+  <p><code>created_at</code> only (simple), or also items <em>filed</em> that day (needs a filed-at timestamp we don't store — <code>updated_at</code> is a weak proxy)? <span class="rec">Recommendation: created_at only in v1; a <code>filed_at</code> column is a cheap later add if the distinction matters.</span> <strong>✅ Resolved: created_at only.</strong></p>
+</div>
+<div class="oq">
+  <h3>OQ-3 · Dashboard chip tone</h3>
+  <p>Neutral "📓 Journal" link vs a nudge ("📓 Nothing journaled today") when today is empty? <span class="rec">Recommendation: neutral link with a subtle empty/filled state — nudges are easy to add, hard to unsee.</span> <strong>✅ Resolved: neutral chip.</strong></p>
+</div>
+
+<h2>8 · Verification owed to Sonja (prod eyeball, auth-gated)</h2>
+<ul class="tight">
+  <li>J1: open Journal → today renders, type + autosave survives reload, dictate a sentence via VoiceDictateButton, navigate to yesterday.</li>
+  <li>J2: rail shows a real completed task / filed entry / Granola meeting for a busy day; Spark placeholder visible.</li>
+  <li>J3: Siri "Journal" capture from the phone lands timestamped on today's page without touching 📥 inbox.</li>
+</ul>
+
+<p class="small" style="margin-top:3rem">Spec drafted 2026-07-13 · Repo <code>sf-sonja-hq</code> @ <code>201b49c</code> (54 migrations, 429 unit + 29 RLS) · To be mirrored to HQ Knowledge on lock.</p>
+
+</div>
+</body>
+</html>
