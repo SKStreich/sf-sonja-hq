@@ -66,6 +66,9 @@ export function DashboardNav({ user, profile, entities, notifications }: Dashboa
                 <Link href="/dashboard" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
                   Dashboard
                 </Link>
+                <Link href="/dashboard/journal" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+                  Journal
+                </Link>
                 <Link href="/dashboard/knowledge" className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors">
                   Knowledge
                 </Link>
