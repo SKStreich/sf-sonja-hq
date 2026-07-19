@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { audioFileName } from '@/lib/audio/mime'
 
 export async function POST(req: NextRequest) {
   const supabase = createClient()
@@ -16,8 +17,12 @@ export async function POST(req: NextRequest) {
     const audio = formData.get('audio') as Blob | null
     if (!audio) return NextResponse.json({ error: 'No audio provided' }, { status: 400 })
 
+    // Prefer the filename the client sent (it knows the recorder's real MIME
+    // type); fall back to deriving one from the blob type. A bare Blob append
+    // surfaces here as name "blob".
+    const sentName = audio instanceof File && audio.name && audio.name !== 'blob' ? audio.name : null
     const whisperForm = new FormData()
-    whisperForm.append('file', audio, 'audio.webm')
+    whisperForm.append('file', audio, sentName ?? audioFileName(audio.type))
     whisperForm.append('model', 'whisper-1')
     whisperForm.append('language', 'en')
 

@@ -12,6 +12,7 @@
     "smoke": "node scripts/smoke.mjs",
     "test:watch": "vitest --project node --project jsdom",
     "test:rls": "vitest run --project rls",
+    "test:dictation": "node scripts/dictation-e2e.mjs",
     "test:all": "vitest run",
     "test:coverage": "vitest run --project node --project jsdom --coverage",
     "db:generate-types": "supabase gen types typescript --local > src/types/supabase.ts",
