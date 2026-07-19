@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
+import { audioFileName } from '@/lib/audio/mime'
 
 interface VoiceDictateButtonProps {
   /** Called with the transcribed text after a successful recording. */
@@ -49,7 +50,9 @@ export function VoiceDictateButton({ onTranscript, disabled, className }: VoiceD
         setBusy(true)
         try {
           const form = new FormData()
-          form.append('audio', blob)
+          // Filename carries the container format (Safari records audio/mp4,
+          // Chromium audio/webm) — Whisper parses by extension.
+          form.append('audio', blob, audioFileName(blob.type))
           const res = await fetch('/api/whisper', { method: 'POST', body: form })
           const json = await res.json().catch(() => ({}))
           if (!res.ok) throw new Error(json.error ?? 'Transcription failed')
